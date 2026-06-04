@@ -22,15 +22,25 @@ struct Application {
     uartPutHex(UInt64(read_currentel()))
     uartPuts("\n")
 
+    // Report the generic timer frequency.
+    uartPuts("CNTFRQ = ")
+    uartPutHex(UInt64(timerFrequency()))
+    uartPuts(" Hz (generic timer)\n")
+
+    // Heartbeat: one tick per real second, paced by the hardware timer
+    // (polled CNTP), toggling the ACT LED each second. The ~ms of UART print
+    // time per tick is the only drift; this is a real clock, not a spin count.
     ledInit()
-    var beats: UInt64 = 0
+    var ticks: UInt64 = 0
+    var ledOnState = false
     while true {
-      ledOn(); delay()
-      ledOff(); delay()
-      uartPuts("beat ")
-      uartPutHex(beats)
+      timerWaitSeconds(1)
+      ledOnState.toggle()
+      if ledOnState { ledOn() } else { ledOff() }
+      uartPuts("tick ")
+      uartPutHex(ticks)
       uartPuts("\n")
-      beats &+= 1
+      ticks &+= 1
     }
   }
 }

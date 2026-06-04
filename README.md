@@ -18,6 +18,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | EL2 → EL1 drop | ✅ | **`CurrentEL = 0x4` read back over serial on hardware** |
 | GPIO42 ACT-LED heartbeat | ✅ | **LED blinks + `beat N` counter on hardware** |
 | GPIO14/15 → ALT0 in code (don't trust the overlay) | ✅ | disassembly `bfi w9,w8,#12,#6`; serial works on hardware |
+| Generic timer (CNTP), polled 1 s tick | ✅ | **`CNTFRQ = 54 MHz`; tick measured 1.0005 s mean on hardware** |
 | EL1 exception vectors (`ESR/ELR/FAR` on fault) | ☐ | `VBAR_EL1` set, `<vectors>` 2048-aligned at `0x80800`; **not yet triggered** |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -61,8 +62,8 @@ build.sh / flash.sh / elf2bin.py / config.txt / RUNBOOK.md
 ## Roadmap (next, once it boots)
 
 1. ~~Confirm boot on hardware: banner + `CurrentEL = 0x4` (EL1) over serial.~~ ✅ 2026-06-04
-2. Generic timer tick (CNTP) → a real periodic heartbeat instead of a busy delay. ← **in progress**
-3. GIC-400 IRQ routing (turns the polled timer into a true interrupt; first use of the vector table).
+2. ~~Generic timer tick (CNTP) → a real periodic heartbeat instead of a busy delay.~~ ✅ 2026-06-04 (polled, 1 s @ 54 MHz)
+3. GIC-400 IRQ routing (turns the polled timer into a true interrupt; first use of the vector table). ← **next**
 4. Only then: the Embedded-Swift concurrency experiment (custom executor) — as a
    deliberate later phase, not the foundation.
 
