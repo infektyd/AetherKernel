@@ -31,16 +31,11 @@ struct Application {
     // (polled CNTP), toggling the ACT LED each second. The ~ms of UART print
     // time per tick is the only drift; this is a real clock, not a spin count.
     ledInit()
-    var ticks: UInt64 = 0
-    var ledOnState = false
-    while true {
-      timerWaitSeconds(1)
-      ledOnState.toggle()
-      if ledOnState { ledOn() } else { ledOff() }
-      uartPuts("tick ")
-      uartPutHex(ticks)
-      uartPuts("\n")
-      ticks &+= 1
-    }
+    gicInitTimerIRQ()
+    timerArmIRQ(1)
+    uartPuts("IRQ mode: GIC-400 routing CNTP (INTID 30). Idling in wfi.\n")
+    irq_enable()
+    while true { wait_for_interrupt() }
   }
 }
+

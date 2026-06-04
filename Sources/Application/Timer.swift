@@ -29,3 +29,11 @@ func timerWaitSeconds(_ secs: UInt) {
   while (read_cntp_ctl() & CTL_ISTATUS) == 0 { nop() }
   write_cntp_ctl(0)
 }
+
+// Arm the timer to fire an interrupt after `secs` seconds: load TVAL, enable with IMASK=0.
+// (Polled mode used ENABLE|IMASK=0x3; IRQ mode MUST clear IMASK so the interrupt is delivered.)
+func timerArmIRQ(_ secs: UInt) {
+  write_cntp_tval(timerFrequency() * secs)
+  write_cntp_ctl(1)   // ENABLE, IMASK=0
+}
+

@@ -9,3 +9,5 @@ dtoverlay=disable-bt
 # Pin the PL011 reference clock to 48 MHz so the kernel's IBRD=26/FBRD=3
 # divisor yields exactly 115200 baud regardless of firmware clock scaling.
 init_uart_clock=48000000
+enable_gic=1
+

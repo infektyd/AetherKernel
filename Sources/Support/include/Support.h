@@ -64,3 +64,10 @@ static inline __attribute__((always_inline)) unsigned long read_cntp_ctl(void) {
     __asm__ volatile("mrs %0, cntp_ctl_el0" : "=r"(v));
     return v;
 }
+
+// Unmask IRQs at the PE (boot.S left DAIF masked). DAIFClr bit1 = I.
+static inline __attribute__((always_inline)) void irq_enable(void)  { __asm__ volatile("msr daifclr, #2" ::: "memory"); }
+static inline __attribute__((always_inline)) void irq_disable(void) { __asm__ volatile("msr daifset, #2" ::: "memory"); }
+// Idle until an interrupt arrives.
+static inline __attribute__((always_inline)) void wait_for_interrupt(void) { __asm__ volatile("wfi"); }
+
