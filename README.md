@@ -66,9 +66,9 @@ build.sh / flash.sh / elf2bin.py / config.txt / RUNBOOK.md
 2. ~~Generic timer tick (CNTP) → a real periodic heartbeat instead of a busy delay.~~ ✅ 2026-06-04 (polled, 1 s @ 54 MHz)
 3. ~~GIC-400 IRQ routing (turns the polled timer into a true interrupt; first use of the vector table).~~ ✅ 2026-06-04 (interrupt-driven, `wfi` idle)
 4. **The Embedded-Swift concurrency experiment (custom executor).** 🏆 **`async`/`await`
-   running on bare metal — hardware-verified 2026-06-04.** A Swift `async Task`, created in
-   `@main`, scheduled by our own C cooperative executor, runs to completion on the real Pi 4:
-   serial prints `[task] hello from async/await on the metal`, then the CPU idles in `wfi`.
+   running on bare metal — hardware-verified 2026-06-04.** Swift `async Task`s scheduled by our own
+   C cooperative executor on the real Pi 4: an `async` heartbeat prints `async tick N` ~1 s apart,
+   the CNTP timer IRQ resuming the suspended continuation while the CPU idles in `wfi`.
    - Foundation: migrated ELF → `arm64-apple-none-macho` (swift-6.3.2) to get
      `_Concurrency` (not built for `aarch64-none-none-elf`); MS1–3 re-verified on hardware.
    - **Stage 1 — heap allocator** (`Sources/Support/alloc.c`): first-fit free list +
@@ -81,8 +81,11 @@ build.sh / flash.sh / elf2bin.py / config.txt / RUNBOOK.md
      **CPACR_EL1.FPEN** (the runtime uses FP/NEON) and **the MMU** (`mmu.c`, identity-mapped Normal
      cacheable RAM) — without the MMU, Cortex-A72 has no exclusive monitor on Device memory and
      `swift_task_create`'s `ldxr/stxr` CAS loop spins forever.
-   - Stage 3 — timer-backed `Task.sleep(nanoseconds:)` (wire INTID 30 → `executor_on_timer_irq`);
-     Stage 4 — async heartbeat demo. ← **next**
+   - **Stage 3 — timer-backed async sleep + heartbeat.** ✅ hardware-verified. `Task.sleep` is
+     unavailable in Embedded Swift, so suspension is hand-rolled with `withUnsafeContinuation`
+     (`TimerSleep.swift`), resumed by the CNTP timer IRQ (INTID 30 → `serviceTimerSleeper`); the CNTP
+     register ops live in non-inline C (`timersleep_hw.c`). `async tick N` ~1 s apart, CPU idle in
+     `wfi` between ticks. Bonus: `watchdog.c` (BCM2711 PM reset) — hardware-verified self-reboot.
      See `CONCURRENCY_DESIGN.md` (GROUND TRUTH block) for the verified symbol/ABI contract.
 
 ## Provenance
