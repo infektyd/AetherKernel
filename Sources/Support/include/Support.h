@@ -88,4 +88,18 @@ int posix_memalign(void **memptr, unsigned long alignment, unsigned long size);
 void *calloc(unsigned long nmemb, unsigned long size);
 void *realloc(void *ptr, unsigned long size);
 
+// MS4 cooperative executor (Sources/Support/executor.c).
+// swift_task_asyncMainDrainQueue is the runtime's public drain trampoline (defined
+// in libswift_Concurrency.a; it forwards to our swift_task_asyncMainDrainQueueImpl).
+// It is void(void) so the swiftcall/cdecl ABI difference is immaterial here.
+void swift_task_asyncMainDrainQueue(void);
+// Called from the Swift GIC IRQ handler on INTID 30 (Stage 3+): matures the delay
+// queue and re-arms CNTP. No-op-safe to call even with an empty delay queue.
+void executor_on_timer_irq(void);
+
+// MMU setup (Sources/Support/mmu.c). Called from boot.S after the EL1 drop and
+// before _main: identity-maps RAM as Normal Inner-Shareable cacheable (peripherals
+// as Device) so the concurrency runtime's ldxr/stxr atomics have an exclusive monitor.
+void mmu_enable(void);
+
 

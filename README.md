@@ -65,17 +65,24 @@ build.sh / flash.sh / elf2bin.py / config.txt / RUNBOOK.md
 1. ~~Confirm boot on hardware: banner + `CurrentEL = 0x4` (EL1) over serial.~~ ✅ 2026-06-04
 2. ~~Generic timer tick (CNTP) → a real periodic heartbeat instead of a busy delay.~~ ✅ 2026-06-04 (polled, 1 s @ 54 MHz)
 3. ~~GIC-400 IRQ routing (turns the polled timer into a true interrupt; first use of the vector table).~~ ✅ 2026-06-04 (interrupt-driven, `wfi` idle)
-4. The Embedded-Swift concurrency experiment (custom executor) — the deliberate
-   final phase, now that timer + interrupts are real. ← **in progress**
+4. **The Embedded-Swift concurrency experiment (custom executor).** 🏆 **`async`/`await`
+   running on bare metal — hardware-verified 2026-06-04.** A Swift `async Task`, created in
+   `@main`, scheduled by our own C cooperative executor, runs to completion on the real Pi 4:
+   serial prints `[task] hello from async/await on the metal`, then the CPU idles in `wfi`.
    - Foundation: migrated ELF → `arm64-apple-none-macho` (swift-6.3.2) to get
      `_Concurrency` (not built for `aarch64-none-none-elf`); MS1–3 re-verified on hardware.
    - **Stage 1 — heap allocator** (`Sources/Support/alloc.c`): first-fit free list +
-     boundary-tag coalescing. ✅ **hardware-verified 2026-06-04** — freed-slot reuse
-     (`c == a`), 4096-aligned `posix_memalign`, IRQ heartbeat survives the probe.
-   - Stage 2 — executor: plain-C `…Impl` hooks (`SWIFT_CC(swift)`, per `ExecutorImpl.h`),
-     ready/delay ring queues, NORETURN drain pump, `swift_slowAlloc/Dealloc` shims, bootstrap
-     one `Task{}`. (Don't link `libswift_ConcurrencyDefaultExecutor.a`.) ← **next**
-   - Stage 3 — timer-backed `Task.sleep(nanoseconds:)`; Stage 4 — async heartbeat demo.
+     boundary-tag coalescing. ✅ hardware-verified — freed-slot reuse (`c == a`),
+     4096-aligned `posix_memalign`.
+   - **Stage 2 — executor + runtime integration.** ✅ hardware-verified. Plain-C `…Impl` hooks
+     (`SWIFT_CC(swift)`, `executor.c`), ready/delay ring queues, NORETURN drain pump,
+     `swift_slowAlloc/Dealloc` + libc shims (`libc_shims.c`), `-force_load libswift_Concurrency.a`
+     (DefaultExecutor NOT linked). Two bring-up requirements the runtime forced, both in `boot.S`:
+     **CPACR_EL1.FPEN** (the runtime uses FP/NEON) and **the MMU** (`mmu.c`, identity-mapped Normal
+     cacheable RAM) — without the MMU, Cortex-A72 has no exclusive monitor on Device memory and
+     `swift_task_create`'s `ldxr/stxr` CAS loop spins forever.
+   - Stage 3 — timer-backed `Task.sleep(nanoseconds:)` (wire INTID 30 → `executor_on_timer_irq`);
+     Stage 4 — async heartbeat demo. ← **next**
      See `CONCURRENCY_DESIGN.md` (GROUND TRUTH block) for the verified symbol/ABI contract.
 
 ## Provenance

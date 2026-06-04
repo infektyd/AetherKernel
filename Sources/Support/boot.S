@@ -68,6 +68,20 @@ el1_entry:
     ldr     x0, =vectors
     msr     vbar_el1, x0
 
+    // Enable FP/SIMD access at EL1/EL0 (CPACR_EL1.FPEN = 0b11, bits [21:20]).
+    // The precompiled Embedded _Concurrency runtime contains FP/NEON; without
+    // this the first such instruction traps to the sync vector. (Our own kernel
+    // code is integer-only, which is why MS1-3 didn't need this.)
+    mov     x0, #(3 << 20)
+    msr     cpacr_el1, x0
+    isb
+
+    // Enable the MMU with Normal Inner-Shareable cacheable RAM (identity-mapped).
+    // The Embedded _Concurrency runtime uses ldxr/stxr atomics, which have no
+    // exclusive monitor on Device memory (MMU off) — swift_task_create's CAS loop
+    // would spin forever. Must run before any Swift concurrency code.
+    bl      _mmu_enable
+
     // BSS is already zero in the loaded image (-no_zero_fill_sections), so jump
     // straight into Swift. (Mach-O: Swift's @main entry is the C symbol `_main`.)
     bl      _main

@@ -7,6 +7,7 @@
 // added once UART gives us an output channel to prove it.
 //===----------------------------------------------------------------------===//
 import Support
+import _Concurrency
 
 @main
 struct Application {
@@ -40,15 +41,17 @@ struct Application {
     uartPuts("memalign r="); uartPutHex(UInt64(UInt(r))); uartPuts(" p=")
     uartPutHex(UInt64(UInt(bitPattern: p))); uartPuts(" (low12 must be 0)\n")
 
-    // Heartbeat: one tick per real second, paced by the hardware timer
-    // (polled CNTP), toggling the ACT LED each second. The ~ms of UART print
-    // time per tick is the only drift; this is a real clock, not a spin count.
+    // MS4 Stage 2: bootstrap the cooperative executor (executor.c). Create one
+    // async Task, then hand the CPU to the drain pump (never returns). No timer
+    // is armed yet — the task runs on the first drain iteration and the pump then
+    // idles in wfi; timer-backed Task.sleep arrives in Stage 3.
     ledInit()
-    gicInitTimerIRQ()
-    timerArmIRQ(1)
-    uartPuts("IRQ mode: GIC-400 routing CNTP (INTID 30). Idling in wfi.\n")
-    irq_enable()
-    while true { wait_for_interrupt() }
+    uartPuts("MS4 Stage 2: creating Task...\n")
+    Task {
+      uartPuts("[task] hello from async/await on the metal\n")
+    }
+    uartPuts("MS4 Stage 2: entering drain pump (wfi when idle)...\n")
+    swift_task_asyncMainDrainQueue()
   }
 }
 

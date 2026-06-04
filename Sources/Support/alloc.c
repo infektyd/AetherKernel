@@ -298,3 +298,25 @@ void *realloc(void *ptr, size_t size) {
     free(ptr);
     return new_ptr;
 }
+
+//===----------------------------------------------------------------------===//
+// Swift runtime slow allocation — backed by the Stage-1 heap above.
+//===----------------------------------------------------------------------===//
+
+void *swift_slowAlloc(size_t size, size_t alignMask) {
+    // alignMask is (alignment - 1), or ~0 / 0 meaning "default" (16-byte).
+    if (alignMask == 0 || alignMask == (size_t)-1 || alignMask <= 15) {
+        return malloc(size);
+    }
+    void *p = NULL;
+    if (posix_memalign(&p, alignMask + 1, size) != 0) {
+        return NULL;
+    }
+    return p;
+}
+
+void swift_slowDealloc(void *ptr, size_t size, size_t alignMask) {
+    (void)size;
+    (void)alignMask;
+    free(ptr);
+}
