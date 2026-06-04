@@ -3,21 +3,26 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **builds clean, compile- and disassembly-verified; not yet booted on
-> hardware** (first real boot is pending — see RUNBOOK.md). Honest labels only:
-> anything not hardware-confirmed says so.
+> Status: **boots on real Raspberry Pi 4B hardware** (2026-06-04) — banner +
+> `CurrentEL = 0x4` (EL1) + heartbeat confirmed over PL011 serial @ 115200.
+> Boot stub, EL2→EL1 drop, UART, and GPIO are now hardware-verified, not just
+> compile-/disassembly-verified. Honest labels only: anything not
+> hardware-confirmed says so.
 
 ## What works (verified on the build side)
 
 | Milestone | State | Verified how |
 |-----------|-------|--------------|
-| Toolchain → bare AArch64 ELF → `kernel8.img` | ✅ | builds; `elf2bin` emits 2 PT_LOAD segments at `0x80000` |
-| PL011 UART0 driver + banner + `CurrentEL` readout | ✅ | compiles; MMIO via C `volatile` |
-| EL2 → EL1 drop | ✅ | disassembly confirms `HCR/SCTLR/CNTHCTL/CNTVOFF/SPSR/ELR_EL2` + `eret` |
-| EL1 exception vectors (`ESR/ELR/FAR` on fault) | ✅ | `VBAR_EL1` set; `<vectors>` 2048-aligned at `0x80800` |
+| Toolchain → bare AArch64 ELF → `kernel8.img` | ✅ | boots on hardware; `elf2bin` emits 2 PT_LOAD segments at `0x80000` |
+| PL011 UART0 driver + banner + `CurrentEL` readout | ✅ | **banner received over serial on real Pi 4** |
+| EL2 → EL1 drop | ✅ | **`CurrentEL = 0x4` read back over serial on hardware** |
+| GPIO42 ACT-LED heartbeat | ✅ | **LED blinks + `beat N` counter on hardware** |
+| GPIO14/15 → ALT0 in code (don't trust the overlay) | ✅ | disassembly `bfi w9,w8,#12,#6`; serial works on hardware |
+| EL1 exception vectors (`ESR/ELR/FAR` on fault) | ☐ | `VBAR_EL1` set, `<vectors>` 2048-aligned at `0x80800`; **not yet triggered** |
 
-The one thing only hardware can confirm — that it actually boots and prints —
-is tomorrow's job.
+First hardware boot: 2026-06-04. The one trap worth recording — serial was
+silent until the FT232 **RX** was moved to header **pin 8** (GPIO14/Pi-TXD); a
+classic RX/TX crossover mistake, not a kernel bug.
 
 ## Toolchain reality (why the build looks unusual)
 
@@ -55,9 +60,9 @@ build.sh / flash.sh / elf2bin.py / config.txt / RUNBOOK.md
 
 ## Roadmap (next, once it boots)
 
-1. Confirm boot on hardware: banner + `CurrentEL = 0x4` (EL1) over serial.
-2. Generic timer tick (CNTP) → a real periodic heartbeat instead of a busy delay.
-3. GIC-400 IRQ routing.
+1. ~~Confirm boot on hardware: banner + `CurrentEL = 0x4` (EL1) over serial.~~ ✅ 2026-06-04
+2. Generic timer tick (CNTP) → a real periodic heartbeat instead of a busy delay. ← **in progress**
+3. GIC-400 IRQ routing (turns the polled timer into a true interrupt; first use of the vector table).
 4. Only then: the Embedded-Swift concurrency experiment (custom executor) — as a
    deliberate later phase, not the foundation.
 
