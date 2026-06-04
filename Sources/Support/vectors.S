@@ -15,7 +15,7 @@
     b \label
 .endm
 
-.section ".text"
+.section __TEXT,__text,regular,pure_instructions
 .balign 0x800
 .global vectors
 vectors:
@@ -42,7 +42,7 @@ exc_common:
     mrs     x0, esr_el1
     mrs     x1, elr_el1
     mrs     x2, far_el1
-    bl      kernel_exception_handler
+    bl      _kernel_exception_handler
 exc_hang:
     wfe
     b       exc_hang
@@ -62,7 +62,7 @@ irq_entry:
     mrs x0, elr_el1
     mrs x1, spsr_el1
     stp x0, x1,  [sp, #-16]!
-    bl  irq_handler
+    bl  _irq_handler
     ldp x0, x1,  [sp], #16
     msr spsr_el1, x1
     msr elr_el1, x0

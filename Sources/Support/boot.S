@@ -3,12 +3,18 @@
 //
 // The stock Pi 4 armstub hands control to kernel8.img at EL2 on the primary
 // core, secondaries parked. We: park secondaries, drop EL2->EL1, set the
-// stack, zero BSS, and branch to Swift `main`.
+// stack, install vectors, and branch to Swift `main`.
 //
 // Every system-register write in the EL drop is deliberate; see comments.
+//
+// Mach-O build: this lives in a dedicated __BOOT segment pinned to 0x80000
+// (the Pi firmware's kernel8.img entry point) via the linker's
+// `-segaddr __BOOT 0x80000`, so _start is the first byte of the image. BSS is
+// pre-zeroed in the image by `-no_zero_fill_sections`, so there is no runtime
+// BSS-zeroing loop (and no linker-script __bss_start/__bss_size symbols).
 //===----------------------------------------------------------------------===//
 
-.section ".text.boot"
+.section __BOOT,__text,regular,pure_instructions
 .global _start
 
 _start:
@@ -62,18 +68,9 @@ el1_entry:
     ldr     x0, =vectors
     msr     vbar_el1, x0
 
-    // Zero the BSS (linker provides __bss_start and __bss_size in 8-byte words).
-    ldr     x1, =__bss_start
-    ldr     w2, =__bss_size
-bss_loop:
-    cbz     w2, bss_done
-    str     xzr, [x1], #8
-    sub     w2, w2, #1
-    cbnz    w2, bss_loop
-bss_done:
-
-    // Into Swift.
-    bl      main
+    // BSS is already zero in the loaded image (-no_zero_fill_sections), so jump
+    // straight into Swift. (Mach-O: Swift's @main entry is the C symbol `_main`.)
+    bl      _main
 halt:
     wfe
     b       halt

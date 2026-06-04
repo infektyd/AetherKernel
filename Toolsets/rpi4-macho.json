@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0",
+  "swiftCompiler": {
+    "extraCLIOptions": [
+      "-Xfrontend", "-disable-stack-protector",
+      "-enable-experimental-feature", "Embedded",
+      "-Xcc", "-mcpu=cortex-a72"
+    ]
+  },
+  "linker": {
+    "extraCLIOptions": [
+      "-arch", "arm64",
+      "-dead_strip",
+      "-static",
+      "-e", "_start",
+      "-platform_version", "macos", "14.0", "14.0",
+      "-no_zero_fill_sections",
+      "-segalign", "0x4000",
+      "-segaddr", "__BOOT", "0x80000",
+      "-segaddr", "__TEXT", "0x84000",
+      "-pagezero_size", "0"
+    ]
+  }
+}

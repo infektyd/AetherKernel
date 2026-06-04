@@ -2,32 +2,32 @@
 #===----------------------------------------------------------------------===#
 # Build AetherKernel -> kernel8.img (bare-metal Raspberry Pi 4B / AArch64).
 #
-# Uses the swift-6.0-RELEASE toolchain because it carries the Embedded stdlib
-# for aarch64-none-none-elf. Flags are the toolset JSON translated to -Xswiftc/
-# -Xlinker (this toolchain's SwiftPM has no --toolset). lld + a tiny Python
-# extractor replace llvm-objcopy (not installed; brew llvm is too big for disk).
+# Mach-O path (swift-6.3.2-RELEASE): targets arm64-apple-none-macho, the only
+# AArch64 triple for which the toolchain ships the Embedded _Concurrency module
+# (async/await). Linking uses ld64 via a toolset; macho2bin.py extracts the flat
+# kernel8.img. (The prior ELF path — aarch64-none-none-elf + lld + linker script
+# + elf2bin.py — is preserved on the `main`/`elf-baseline` branches; that triple
+# has no Embedded concurrency.)
 #===----------------------------------------------------------------------===#
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-TOOLCHAIN=/Library/Developer/Toolchains/swift-6.0-RELEASE.xctoolchain/usr/bin
-TRIPLE=aarch64-none-none-elf
+TOOLCHAIN="$HOME/Library/Developer/Toolchains/swift-6.3.2-RELEASE.xctoolchain/usr/bin"
+TRIPLE=arm64-apple-none-macho
 
 "$TOOLCHAIN/swift" build \
   --configuration release \
   --triple "$TRIPLE" \
-  -Xswiftc -enable-experimental-feature -Xswiftc Embedded \
-  -Xswiftc -Xfrontend -Xswiftc -disable-stack-protector \
-  -Xswiftc -Xfrontend -Xswiftc -function-sections \
-  -Xswiftc -Xclang-linker -Xswiftc -fuse-ld=lld \
-  -Xswiftc -Xclang-linker -Xswiftc -nostdlib \
-  -Xlinker -T -Xlinker Sources/Support/linkerscript.ld \
-  -Xlinker --unresolved-symbols=ignore-in-object-files
+  --toolset Toolsets/rpi4-macho.json
 
 BIN=".build/$TRIPLE/release/Application"
-echo "==> extracting raw binary -> kernel8.img"
-python3 elf2bin.py "$BIN" kernel8.img
+echo "==> extracting flat binary -> kernel8.img"
+# macho2bin lays the named segments out by VM address from --base-address,
+# zero-filling gaps. __BOOT (pinned to 0x80000) carries _start first.
+uv run ./macho2bin.py "$BIN" kernel8.img \
+  --base-address 0x80000 \
+  --segments '__BOOT,__TEXT,__DATA'
 echo "==> kernel8.img:"
 ls -la kernel8.img
 echo "==> done."
