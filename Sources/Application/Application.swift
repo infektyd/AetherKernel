@@ -1,0 +1,36 @@
+//===----------------------------------------------------------------------===//
+// AetherKernel entry point.
+//
+// boot.S parks the secondary cores, zeroes BSS, sets the stack, and `bl main`
+// into this @main. We currently run in whatever EL the firmware hands off
+// (EL2 on the stock Pi 4 armstub). The EL2->EL1 drop is the next milestone —
+// added once UART gives us an output channel to prove it.
+//===----------------------------------------------------------------------===//
+import Support
+
+@main
+struct Application {
+  static func main() {
+    uartInit()
+    uartPuts("\n=== AetherKernel ===\n")
+    uartPuts("Embedded Swift 6.0 - bare-metal Raspberry Pi 4B (BCM2711)\n")
+    uartPuts("PL011 UART0 @ 0xFE201000 online. Hello from the metal!\n")
+
+    // Prove which exception level the firmware dropped us into.
+    // CurrentEL holds the level in bits [3:2], so EL2 reads back as 0x8.
+    uartPuts("CurrentEL = ")
+    uartPutHex(UInt64(read_currentel()))
+    uartPuts("\n")
+
+    ledInit()
+    var beats: UInt64 = 0
+    while true {
+      ledOn(); delay()
+      ledOff(); delay()
+      uartPuts("beat ")
+      uartPutHex(beats)
+      uartPuts("\n")
+      beats &+= 1
+    }
+  }
+}

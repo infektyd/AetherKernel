@@ -1,0 +1,4 @@
+.build/
+kernel8.img
+*.o
+.DS_Store
