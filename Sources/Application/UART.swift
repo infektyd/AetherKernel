@@ -22,6 +22,10 @@ private let ICR: UInt = 0x44   // Interrupt clear
 private let FR_TXFF: UInt32 = 1 << 5  // Transmit FIFO full
 
 func uartInit() {
+  // Route GPIO14/15 to ALT0 (PL011) ourselves — do not depend on the firmware
+  // overlay. (Hardware-verified: without this the kernel ran but sent nothing
+  // to the header.)
+  uartPinsInit()
   // Disable the UART while we reconfigure it.
   mmio_write32(UART0_BASE + CR, 0)
   // Clear all pending interrupts.
