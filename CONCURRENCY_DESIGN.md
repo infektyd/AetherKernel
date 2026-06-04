@@ -22,6 +22,47 @@
 > NOT actually delay a `ContinuousClock` sleep). Watch the executor's own allocations — the research used
 > Swift `Array` queues (which allocate); keep enqueue paths simple and the allocator reentrancy-safe
 > (enqueue runs in task context, the timer IRQ only matures the delay queue → wakes `wfi`).
+>
+> ## GROUND TRUTH (2026-06-04) — `nm` + `ExecutorImpl.h` from our actual 6.3.2 toolchain
+> Verified empirically against `usr/lib/swift/embedded/arm64-apple-none-macho/libswift_Concurrency.a`,
+> `libswift_ConcurrencyDefaultExecutor.a`, and `usr/include/swift/ExecutorImpl.h`. **Three corrections to
+> the original plan below — the §2/§3b text under them is superseded by this block:**
+> 1. **Define the `…Impl` symbols, NOT the public trampolines.** `swift_task_enqueueGlobal` /
+>    `…WithDelay` / `asyncMainDrainQueue` / `enqueueMainExecutor` are already **defined (T)** in
+>    `libswift_Concurrency.a`; redefining them = duplicate-symbol link error. The real seam is the
+>    `…Impl` set, which `libswift_ConcurrencyDefaultExecutor.a` defines. So: **do NOT link
+>    DefaultExecutor.a**, and provide the `…Impl` functions ourselves.
+> 2. **Write the executor in C, not Swift `@_cdecl`.** The Impl functions are `SWIFT_CC(swift)`
+>    (`__attribute__((swiftcall))`); `@_cdecl` emits the C convention → ABI mismatch. `ExecutorImpl.h`
+>    is explicitly "the declarations you need to write a custom global executor in plain C." → new file
+>    `Sources/Support/executor.c` that `#include <swift/ExecutorImpl.h>` and implements the contract with
+>    the header's own macros. Run jobs via the header's inline `swift_job_run(job, swift_executor_generic())`
+>    (→ `_swift_job_run_c`, defined in the archive — we call it, don't provide it).
+> 3. **`swift_slowAlloc`/`swift_slowDealloc` are also required** (true externals alongside `malloc`/`free`).
+>    Stage 1's `malloc`/`free` is the right base; add thin `swift_slowAlloc`(→`posix_memalign`/`malloc`)
+>    / `swift_slowDealloc`(→`free`) shims.
+>
+> **Contract to implement (exact signatures from `ExecutorImpl.h`):**
+> ```c
+> #include <swift/ExecutorImpl.h>
+> SWIFT_CC(swift) void swift_task_enqueueGlobalImpl(SwiftJob *job);                       // push ready ring
+> SWIFT_CC(swift) void swift_task_enqueueGlobalWithDelayImpl(SwiftJobDelay delayNs, SwiftJob *job); // delay FIRST, ns
+> SWIFT_CC(swift) void swift_task_enqueueMainExecutorImpl(SwiftJob *job);                 // == enqueueGlobal (1 thread)
+> SWIFT_CC(swift) SwiftExecutorRef swift_task_getMainExecutorImpl(void);                  // return swift_executor_generic()
+> SWIFT_CC(swift) bool  swift_task_isMainExecutorImpl(SwiftExecutorRef e);                // return true
+> SWIFT_CC(swift) void  swift_task_checkIsolatedImpl(SwiftExecutorRef e);                 // no-op
+> SWIFT_CC(swift) int8_t swift_task_isIsolatingCurrentContextImpl(SwiftExecutorRef e);    // return 1 (isolated)
+> SWIFT_RUNTIME_ATTRIBUTE_NORETURN SWIFT_CC(swift) void swift_task_asyncMainDrainQueueImpl(void); // THE PUMP
+> SWIFT_CC(swift) void swift_task_enqueueGlobalWithDeadlineImpl(long long s,long long ns,long long ts,long long tns,int clk,SwiftJob*); // route→delay or assert
+> SWIFT_CC(swift) void swift_task_donateThreadToGlobalExecutorUntilImpl(bool(*cond)(void*),void*ctx);      // dummy/assert (optional)
+> // run a job: swift_job_run(job, swift_executor_generic());   // inline in the header → _swift_job_run_c
+> // SwiftJobDelay = unsigned long long (ns). Job priority via swift_job_getPriority(job) if we want priority ordering.
+> ```
+> The pump (`asyncMainDrainQueueImpl`): loop { pop a ready job → `swift_job_run(job, generic)`; when ready
+> ring empty → promote delay-queue jobs whose deadline ≤ now into ready (also done from the timer IRQ),
+> arm `CNTP` for the next deadline, `wfi` if nothing due }. Ready/delay queues are fixed C arrays guarded by
+> `irq_save()/irq_restore()` (IRQ matures the delay queue → wakes `wfi`). Still prefer `Task.sleep(nanoseconds:)`
+> for the demo so we hit `WithDelayImpl` (ns, no clock dependency) rather than the deadline/clock path.
 
 ## 0. Goal
 Run real Swift `async/await` on the metal: a single-threaded **cooperative executor** whose time

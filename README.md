@@ -66,7 +66,17 @@ build.sh / flash.sh / elf2bin.py / config.txt / RUNBOOK.md
 2. ~~Generic timer tick (CNTP) → a real periodic heartbeat instead of a busy delay.~~ ✅ 2026-06-04 (polled, 1 s @ 54 MHz)
 3. ~~GIC-400 IRQ routing (turns the polled timer into a true interrupt; first use of the vector table).~~ ✅ 2026-06-04 (interrupt-driven, `wfi` idle)
 4. The Embedded-Swift concurrency experiment (custom executor) — the deliberate
-   final phase, now that timer + interrupts are real. ← **next**
+   final phase, now that timer + interrupts are real. ← **in progress**
+   - Foundation: migrated ELF → `arm64-apple-none-macho` (swift-6.3.2) to get
+     `_Concurrency` (not built for `aarch64-none-none-elf`); MS1–3 re-verified on hardware.
+   - **Stage 1 — heap allocator** (`Sources/Support/alloc.c`): first-fit free list +
+     boundary-tag coalescing. ✅ **hardware-verified 2026-06-04** — freed-slot reuse
+     (`c == a`), 4096-aligned `posix_memalign`, IRQ heartbeat survives the probe.
+   - Stage 2 — executor: plain-C `…Impl` hooks (`SWIFT_CC(swift)`, per `ExecutorImpl.h`),
+     ready/delay ring queues, NORETURN drain pump, `swift_slowAlloc/Dealloc` shims, bootstrap
+     one `Task{}`. (Don't link `libswift_ConcurrencyDefaultExecutor.a`.) ← **next**
+   - Stage 3 — timer-backed `Task.sleep(nanoseconds:)`; Stage 4 — async heartbeat demo.
+     See `CONCURRENCY_DESIGN.md` (GROUND TRUTH block) for the verified symbol/ABI contract.
 
 ## Provenance
 
