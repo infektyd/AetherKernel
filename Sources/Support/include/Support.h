@@ -102,4 +102,12 @@ void executor_on_timer_irq(void);
 // as Device) so the concurrency runtime's ldxr/stxr atomics have an exclusive monitor.
 void mmu_enable(void);
 
+// BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
+// board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
+// disable cancels a pending reset.
+void watchdog_reset_now(void);
+void watchdog_arm_seconds(unsigned int seconds);
+void watchdog_pet_seconds(unsigned int seconds);
+void watchdog_disable(void);
+
 
