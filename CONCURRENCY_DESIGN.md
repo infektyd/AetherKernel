@@ -1,23 +1,27 @@
 # AetherKernel — Milestone 4 design: async/await on bare metal (cooperative executor)
 
-**Status:** BLOCKED on toolchain (empirically confirmed 2026-06-04). The rest of this design is sound
-but cannot be built on `swift-6.0-RELEASE`.
+**Status:** ✅ UNBLOCKED — ready to implement. (Resolved 2026-06-04.)
 
-> ## ⛔ BLOCKER: `_Concurrency` is not shipped for `aarch64-none-none-elf` in swift-6.0-RELEASE
-> Probe (`import _Concurrency` / `Task {}`) fails: the toolchain's Embedded `_Concurrency.swiftmodule`
-> only contains **macOS triples** (`arm64-apple-macos`, `arm64e-apple-macos`, `x86_64-apple-macos`) —
-> **no `aarch64-none-none-elf` variant**. (`Swift` core and `Synchronization` *do* have it — that's why
-> the kernel builds.) So `async/await`/`Task` cannot even be imported for our bare-metal target on 6.0;
-> the executor-hook approach below is moot until the module exists for our triple.
+> ## Resolution: build on the Mach-O path, which ships `_Concurrency`
+> `_Concurrency` is NOT built for `aarch64-none-none-elf` (true in both 6.0 and 6.3.2), but IT IS
+> built for **`arm64-apple-none-macho`**. We migrated the build to that triple/object-format
+> (commit 07de443, branch `feat/macho-concurrency`) and **hardware-re-verified the full MS1–3
+> foundation** (boot/UART/timer/GIC IRQ all identical to the ELF kernel) on the real Pi 4. Empirically
+> confirmed `import _Concurrency` + `Task{}` compiles for `arm64-apple-none-macho` on swift-6.3.2.
+> So async/await is available on a proven base; the executor-hook design below is now buildable.
 >
-> **Paths:** (A) upgrade to a newer toolchain (6.1+/main snapshot) where Embedded concurrency was ported
-> to bare-metal triples — the real route to the async vision; requires a toolchain download + rebuilding
-> the verified UART/timer/GIC kernel on it. (B) hand-rolled cooperative scheduler on 6.0 (our own task
-> type + run loop, NOT Swift async/await) — achievable now but not "the Embedded-Swift concurrency
-> experiment." (C) await research for a 6.0 workaround (unlikely — the module is simply absent).
-
-The architecture below assumes a toolchain where Embedded `_Concurrency` targets our triple. `[VERIFY]`
-items await the research report; once a toolchain provides the module, this becomes the Gemini spec.
+> Build recipe + Mach-O gotchas: see `BRINGUP_PLAYBOOK.md` + the Minni notes. The `[VERIFY]` tags below
+> are resolved by the concurrency research (Agent recipe): hooks are `@_cdecl` define-the-symbol (not
+> `*_hook` pointers); run jobs via `UnownedJob.runSynchronously(on:)` with a dummy `SerialExecutor`;
+> heap is mandatory — provide `malloc`/`free`/`posix_memalign` (a bump allocator is INSUFFICIENT, since
+> `Task.sleep` continuations are freed); `Task.sleep(nanoseconds:)` → `enqueueGlobalWithDelay` (ns) →
+> `CNTP_CVAL_EL0`; `wfi` wakes on a pending IRQ even with `PSTATE.I` masked (race-free drain).
+>
+> CORRECTIONS to fold in when implementing: prefer `Task.sleep(nanoseconds:)` for the demo (routes
+> through the delay hook we implement; the research's deadline-hook "enqueue immediately" fallback would
+> NOT actually delay a `ContinuousClock` sleep). Watch the executor's own allocations — the research used
+> Swift `Array` queues (which allocate); keep enqueue paths simple and the allocator reentrancy-safe
+> (enqueue runs in task context, the timer IRQ only matures the delay queue → wakes `wfi`).
 
 ## 0. Goal
 Run real Swift `async/await` on the metal: a single-threaded **cooperative executor** whose time

@@ -71,3 +71,21 @@ static inline __attribute__((always_inline)) void irq_disable(void) { __asm__ vo
 // Idle until an interrupt arrives.
 static inline __attribute__((always_inline)) void wait_for_interrupt(void) { __asm__ volatile("wfi"); }
 
+// DAIF critical-section helpers
+static inline __attribute__((always_inline)) unsigned long irq_save(void) {
+    unsigned long f;
+    __asm__ volatile("mrs %0, daif; msr daifset, #2" : "=r"(f) :: "memory");
+    return f;
+}
+static inline __attribute__((always_inline)) void irq_restore(unsigned long f) {
+    __asm__ volatile("msr daif, %0" :: "r"(f) : "memory");
+}
+
+// Memory allocator functions exposed to Swift/application
+void *malloc(unsigned long size);
+void free(void *ptr);
+int posix_memalign(void **memptr, unsigned long alignment, unsigned long size);
+void *calloc(unsigned long nmemb, unsigned long size);
+void *realloc(void *ptr, unsigned long size);
+
+
