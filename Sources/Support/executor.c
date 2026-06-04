@@ -150,7 +150,11 @@ static void arm_next_deadline(void) {
     unsigned long flags = irq_save();
 
     if (delayed_count == 0) {
-        write_cntp_ctl(0);
+        // No jobs on the C delay queue. Leave CNTP untouched: in Stage 3 the timer
+        // is owned by the Swift timer-sleep path (TimerSleep.swift), and disabling
+        // it here would clobber a pending sleeper's wakeup. (The runtime's
+        // Task.sleep — which would feed this delay queue — is unavailable in
+        // Embedded Swift, so this queue stays empty in practice.)
         irq_restore(flags);
         return;
     }

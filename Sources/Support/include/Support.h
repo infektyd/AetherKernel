@@ -47,7 +47,11 @@ static inline __attribute__((always_inline)) unsigned long read_cntfrq(void) {
 static inline __attribute__((always_inline)) unsigned long read_cntpct(void) {
     unsigned long v;
     // isb so the read isn't speculated before prior instructions (ARM ARM).
-    __asm__ volatile("isb; mrs %0, cntpct_el0" : "=r"(v) :: "memory");
+    // NOTE: keep the isb and the mrs as SEPARATE asm statements. Combined as one
+    // template ("isb; mrs %0, cntpct_el0"), the optimizer dropped the mrs (kept
+    // only the isb), leaving the output uninitialized — verified in disassembly.
+    __asm__ volatile("isb" ::: "memory");
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(v) :: "memory");
     return v;
 }
 
@@ -96,6 +100,13 @@ void swift_task_asyncMainDrainQueue(void);
 // Called from the Swift GIC IRQ handler on INTID 30 (Stage 3+): matures the delay
 // queue and re-arms CNTP. No-op-safe to call even with an empty delay queue.
 void executor_on_timer_irq(void);
+
+// Timer-sleep hardware (Sources/Support/timersleep_hw.c). All in non-inline C
+// because the CNTP inline-asm helpers get miscompiled when inlined into the
+// @_cdecl IRQ-path Swift function. arm: fire after `secs`; due: 1 if matured
+// (and disables CNTP), else re-arms and returns 0.
+void timer_sleep_arm(unsigned long secs);
+int  timer_sleep_due(void);
 
 // MMU setup (Sources/Support/mmu.c). Called from boot.S after the EL1 drop and
 // before _main: identity-maps RAM as Normal Inner-Shareable cacheable (peripherals
