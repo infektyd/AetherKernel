@@ -3,10 +3,10 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V2 hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V3 hardware-verified on real Raspberry Pi 4B**
 > (2026-06-05) — netbooted image fetched `kernel8.img`, printed banner +
-> padded `CurrentEL = 0x0000000000000004` (EL1) + `rtv2 fast/slow/long`
-> async cadences over PL011 serial @ 115200.
+> padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
+> async cadences, and UART shell command responses over PL011 serial @ 115200.
 
 ## What works (verified on the build side)
 
@@ -20,6 +20,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Generic timer (CNTP), polled 1 s tick | ✅ | `CNTFRQ = 54 MHz`; tick measured 1.0005 s mean on hardware |
 | GIC-400 IRQ routing — CNTP (INTID 30) → EL1 vector → `wfi` idle | ✅ | **interrupt-driven `irq N` @ 1.0002 s mean on hardware; CPU idles in `wfi`** |
 | Embedded Swift Runtime V2 async scheduler | ✅ | hardware run printed independent `rtv2 fast/slow/long` cadences; shared CNTP arbiter drives continuation sleeps + executor delays |
+| Runtime V3 UART shell/control plane | ✅ | hardware run printed `shell ready`; `status`, `heap`, `queues`, and `tasks` returned machine-checkable `key=value` lines |
 | EL1 exception vectors | ✅ (IRQ) | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync/fault slots still untriggered |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -75,9 +76,10 @@ Sources/Application/UART.swift PL011 driver (init/putc/puts/puthex)
 Sources/Application/GPIO.swift UART pin mux + historical ACT-LED helpers
 Sources/Application/Exceptions.swift  prints ESR/ELR/FAR on fault
 Sources/Application/TimerSleep.swift   8-slot CNTP-backed async continuation sleep
-Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V2 async cadences
+Sources/Application/UARTShell.swift    Runtime V3 line command shell over UART RX
+Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V3 async cadences + shell
 build.sh / flash.sh / netboot-doctor.sh / netflash.sh / net-iterate.sh
-prepare-tftp.sh / serve-netboot.sh / serial-reset.sh
+prepare-tftp.sh / serve-netboot.sh / serial-reset.sh / serial-command.sh
 macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
 ```
 
@@ -110,6 +112,11 @@ macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
      fresh netboot printed `rtv2 fast 0`, `rtv2 slow 0`, and `rtv2 long 0`; CPU idles in `wfi` between jobs.
      Bonus: `watchdog.c` (BCM2711 PM reset) — hardware-verified self-reboot.
      See `CONCURRENCY_DESIGN.md` (GROUND TRUTH block) for the verified symbol/ABI contract.
+   - **Runtime V3 — async UART control plane.** ✅ hardware-verified. A dedicated async shell task
+     polls PL011 RX every 25 ms and accepts line commands: `help`, `status`, `heap`, `queues`,
+     `tasks`, and `reboot`; `r`/`R` remain watchdog-reset aliases for the netboot loop. Hardware proof:
+     fresh netboot printed `shell ready commands=help,status,heap,queues,tasks,reboot`, and
+     `serial-command.sh` produced `status`, `heap`, `queues`, and `tasks` response lines.
 
 ## Provenance
 

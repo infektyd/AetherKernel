@@ -112,6 +112,29 @@ unsigned long kernel_timer_now(void);
 void kernel_timer_set_deadline(unsigned int client, unsigned long deadlineTicks);
 void kernel_timer_clear_deadline(unsigned int client);
 void kernel_timer_rearm(void);
+unsigned int kernel_timer_active_mask(void);
+
+// Runtime V3 status surfaces.
+unsigned long heap_total_bytes(void);
+unsigned long heap_free_bytes(void);
+unsigned long heap_largest_free_bytes(void);
+unsigned long heap_malloc_count(void);
+unsigned long heap_free_count(void);
+unsigned long heap_realloc_count(void);
+unsigned long heap_calloc_count(void);
+
+unsigned int executor_ready_count(void);
+unsigned int executor_ready_capacity(void);
+unsigned int executor_delayed_count(void);
+unsigned int executor_delayed_capacity(void);
+
+// Tiny fixed shell line buffer used by UARTShell.swift. The buffer capacity is
+// defined in Swift's command parser contract; C owns the mutable byte storage so
+// the hot path does not allocate Swift arrays.
+void uart_shell_buffer_clear(void);
+unsigned int uart_shell_buffer_count(void);
+int uart_shell_buffer_append(unsigned int byte);
+unsigned int uart_shell_buffer_get(unsigned int index);
 
 // MMU setup (Sources/Support/mmu.c). Called from boot.S after the EL1 drop and
 // before _main: identity-maps RAM as Normal Inner-Shareable cacheable (peripherals

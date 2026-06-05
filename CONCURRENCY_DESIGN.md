@@ -1,7 +1,14 @@
 # AetherKernel — Milestone 4 design: async/await on bare metal (cooperative executor)
 
 **Status:** ✅ IMPLEMENTED. Stage 2/3 were hardware-verified 2026-06-04; Runtime V2 shared-CNTP
-timer arbitration was hardware-verified 2026-06-05.
+timer arbitration and Runtime V3 UART shell/control plane were hardware-verified 2026-06-05.
+
+> ## Runtime V3 ground truth (2026-06-05)
+> A dedicated async UART shell task polls PL011 RX every 25 ms using `timerSleepMillis`.
+> It accepts line commands (`help`, `status`, `heap`, `queues`, `tasks`, `reboot`) and prints
+> machine-checkable `key=value` response lines. Runtime stats come from C support APIs for
+> heap, executor queues, and timer active clients, plus Swift sleeper/task counters. `r`/`R`
+> remain watchdog-reset aliases for the netboot iteration loop.
 
 > ## Runtime V2 ground truth (2026-06-05)
 > CNTP is now owned by a shared timer arbiter in `timersleep_hw.c`, with separate clients for

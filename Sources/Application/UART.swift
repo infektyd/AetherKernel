@@ -63,6 +63,20 @@ func uartPuts(_ s: StaticString) {
   }
 }
 
+func uartPutByteStringFromShellBuffer() {
+  var i: UInt32 = 0
+  let n = uart_shell_buffer_count()
+  while i < n {
+    let b = UInt8(uart_shell_buffer_get(i) & 0xFF)
+    if b >= 0x20 && b < 0x7F {
+      uartPutc(b)
+    } else {
+      uartPutc(0x2E) // "."
+    }
+    i += 1
+  }
+}
+
 func uartTryReadByte() -> UInt8? {
   if (mmio_read32(UART0_BASE + FR) & FR_RXFE) != 0 {
     return nil
@@ -80,5 +94,41 @@ func uartPutHex(_ value: UInt64) {
     let nibble = Int((value >> UInt64(shift)) & 0xF)
     uartPutc(dp[nibble])
     shift -= 4
+  }
+}
+
+func uartPutHexCompact(_ value: UInt64) {
+  uartPutc(0x30); uartPutc(0x78)  // "0x"
+  let digits: StaticString = "0123456789abcdef"
+  let dp = digits.utf8Start
+  var started = false
+  var shift = 60
+  while shift >= 0 {
+    let nibble = Int((value >> UInt64(shift)) & 0xF)
+    if nibble != 0 || started || shift == 0 {
+      uartPutc(dp[nibble])
+      started = true
+    }
+    shift -= 4
+  }
+}
+
+func uartPutDec(_ value: UInt64) {
+  if value == 0 {
+    uartPutc(0x30)
+    return
+  }
+
+  var divisor: UInt64 = 1
+  while divisor <= value / 10 {
+    divisor &*= 10
+  }
+
+  var remaining = value
+  while divisor > 0 {
+    let digit = remaining / divisor
+    uartPutc(UInt8(0x30 + digit))
+    remaining %= divisor
+    divisor /= 10
   }
 }

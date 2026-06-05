@@ -5,8 +5,8 @@
 #   usage: ./net-iterate.sh [tftp-root]
 #
 # Builds and stages kernel8.img/config.txt, sends the serial reset command, and
-# watches dnsmasq + serial logs for proof that the Pi fetched over TFTP and
-# booted the staged image.
+# watches dnsmasq + serial logs for proof that the Pi fetched over TFTP,
+# booted the staged image, and brought up the Runtime V3 UART shell.
 #===----------------------------------------------------------------------===#
 set -euo pipefail
 
@@ -104,7 +104,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -q "=== AetherKernel ===" \
       && printf '%s' "$serial_delta" | grep -q "rtv2 fast 0x0000000000000000" \
       && printf '%s' "$serial_delta" | grep -q "rtv2 slow 0x0000000000000000" \
-      && printf '%s' "$serial_delta" | grep -q "rtv2 long 0x0000000000000000"; then
+      && printf '%s' "$serial_delta" | grep -q "rtv2 long 0x0000000000000000" \
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,reboot"; then
       echo "netboot iteration verified on attempt ${attempt}/${RETRIES}"
       echo "--- dnsmasq delta ---"
       printf '%s\n' "$dns_delta" | tail -n 80

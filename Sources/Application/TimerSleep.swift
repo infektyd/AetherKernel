@@ -87,6 +87,24 @@ func firstFreeSleeperSlot() -> Int {
   return -1
 }
 
+func timerSleepPendingCount() -> UInt {
+  let flags = irq_save()
+  var count: UInt = 0
+  var i = 0
+  while i < TIMER_SLEEP_CAPACITY {
+    if getSleeperCont(i) != nil {
+      count += 1
+    }
+    i += 1
+  }
+  irq_restore(flags)
+  return count
+}
+
+func timerSleepCapacity() -> UInt {
+  UInt(TIMER_SLEEP_CAPACITY)
+}
+
 func rearmSleepClientFromQueue() {
   var haveDeadline = false
   var minDeadline: UInt = 0

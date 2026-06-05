@@ -114,7 +114,8 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V2 `rtv2 fast/slow/long` zero-lines.
+AetherKernel banner plus Runtime V3 `rtv2 fast/slow/long` zero-lines and
+`shell ready`.
 
 The first reset after adding this workflow is still physical if the currently
 running SD image predates the serial reset hook. For that first proof, use the
@@ -134,10 +135,25 @@ reset step is handled by:
 ```
 
 The expected serial flow is bootloader `TFTP_GET` lines, then the AetherKernel
-banner, padded `CurrentEL`, and repeating `rtv2 fast/slow/long` cadences.
+banner, padded `CurrentEL`, repeating `rtv2 fast/slow/long` cadences, and:
 
-The current kernel image polls UART RX from the 250 ms `rtv2 fast` task; `r` or
-`R` triggers `watchdog_reset_now()` and re-enters the EEPROM boot path.
+```text
+shell ready commands=help,status,heap,queues,tasks,reboot
+```
+
+The current kernel image polls UART RX from a dedicated 25 ms Runtime V3 shell
+task. `r` or `R` still triggers `watchdog_reset_now()` and re-enters the EEPROM
+boot path. Line commands can be sent from the Mac:
+
+```bash
+./serial-command.sh status
+./serial-command.sh heap
+./serial-command.sh queues
+./serial-command.sh tasks
+```
+
+Expected response prefixes are `status uptime_ms=`, `heap total=`,
+`queues ready=`, and `task fast count=` / `task slow count=` / `task long count=`.
 
 ## 4. Serial Monitor on macOS
 Open a terminal on macOS to monitor the serial output:
@@ -156,8 +172,8 @@ Open a terminal on macOS to monitor the serial output:
 ## 5. Boot & Expected Output
 1. Insert the SD card back into the Raspberry Pi 4B.
 2. Connect the Raspberry Pi's USB-C power supply.
-3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, and repeating `rtv2 fast/slow/long` lines.
-4. **Liveness Check:** Current liveness is the serial Runtime V2 cadence output. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
+3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, repeating `rtv2 fast/slow/long` lines, and `shell ready`.
+4. **Liveness Check:** Current liveness is the serial Runtime V3 cadence output plus UART shell responses. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
 
 ## 6. Troubleshooting
 * **No output:**

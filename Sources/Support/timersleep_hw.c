@@ -81,3 +81,17 @@ void kernel_timer_rearm(void) {
     kernel_timer_rearm_unsafe();
     irq_restore(flags);
 }
+
+unsigned int kernel_timer_active_mask(void) {
+    unsigned long flags = irq_save();
+    unsigned int mask = 0;
+
+    for (unsigned int i = 0; i < KERNEL_TIMER_CLIENT_COUNT; i++) {
+        if (g_active[i]) {
+            mask |= 1U << i;
+        }
+    }
+
+    irq_restore(flags);
+    return mask;
+}

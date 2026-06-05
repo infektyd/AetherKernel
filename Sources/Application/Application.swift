@@ -9,25 +9,19 @@
 import Support
 import _Concurrency
 
+nonisolated(unsafe) var runtimeFastCount: UInt64 = 0
+nonisolated(unsafe) var runtimeSlowCount: UInt64 = 0
+nonisolated(unsafe) var runtimeLongCount: UInt64 = 0
+
 @main
 struct Application {
-  static func serviceSerialCommands() {
-    while let b = uartTryReadByte() {
-      if b == 0x72 || b == 0x52 {  // r/R
-        uartPuts("serial reset command: watchdog reboot\n")
-        watchdog_reset_now()
-        while true { wait_for_interrupt() }
-      }
-    }
-  }
-
   static func fastHeartbeat() async {
     var n: UInt64 = 0
     while true {
+      runtimeFastCount = n
       uartPuts("rtv2 fast ")
       uartPutHex(n)
       uartPuts("\n")
-      serviceSerialCommands()
       await timerSleepMillis(250)
       n &+= 1
     }
@@ -36,6 +30,7 @@ struct Application {
   static func slowHeartbeat() async {
     var n: UInt64 = 0
     while true {
+      runtimeSlowCount = n
       uartPuts("rtv2 slow ")
       uartPutHex(n)
       uartPuts("\n")
@@ -47,6 +42,7 @@ struct Application {
   static func longHeartbeat() async {
     var n: UInt64 = 0
     while true {
+      runtimeLongCount = n
       uartPuts("rtv2 long ")
       uartPutHex(n)
       uartPuts("\n")
@@ -74,6 +70,7 @@ struct Application {
     Task { await fastHeartbeat() }
     Task { await slowHeartbeat() }
     Task { await longHeartbeat() }
+    startUartShellTask()
     irq_enable()
     swift_task_asyncMainDrainQueue()
   }

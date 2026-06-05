@@ -294,3 +294,30 @@ swift_task_asyncMainDrainQueueImpl(void) {
 void executor_on_timer_irq(void) {
     promote_due_jobs();
 }
+
+unsigned int executor_ready_count(void) {
+    unsigned long flags = irq_save();
+    unsigned int count;
+    if (ready_tail >= ready_head) {
+        count = ready_tail - ready_head;
+    } else {
+        count = READY_CAPACITY - ready_head + ready_tail;
+    }
+    irq_restore(flags);
+    return count;
+}
+
+unsigned int executor_ready_capacity(void) {
+    return READY_CAPACITY - 1;
+}
+
+unsigned int executor_delayed_count(void) {
+    unsigned long flags = irq_save();
+    unsigned int count = delayed_count;
+    irq_restore(flags);
+    return count;
+}
+
+unsigned int executor_delayed_capacity(void) {
+    return DELAY_CAPACITY;
+}

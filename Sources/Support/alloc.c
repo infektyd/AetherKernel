@@ -21,6 +21,10 @@ typedef struct free_block {
 
 static free_block *free_list_head = NULL;
 static int heap_initialized = 0;
+static unsigned long malloc_calls = 0;
+static unsigned long free_calls = 0;
+static unsigned long realloc_calls = 0;
+static unsigned long calloc_calls = 0;
 
 static void heap_init(void) {
     // Left sentinel: at HEAP_BASE (8 bytes), value = 1 (allocated, payload 0)
@@ -73,6 +77,7 @@ static void insert_into_free_list(free_block *b) {
 
 void *malloc(size_t size) {
     unsigned long flags = irq_save();
+    malloc_calls++;
 
     if (!heap_initialized) {
         heap_init();
@@ -153,6 +158,7 @@ void free(void *ptr) {
     }
 
     unsigned long flags = irq_save();
+    free_calls++;
 
     size_t val = *((size_t *)ptr - 1);
     block_header *H;
@@ -244,6 +250,10 @@ int posix_memalign(void **memptr, size_t alignment, size_t size) {
 }
 
 void *calloc(size_t nmemb, size_t size) {
+    unsigned long flags = irq_save();
+    calloc_calls++;
+    irq_restore(flags);
+
     if (nmemb == 0 || size == 0) {
         return NULL;
     }
@@ -266,6 +276,10 @@ void *calloc(size_t nmemb, size_t size) {
 }
 
 void *realloc(void *ptr, size_t size) {
+    unsigned long flags = irq_save();
+    realloc_calls++;
+    irq_restore(flags);
+
     if (ptr == NULL) {
         return malloc(size);
     }
@@ -319,4 +333,73 @@ void swift_slowDealloc(void *ptr, size_t size, size_t alignMask) {
     (void)size;
     (void)alignMask;
     free(ptr);
+}
+
+unsigned long heap_total_bytes(void) {
+    return HEAP_SIZE;
+}
+
+unsigned long heap_free_bytes(void) {
+    unsigned long flags = irq_save();
+    if (!heap_initialized) {
+        heap_init();
+    }
+
+    unsigned long total = 0;
+    free_block *curr = free_list_head;
+    while (curr != NULL) {
+        total += curr->size & ~1UL;
+        curr = curr->next;
+    }
+
+    irq_restore(flags);
+    return total;
+}
+
+unsigned long heap_largest_free_bytes(void) {
+    unsigned long flags = irq_save();
+    if (!heap_initialized) {
+        heap_init();
+    }
+
+    unsigned long largest = 0;
+    free_block *curr = free_list_head;
+    while (curr != NULL) {
+        unsigned long size = curr->size & ~1UL;
+        if (size > largest) {
+            largest = size;
+        }
+        curr = curr->next;
+    }
+
+    irq_restore(flags);
+    return largest;
+}
+
+unsigned long heap_malloc_count(void) {
+    unsigned long flags = irq_save();
+    unsigned long count = malloc_calls;
+    irq_restore(flags);
+    return count;
+}
+
+unsigned long heap_free_count(void) {
+    unsigned long flags = irq_save();
+    unsigned long count = free_calls;
+    irq_restore(flags);
+    return count;
+}
+
+unsigned long heap_realloc_count(void) {
+    unsigned long flags = irq_save();
+    unsigned long count = realloc_calls;
+    irq_restore(flags);
+    return count;
+}
+
+unsigned long heap_calloc_count(void) {
+    unsigned long flags = irq_save();
+    unsigned long count = calloc_calls;
+    irq_restore(flags);
+    return count;
 }
