@@ -146,6 +146,11 @@ unsigned long heap_invalid_free_count(void);
 unsigned long heap_double_free_count(void);
 unsigned long heap_corruption_count(void);
 int heap_guard_selftest(void);
+int heap_pressure_selftest(void);
+unsigned long heap_pressure_last_peak_bytes(void);
+unsigned long heap_pressure_last_leak_bytes(void);
+void heap_guard_invalid_free_test(void);
+void heap_guard_double_free_test(void);
 
 unsigned int executor_ready_count(void);
 unsigned int executor_ready_capacity(void);
@@ -191,6 +196,11 @@ unsigned int kernel_frame_last_error(void);
 unsigned long kernel_frame_bad_free_count(void);
 unsigned long kernel_frame_double_free_count(void);
 int kernel_frame_allocator_stress_selftest(void);
+int kernel_frame_pressure_selftest(void);
+unsigned long kernel_frame_pressure_last_peak_count(void);
+unsigned long kernel_frame_pressure_last_leak_count(void);
+int kernel_frame_guard_probe_selftest(void);
+unsigned int kernel_frame_guard_probe_last_ok(void);
 
 // Runtime V5/V6 diagnostics: fixed-storage counters plus retained panic/fault
 // records across watchdog reset.
@@ -225,6 +235,8 @@ void kernel_retained_clear(void);
 void kernel_retained_write_panic(const char *reason);
 void kernel_retained_write_fault(unsigned long esr, unsigned long elr, unsigned long far);
 void kernel_panic(const char *reason);
+void kernel_panic_with_far(const char *reason, unsigned long far);
+void kernel_panic_with_detail(const char *reason, unsigned long esr, unsigned long elr, unsigned long far);
 void kernel_panic_test(void);
 void kernel_trigger_sync_fault(void);
 

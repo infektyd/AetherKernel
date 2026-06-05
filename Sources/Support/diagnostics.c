@@ -283,6 +283,7 @@ unsigned int kernel_retained_reason_byte(unsigned int index) {
 }
 
 void kernel_retained_clear(void) {
+    unsigned long flags = irq_save();
     volatile retained_record *r = retained();
     r->magic = 0;
     r->checksum = 0;
@@ -296,6 +297,7 @@ void kernel_retained_clear(void) {
         r->retained_reason[i] = 0;
     }
     retained_flush(r);
+    irq_restore(flags);
 }
 
 void kernel_retained_write_panic(const char *reason) {
@@ -306,10 +308,10 @@ void kernel_retained_write_fault(unsigned long esr, unsigned long elr, unsigned 
     retained_write(KERNEL_RETAINED_KIND_FAULT, esr, elr, far, "sync-fault");
 }
 
-void kernel_panic(const char *reason) {
+void kernel_panic_with_detail(const char *reason, unsigned long esr, unsigned long elr, unsigned long far) {
     irq_disable();
     panic_seen = 1;
-    kernel_retained_write_panic(reason);
+    retained_write(KERNEL_RETAINED_KIND_PANIC, esr, elr, far, reason);
     panic_uart_puts("kernel panic reason=");
     panic_uart_puts(reason);
     panic_uart_puts("\n");
@@ -318,6 +320,14 @@ void kernel_panic(const char *reason) {
     for (;;) {
         wait_for_interrupt();
     }
+}
+
+void kernel_panic_with_far(const char *reason, unsigned long far) {
+    kernel_panic_with_detail(reason, 0, 0, far);
+}
+
+void kernel_panic(const char *reason) {
+    kernel_panic_with_far(reason, 0);
 }
 
 void kernel_panic_test(void) {

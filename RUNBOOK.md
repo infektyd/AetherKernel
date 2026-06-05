@@ -117,8 +117,9 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V8 marker, `rtv2 fast/slow/long` zero-lines,
-and the expanded `shell ready` command list.
+AetherKernel banner plus Runtime V11 marker, `rtv2 fast/slow/long` zero-lines,
+the expanded `shell ready` command list, and shell probes for `status`,
+`bootcheck`, `stress`, and `soak`.
 
 The first reset after adding this workflow is still physical if the currently
 running SD image predates the serial reset hook. For that first proof, use the
@@ -139,14 +140,17 @@ reset step is handled by:
 
 The expected serial flow is bootloader `TFTP_GET` lines, then the AetherKernel
 banner, padded `CurrentEL`, repeating `rtv2 fast/slow/long` cadences, the
-Runtime V5, V6, V7, and V8 markers, and:
+Runtime V5 through V11 markers, and:
 
 ```text
 runtime v5: diagnostics shell
 runtime v6: retained panic/fault records
 runtime v7: memory map + frame allocator
 runtime v8: allocator guardrails
-shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,panic-test,fault-test,reboot
+runtime v9: bounded memory pressure self-tests
+runtime v10: explicit guard probes
+runtime v11: boot and soak invariants
+shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
 ```
 
 The current kernel image services UART RX through PL011 receive interrupts into
@@ -169,6 +173,10 @@ commands can be sent from the Mac:
 ./serial-command.sh frames
 ./serial-command.sh heapcheck
 ./serial-command.sh framecheck
+./serial-command.sh stress
+./serial-command.sh frameprobe
+./serial-command.sh bootcheck
+./serial-command.sh soak
 ```
 
 Expected response prefixes are `status uptime_ms=`, `heap total=`,
@@ -189,11 +197,28 @@ heapcheck ok=1 error=0 invalid_frees=0 double_frees=0 corruptions=0
 framecheck ok=1 total=14336 free=14336 used=0 bad_frees=0 double_frees=0 error=0 stress=1
 ```
 
+Runtime V9/V10/V11 add bounded pressure, guard-probe, and boot/soak checks:
+
+```text
+stress ok=1 heap=1 frames=1 heap_peak=62928 frame_peak=16 heap_leak=0 frame_leak=0
+frameprobe ok=1 last_ok=1 bad_frees=1 double_frees=1 error=2 free=14336 used=0
+bootcheck ok=1 memmap=1 heap=1 frames=1 retained_valid=0 heap_free=4188320 frame_free=14336
+soak ok=1 rounds=3 failures=0 heap_peak=62928 frame_peak=16 heap_leak=0 frame_leak=0
+```
+
+`serial-probe.sh` sends one command and waits for a matching response line:
+
+```bash
+./serial-probe.sh status '^status uptime_ms=.*timer_mask='
+./serial-probe.sh bootcheck '^bootcheck ok=1 .*frame_free='
+```
+
 `panic-test` and `fault-test` are intentionally destructive: each writes a
 cache-cleaned retained record, prints its diagnostic line, watchdog-resets the
 Pi, and then the next boot can report the prior event via `retained`. Do not
 use them as part of the normal iteration proof unless you are deliberately
-testing retained panic/fault reporting.
+testing retained panic/fault reporting. `heap-invalid-free-test` and
+`heap-double-free-test` are also destructive allocator guard probes.
 
 ## 4. Serial Monitor on macOS
 Open a terminal on macOS to monitor the serial output:
@@ -212,8 +237,8 @@ Open a terminal on macOS to monitor the serial output:
 ## 5. Boot & Expected Output
 1. Insert the SD card back into the Raspberry Pi 4B.
 2. Connect the Raspberry Pi's USB-C power supply.
-3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, `runtime v4: irq-backed uart shell`, `runtime v5: diagnostics shell`, `runtime v6: retained panic/fault records`, `runtime v7: memory map + frame allocator`, `runtime v8: allocator guardrails`, repeating `rtv2 fast/slow/long` lines, and `shell ready`.
-4. **Liveness Check:** Current liveness is the serial Runtime V8 cadence output plus UART shell diagnostic responses. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
+3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, Runtime V4 through V11 markers, repeating `rtv2 fast/slow/long` lines, `bootcheck ok=1`, and `shell ready`.
+4. **Liveness Check:** Current liveness is the serial Runtime V11 cadence output plus UART shell diagnostic responses. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
 
 ## 6. Troubleshooting
 * **No output:**

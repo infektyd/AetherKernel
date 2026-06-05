@@ -6,6 +6,35 @@ Runtime V5 diagnostics shell were hardware-verified 2026-06-05.
 Runtime V6 retained panic/fault records were hardware-verified 2026-06-05.
 Runtime V7 memory map and frame allocator invariants were hardware-verified 2026-06-05.
 Runtime V8 allocator/frame guardrails were hardware-verified 2026-06-05.
+Runtime V9 bounded pressure tests, Runtime V10 guard probes, and Runtime V11 boot/soak
+invariants were hardware-verified 2026-06-05.
+
+> ## Runtime V11 ground truth (2026-06-05)
+> V11 adds cheap boot and soak invariants over the V8-V10 memory foundation. Startup and shell
+> `bootcheck` report memory-map, heap, frame, retained-record, heap-free, and frame-free state.
+> `soak` runs three bounded heap/frame pressure rounds and reports failures plus peak/leak counters.
+> `net-iterate.sh` now treats `status`, `bootcheck`, `stress`, and `soak` serial probes as the
+> default hardware proof. During V11 proof, `retained`/`retained-clear` exposed a real allocator
+> compatibility bug: Swift Embedded `_swift_allocObject` in this 6.3.2 toolchain calls
+> `posix_memalign` with an 8-byte floor and then destroys heap objects through direct `free(object)`.
+> The allocator's payload gate had incorrectly required 16-byte alignment, so valid Swift objects
+> were rejected as `heap-invalid-free`. The fix keeps malloc's 16-byte payload alignment but allows
+> 8-byte-aligned `posix_memalign` payloads through the back-pointer/header/footer validation path.
+> Hardware proof after the fix: `retained valid=... reason=heap-invalid-free` could be read without
+> rebooting, `retained clear ok=1`, `retained valid=0`, and `bootcheck ok=1 ... retained_valid=0`.
+
+> ## Runtime V10 ground truth (2026-06-05)
+> V10 adds explicit guard probes. `frameprobe` is non-destructive and verifies bad frame frees and
+> double frame frees are rejected while final frame ownership returns to all-free. Destructive heap
+> commands `heap-invalid-free-test` and `heap-double-free-test` intentionally panic through the
+> retained-record path. Hardware proof: `frameprobe ok=1 last_ok=1 ...`; `heap-invalid-free-test`
+> rebooted and the next boot reported retained `reason=heap-invalid-free`.
+
+> ## Runtime V9 ground truth (2026-06-05)
+> V9 adds bounded memory pressure self-tests. `heap_pressure_selftest` allocates, touches, and frees
+> fixed-size heap blocks in a non-linear order; `kernel_frame_pressure_selftest` does the same for a
+> fixed set of frames. The UART `stress` command reports pass/fail plus peak and leak counters.
+> Hardware proof: `stress ok=1 heap=1 frames=1 heap_peak=62928 frame_peak=16 heap_leak=0 frame_leak=0`.
 
 > ## Runtime V8 ground truth (2026-06-05)
 > V8 keeps the V7 physical memory ownership model: heap allocation still lives in the fixed

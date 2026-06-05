@@ -8,7 +8,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 COMMANDS_V8 = (
     "commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,"
     "faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,"
-    "panic-test,fault-test,reboot"
+    "stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"
 )
 
 
@@ -62,6 +62,21 @@ def test_heap_allocator_has_validation_before_mutation_and_poisoning() -> None:
     assert "malloc(" not in alloc[alloc.index("int heap_guard_selftest"):alloc.index("void *swift_slowAlloc")]
 
 
+def test_heap_free_accepts_8_byte_aligned_posix_memalign_payloads() -> None:
+    alloc = read_repo("Sources/Support/alloc.c")
+    payload_range_body = alloc[
+        alloc.index("static int heap_payload_in_range"):
+        alloc.index("static void heap_poison_payload")
+    ]
+    posix_body = alloc[
+        alloc.index("int posix_memalign"):
+        alloc.index("void *calloc")
+    ]
+
+    assert "(addr & 0x7UL) == 0" in payload_range_body
+    assert "alignment < sizeof(void *)" in posix_body
+
+
 def test_heap_integrity_check_reports_stable_reason_codes() -> None:
     alloc = read_repo("Sources/Support/alloc.c")
 
@@ -81,10 +96,66 @@ def test_heap_integrity_check_reports_stable_reason_codes() -> None:
 def test_heap_panic_paths_preserve_specific_guard_reason() -> None:
     alloc = read_repo("Sources/Support/alloc.c")
 
+    for marker in (
+        "HEAP_FREE_CONTEXT_DIRECT",
+        "HEAP_FREE_CONTEXT_SWIFT_SLOW_DEALLOC",
+        "heap_free_context",
+        "heap_free_context_align_mask",
+        "heap_free_context_return_address",
+    ):
+        assert marker in alloc
+
     for helper in ("heap_panic_invalid_free", "heap_panic_double_free"):
-        match = re.search(rf"static void {helper}\(void\) \{{(?P<body>.*?)\n\}}", alloc, re.S)
+        match = re.search(rf"static void {helper}\(void \*ptr\) \{{(?P<body>.*?)\n\}}", alloc, re.S)
         assert match is not None
         assert "heap_record_guard_error" not in match.group("body")
+        assert "kernel_panic_with_detail" in match.group("body")
+        assert "heap_free_context" in match.group("body")
+        assert "heap_free_context_return_address" in match.group("body")
+        assert "(unsigned long)ptr" in match.group("body")
+
+
+def test_free_records_direct_caller_return_address_for_guard_panics() -> None:
+    alloc = read_repo("Sources/Support/alloc.c")
+    body = alloc[
+        alloc.index("void free(void *ptr)"):
+        alloc.index("int posix_memalign")
+    ]
+
+    assert "unsigned long caller = (unsigned long)__builtin_return_address(0);" in body
+    assert "if (heap_free_context_return_address == 0)" in body
+    assert "heap_free_context_return_address = caller;" in body
+    assert body.index("heap_free_context_return_address = caller;") < body.index("heap_validate_allocation_unsafe")
+    assert "heap_free_context_return_address = 0;" in body
+
+
+def test_swift_slow_alloc_routes_unknown_alignment_through_aligned_path() -> None:
+    alloc = read_repo("Sources/Support/alloc.c")
+    body = alloc[
+        alloc.index("void *swift_slowAlloc"):
+        alloc.index("void swift_slowDealloc")
+    ]
+
+    assert "alignMask == (size_t)-1" in body
+    assert "alignment = 16" in body
+    assert "posix_memalign" in body
+    assert "alignMask == 0 || alignMask == (size_t)-1 || alignMask <= 15" not in body
+
+
+def test_swift_slow_dealloc_sets_heap_free_context_around_free() -> None:
+    alloc = read_repo("Sources/Support/alloc.c")
+    body = alloc[
+        alloc.index("void swift_slowDealloc"):
+        alloc.index("unsigned long heap_total_bytes")
+    ]
+
+    assert "unsigned long flags = irq_save();" in body
+    assert "heap_free_context = HEAP_FREE_CONTEXT_SWIFT_SLOW_DEALLOC;" in body
+    assert "heap_free_context_align_mask = alignMask;" in body
+    assert "heap_free_context_return_address = (unsigned long)__builtin_return_address(0);" in body
+    assert body.index("heap_free_context = HEAP_FREE_CONTEXT_SWIFT_SLOW_DEALLOC;") < body.index("free(ptr);")
+    assert body.index("free(ptr);") < body.index("heap_free_context = HEAP_FREE_CONTEXT_DIRECT;")
+    assert body.index("heap_free_context = HEAP_FREE_CONTEXT_DIRECT;") < body.index("irq_restore(flags);")
 
 
 def test_frame_allocator_has_bad_free_counts_and_stress_selftest() -> None:

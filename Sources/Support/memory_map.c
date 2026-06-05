@@ -16,6 +16,7 @@
 
 #define KERNEL_FRAME_COUNT ((KERNEL_FRAME_LIMIT - KERNEL_FRAME_BASE) / KERNEL_PAGE_SIZE)
 #define FRAME_BITMAP_WORDS ((KERNEL_FRAME_COUNT + 31UL) / 32UL)
+#define FRAME_PRESSURE_COUNT 16U
 
 #define KERNEL_REGION_FIRMWARE_LOW     0U
 #define KERNEL_REGION_BOOT_STACK       1U
@@ -51,6 +52,9 @@ static unsigned int memory_last_error;
 static unsigned int frame_last_error;
 static unsigned long frame_bad_frees;
 static unsigned long frame_double_frees;
+static unsigned long frame_pressure_last_peak;
+static unsigned long frame_pressure_last_leak;
+static unsigned int frame_guard_probe_last_ok;
 
 static unsigned int frame_bit(unsigned long index) {
     return 1U << (unsigned int)(index & 31UL);
@@ -74,6 +78,19 @@ static void frame_mark_free(unsigned long index) {
 
 static void frame_record_error(unsigned int error) {
     frame_last_error = error;
+}
+
+static void frame_pressure_record(unsigned long peak, unsigned long leak) {
+    unsigned long flags = irq_save();
+    frame_pressure_last_peak = peak;
+    frame_pressure_last_leak = leak;
+    irq_restore(flags);
+}
+
+static void frame_guard_probe_record(unsigned int ok) {
+    unsigned long flags = irq_save();
+    frame_guard_probe_last_ok = ok;
+    irq_restore(flags);
 }
 
 static int page_aligned(unsigned long value) {
@@ -369,4 +386,136 @@ int kernel_frame_allocator_stress_selftest(void) {
     }
 
     return kernel_frame_free_count() == before_free && kernel_frame_used_count() == before_used;
+}
+
+int kernel_frame_pressure_selftest(void) {
+    const unsigned int free_order[FRAME_PRESSURE_COUNT] = {
+        15, 0, 14, 1, 13, 2, 12, 3, 11, 4, 10, 5, 9, 6, 8, 7
+    };
+    unsigned long frames[FRAME_PRESSURE_COUNT] = {
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    };
+    unsigned long before_free = kernel_frame_free_count();
+    unsigned long before_used = kernel_frame_used_count();
+    unsigned long peak = 0;
+
+    for (unsigned int i = 0; i < FRAME_PRESSURE_COUNT; i++) {
+        frames[i] = kernel_frame_alloc();
+        if (frames[i] == 0 || !page_aligned(frames[i])) {
+            for (unsigned int j = 0; j < i; j++) {
+                if (frames[j] != 0) {
+                    (void)kernel_frame_free(frames[j]);
+                    frames[j] = 0;
+                }
+            }
+            unsigned long after_free_failed = kernel_frame_free_count();
+            unsigned long leak_failed = before_free > after_free_failed ? before_free - after_free_failed : 0;
+            frame_pressure_record(peak, leak_failed);
+            return 0;
+        }
+        for (unsigned int j = 0; j < i; j++) {
+            if (frames[i] == frames[j]) {
+                for (unsigned int k = 0; k <= i; k++) {
+                    if (frames[k] != 0) {
+                        (void)kernel_frame_free(frames[k]);
+                        frames[k] = 0;
+                    }
+                }
+                unsigned long after_free_dup = kernel_frame_free_count();
+                unsigned long leak_dup = before_free > after_free_dup ? before_free - after_free_dup : 0;
+                frame_pressure_record(peak, leak_dup);
+                return 0;
+            }
+        }
+
+        unsigned long used = kernel_frame_used_count();
+        unsigned long delta = used > before_used ? used - before_used : 0;
+        if (delta > peak) {
+            peak = delta;
+        }
+    }
+
+    for (unsigned int i = 0; i < FRAME_PRESSURE_COUNT; i++) {
+        unsigned int index = free_order[i];
+        if (!kernel_frame_free(frames[index])) {
+            for (unsigned int j = 0; j < FRAME_PRESSURE_COUNT; j++) {
+                if (frames[j] != 0) {
+                    (void)kernel_frame_free(frames[j]);
+                    frames[j] = 0;
+                }
+            }
+            unsigned long after_free_bad = kernel_frame_free_count();
+            unsigned long leak_bad = before_free > after_free_bad ? before_free - after_free_bad : 0;
+            frame_pressure_record(peak, leak_bad);
+            return 0;
+        }
+        frames[index] = 0;
+    }
+
+    unsigned long after_free = kernel_frame_free_count();
+    unsigned long after_used = kernel_frame_used_count();
+    unsigned long leak = 0;
+    if (before_free > after_free) {
+        leak = before_free - after_free;
+    } else if (after_used > before_used) {
+        leak = after_used - before_used;
+    }
+
+    frame_pressure_record(peak, leak);
+    return after_free == before_free && after_used == before_used;
+}
+
+unsigned long kernel_frame_pressure_last_peak_count(void) {
+    unsigned long flags = irq_save();
+    unsigned long peak = frame_pressure_last_peak;
+    irq_restore(flags);
+    return peak;
+}
+
+unsigned long kernel_frame_pressure_last_leak_count(void) {
+    unsigned long flags = irq_save();
+    unsigned long leak = frame_pressure_last_leak;
+    irq_restore(flags);
+    return leak;
+}
+
+int kernel_frame_guard_probe_selftest(void) {
+    unsigned long before_free = kernel_frame_free_count();
+    unsigned long before_used = kernel_frame_used_count();
+    unsigned long before_bad = kernel_frame_bad_free_count();
+    unsigned long before_double = kernel_frame_double_free_count();
+
+    int bad_free_rejected = kernel_frame_free(KERNEL_FRAME_BASE - KERNEL_PAGE_SIZE) == 0;
+
+    unsigned long frame = kernel_frame_alloc();
+    if (frame == 0) {
+        frame_guard_probe_record(0);
+        return 0;
+    }
+
+    int first_free_ok = kernel_frame_free(frame) != 0;
+    int double_free_rejected = kernel_frame_free(frame) == 0;
+
+    unsigned long after_free = kernel_frame_free_count();
+    unsigned long after_used = kernel_frame_used_count();
+    unsigned long after_bad = kernel_frame_bad_free_count();
+    unsigned long after_double = kernel_frame_double_free_count();
+
+    unsigned int ok = bad_free_rejected &&
+        first_free_ok &&
+        double_free_rejected &&
+        after_bad == before_bad + 1 &&
+        after_double == before_double + 1 &&
+        after_free == before_free &&
+        after_used == before_used &&
+        kernel_frame_last_error() == KERNEL_FRAME_ERROR_DOUBLE_FREE;
+    frame_guard_probe_record(ok);
+    return (int)ok;
+}
+
+unsigned int kernel_frame_guard_probe_last_ok(void) {
+    unsigned long flags = irq_save();
+    unsigned int ok = frame_guard_probe_last_ok;
+    irq_restore(flags);
+    return ok;
 }

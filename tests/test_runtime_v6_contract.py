@@ -23,6 +23,8 @@ def test_support_declares_runtime_v6_retained_record_api() -> None:
         "kernel_retained_reason_byte",
         "kernel_retained_clear",
         "kernel_retained_write_panic",
+        "kernel_panic_with_far",
+        "kernel_panic_with_detail",
         "kernel_retained_write_fault",
     ):
         assert symbol in support
@@ -48,18 +50,35 @@ def test_panic_and_fault_paths_write_retained_record_before_watchdog_reset() -> 
     diagnostics = read_repo("Sources/Support/diagnostics.c")
     exceptions = read_repo("Sources/Application/Exceptions.swift")
 
-    assert "kernel_retained_write_panic(reason)" in diagnostics
-    assert diagnostics.index("kernel_retained_write_panic(reason)") < diagnostics.index("watchdog_reset_now()")
+    assert "void kernel_panic_with_detail(const char *reason, unsigned long esr, unsigned long elr, unsigned long far)" in diagnostics
+    assert "retained_write(KERNEL_RETAINED_KIND_PANIC, esr, elr, far, reason)" in diagnostics
+    assert "void kernel_panic_with_far(const char *reason, unsigned long far)" in diagnostics
+    assert "kernel_panic_with_detail(reason, 0, 0, far)" in diagnostics
+    assert diagnostics.index("retained_write(KERNEL_RETAINED_KIND_PANIC, esr, elr, far, reason)") < diagnostics.index("watchdog_reset_now()")
+    assert "kernel_panic_with_far(reason, 0)" in diagnostics
     assert "retained_write(KERNEL_RETAINED_KIND_FAULT, esr, elr, far" in diagnostics
     assert "kernel_retained_write_fault(UInt(esr), UInt(elr), UInt(far))" in exceptions
     assert exceptions.index("kernel_retained_write_fault") < exceptions.index("watchdog_reset_now()")
+
+
+def test_retained_clear_masks_irqs_while_mutating_record() -> None:
+    diagnostics = read_repo("Sources/Support/diagnostics.c")
+
+    body = diagnostics[
+        diagnostics.index("void kernel_retained_clear(void)"):
+        diagnostics.index("void kernel_retained_write_panic")
+    ]
+
+    assert "unsigned long flags = irq_save();" in body
+    assert body.index("unsigned long flags = irq_save();") < body.index("r->magic = 0;")
+    assert body.index("retained_flush(r);") < body.index("irq_restore(flags);")
 
 
 def test_uart_shell_v6_retained_commands_and_response_prefixes_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
 
     for marker in (
-        "commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,panic-test,fault-test,reboot",
+        "commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot",
         "retained valid=",
         " kind=",
         " seq=",

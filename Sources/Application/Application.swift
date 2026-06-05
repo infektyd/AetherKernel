@@ -65,8 +65,10 @@ struct Application {
     // Runtime V2: multiple Swift async tasks sleep on the same CNTP timer
     // arbiter. Runtime V4 adds IRQ-backed UART RX for the shell. Runtime V5
     // exposes diagnostics, Runtime V6 retains panic/fault records across
-    // watchdog reset, Runtime V7 makes low-memory ownership explicit, and
-    // Runtime V8 adds allocator guardrails.
+    // watchdog reset, Runtime V7 makes low-memory ownership explicit, Runtime
+    // V8 adds allocator guardrails, Runtime V9 adds bounded pressure tests,
+    // Runtime V10 adds explicit guard probes, and Runtime V11 adds boot/soak
+    // invariant checks.
     kernel_memory_init()
     uart_rx_irq_init()
     gicInitRuntimeIRQs()
@@ -77,6 +79,10 @@ struct Application {
     uartPuts("runtime v6: retained panic/fault records\n")
     uartPuts("runtime v7: memory map + frame allocator\n")
     uartPuts("runtime v8: allocator guardrails\n")
+    uartPuts("runtime v9: bounded memory pressure self-tests\n")
+    uartPuts("runtime v10: explicit guard probes\n")
+    uartPuts("runtime v11: boot and soak invariants\n")
+    printBootcheck()
     Task { await fastHeartbeat() }
     Task { await slowHeartbeat() }
     Task { await longHeartbeat() }

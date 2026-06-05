@@ -235,13 +235,13 @@ def test_net_iterate_detects_stale_sd_fallback_image() -> None:
     assert "stale SD fallback image detected" in net_iterate
 
 
-def test_net_iterate_reports_stale_pre_v8_sd_fallback_without_claiming_netboot() -> None:
+def test_net_iterate_reports_stale_pre_v11_sd_fallback_without_claiming_netboot() -> None:
     net_iterate = read_repo("net-iterate.sh")
 
-    assert "stale pre-V8 SD fallback image detected" in net_iterate
+    assert "stale pre-V11 SD fallback image detected" in net_iterate
     assert "TFTP kernel fetch was not verified" in net_iterate
     assert "sd_fallback_seen=1" in net_iterate
-    assert "retrying after stale pre-V8 SD fallback" in net_iterate
+    assert "retrying after stale pre-V11 SD fallback" in net_iterate
     assert "final_exit=3" in net_iterate
     assert 'exit "$final_exit"' in net_iterate
 
@@ -274,7 +274,7 @@ def test_netboot_doctor_dry_run_shows_human_reset_gate() -> None:
     assert "/tmp/aether-serial.log" in result.stdout
 
 
-def test_netboot_doctor_verifies_runtime_v8_markers() -> None:
+def test_netboot_doctor_verifies_runtime_v11_markers() -> None:
     doctor = read_repo("netboot-doctor.sh")
 
     assert "runtime v4: irq-backed uart shell" in doctor
@@ -282,7 +282,10 @@ def test_netboot_doctor_verifies_runtime_v8_markers() -> None:
     assert "runtime v6: retained panic/fault records" in doctor
     assert "runtime v7: memory map + frame allocator" in doctor
     assert "runtime v8: allocator guardrails" in doctor
-    assert "shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,panic-test,fault-test,reboot" in doctor
+    assert "runtime v9: bounded memory pressure self-tests" in doctor
+    assert "runtime v10: explicit guard probes" in doctor
+    assert "runtime v11: boot and soak invariants" in doctor
+    assert "shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot" in doctor
     assert "async tick 0x0000000000000000" not in doctor
 
 

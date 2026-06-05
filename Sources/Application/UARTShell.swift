@@ -1,16 +1,19 @@
 //===----------------------------------------------------------------------===//
-// Runtime V8 UART shell.
+// Runtime V11 UART shell.
 //
 // Line-oriented ASCII command surface over the IRQ-backed PL011 RX path. The
 // shell awaits bytes from UARTRX.swift instead of polling the UART FIFO. V5 adds
 // diagnostics commands that expose kernel pressure and fault signals; V6 adds
 // retained panic/fault records across watchdog reset. V7 adds memory ownership
 // and frame allocator inspection. V8 adds allocator guard/status self-checks.
+// V9 adds bounded heap/frame pressure tests. V10 adds explicit guard probes.
+// V11 adds boot and soak invariant checks for host-side proof loops.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
 
 let UART_SHELL_BUFFER_CAPACITY: Int = 80
+let SOAK_ROUNDS: UInt32 = 3
 nonisolated(unsafe) var resetAliasCheckScheduled: Bool = false
 
 func isResetAlias(_ b: UInt8) -> Bool {
@@ -35,11 +38,11 @@ func shellBufferEquals(_ s: StaticString) -> Bool {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printStatus() {
@@ -381,6 +384,132 @@ func printFramecheck() {
   uartPuts("\n")
 }
 
+func printStress() {
+  let heap = heap_pressure_selftest()
+  let frames = kernel_frame_pressure_selftest()
+  let ok = heap != 0 && frames != 0
+
+  uartPuts("stress ok=")
+  uartPutDec(UInt64(ok ? 1 : 0))
+  uartPuts(" heap=")
+  uartPutDec(UInt64(heap))
+  uartPuts(" frames=")
+  uartPutDec(UInt64(frames))
+  uartPuts(" heap_peak=")
+  uartPutDec(UInt64(heap_pressure_last_peak_bytes()))
+  uartPuts(" frame_peak=")
+  uartPutDec(UInt64(kernel_frame_pressure_last_peak_count()))
+  uartPuts(" heap_leak=")
+  uartPutDec(UInt64(heap_pressure_last_leak_bytes()))
+  uartPuts(" frame_leak=")
+  uartPutDec(UInt64(kernel_frame_pressure_last_leak_count()))
+  uartPuts("\n")
+}
+
+func printFrameprobe() {
+  let ok = kernel_frame_guard_probe_selftest()
+
+  uartPuts("frameprobe ok=")
+  uartPutDec(UInt64(ok))
+  uartPuts(" last_ok=")
+  uartPutDec(UInt64(kernel_frame_guard_probe_last_ok()))
+  uartPuts(" bad_frees=")
+  uartPutDec(UInt64(kernel_frame_bad_free_count()))
+  uartPuts(" double_frees=")
+  uartPutDec(UInt64(kernel_frame_double_free_count()))
+  uartPuts(" error=")
+  uartPutDec(UInt64(kernel_frame_last_error()))
+  uartPuts(" free=")
+  uartPutDec(UInt64(kernel_frame_free_count()))
+  uartPuts(" used=")
+  uartPutDec(UInt64(kernel_frame_used_count()))
+  uartPuts("\n")
+}
+
+func printBootcheck() {
+  let memmap = kernel_memory_map_valid()
+  let heap = heap_guard_selftest()
+  let frames = kernel_frame_allocator_selftest()
+  let ok = memmap != 0 && heap != 0 && frames != 0
+
+  uartPuts("bootcheck ok=")
+  uartPutDec(UInt64(ok ? 1 : 0))
+  uartPuts(" memmap=")
+  uartPutDec(UInt64(memmap))
+  uartPuts(" heap=")
+  uartPutDec(UInt64(heap))
+  uartPuts(" frames=")
+  uartPutDec(UInt64(frames))
+  uartPuts(" retained_valid=")
+  uartPutDec(UInt64(kernel_retained_valid()))
+  uartPuts(" heap_free=")
+  uartPutDec(UInt64(heap_free_bytes()))
+  uartPuts(" frame_free=")
+  uartPutDec(UInt64(kernel_frame_free_count()))
+  uartPuts("\n")
+}
+
+func printSoak() {
+  var round: UInt32 = 0
+  var failures: UInt64 = 0
+  var maxHeapPeak: UInt64 = 0
+  var maxFramePeak: UInt64 = 0
+  var heapLeak: UInt64 = 0
+  var frameLeak: UInt64 = 0
+
+  while round < SOAK_ROUNDS {
+    let heap = heap_pressure_selftest()
+    let frames = kernel_frame_pressure_selftest()
+    if heap == 0 || frames == 0 {
+      failures += 1
+    }
+
+    let currentHeapPeak = UInt64(heap_pressure_last_peak_bytes())
+    let currentFramePeak = UInt64(kernel_frame_pressure_last_peak_count())
+    if currentHeapPeak > maxHeapPeak {
+      maxHeapPeak = currentHeapPeak
+    }
+    if currentFramePeak > maxFramePeak {
+      maxFramePeak = currentFramePeak
+    }
+
+    heapLeak += UInt64(heap_pressure_last_leak_bytes())
+    frameLeak += UInt64(kernel_frame_pressure_last_leak_count())
+    round += 1
+  }
+
+  let ok = failures == 0 && heapLeak == 0 && frameLeak == 0
+  uartPuts("soak ok=")
+  uartPutDec(UInt64(ok ? 1 : 0))
+  uartPuts(" rounds=")
+  uartPutDec(UInt64(SOAK_ROUNDS))
+  uartPuts(" failures=")
+  uartPutDec(failures)
+  uartPuts(" heap_peak=")
+  uartPutDec(maxHeapPeak)
+  uartPuts(" frame_peak=")
+  uartPutDec(maxFramePeak)
+  uartPuts(" heap_leak=")
+  uartPutDec(heapLeak)
+  uartPuts(" frame_leak=")
+  uartPutDec(frameLeak)
+  uartPuts("\n")
+}
+
+func shellHeapInvalidFreeTest() {
+  uartPuts("shell heap-invalid-free-test reason=command\n")
+  uartDrainTx()
+  heap_guard_invalid_free_test()
+  while true { wait_for_interrupt() }
+}
+
+func shellHeapDoubleFreeTest() {
+  uartPuts("shell heap-double-free-test reason=command\n")
+  uartDrainTx()
+  heap_guard_double_free_test()
+  while true { wait_for_interrupt() }
+}
+
 func shellPanicTest() {
   uartPuts("shell panic-test reason=command\n")
   uartDrainTx()
@@ -476,6 +605,18 @@ func processUartShellLine() {
     printHeapcheck()
   } else if shellBufferEquals("framecheck") {
     printFramecheck()
+  } else if shellBufferEquals("stress") {
+    printStress()
+  } else if shellBufferEquals("frameprobe") {
+    printFrameprobe()
+  } else if shellBufferEquals("bootcheck") {
+    printBootcheck()
+  } else if shellBufferEquals("soak") {
+    printSoak()
+  } else if shellBufferEquals("heap-invalid-free-test") {
+    shellHeapInvalidFreeTest()
+  } else if shellBufferEquals("heap-double-free-test") {
+    shellHeapDoubleFreeTest()
   } else if shellBufferEquals("panic-test") {
     shellPanicTest()
   } else if shellBufferEquals("fault-test") {

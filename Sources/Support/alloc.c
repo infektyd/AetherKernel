@@ -5,6 +5,9 @@
 #define HEAP_END  (HEAP_BASE + HEAP_SIZE)
 #define HEAP_PAYLOAD_SIZE ((HEAP_END - 8) - (HEAP_BASE + 8) - 16)
 #define HEAP_FREE_POISON 0xA5U
+#define HEAP_PRESSURE_BLOCK_COUNT 8U
+#define HEAP_FREE_CONTEXT_DIRECT 0UL
+#define HEAP_FREE_CONTEXT_SWIFT_SLOW_DEALLOC 1UL
 
 #define EINVAL 22
 #define ENOMEM 12
@@ -33,6 +36,11 @@ static unsigned int heap_last_error = HEAP_GUARD_OK;
 static unsigned long heap_invalid_frees = 0;
 static unsigned long heap_double_frees = 0;
 static unsigned long heap_corruptions = 0;
+static unsigned long heap_pressure_last_peak = 0;
+static unsigned long heap_pressure_last_leak = 0;
+static unsigned long heap_free_context = HEAP_FREE_CONTEXT_DIRECT;
+static unsigned long heap_free_context_align_mask = 0;
+static unsigned long heap_free_context_return_address = 0;
 
 static void heap_record_guard_error(unsigned int reason) {
     heap_last_error = reason;
@@ -41,6 +49,13 @@ static void heap_record_guard_error(unsigned int reason) {
 static void heap_record_corruption(unsigned int reason) {
     heap_last_error = reason;
     heap_corruptions++;
+}
+
+static void heap_pressure_record(unsigned long peak, unsigned long leak) {
+    unsigned long flags = irq_save();
+    heap_pressure_last_peak = peak;
+    heap_pressure_last_leak = leak;
+    irq_restore(flags);
 }
 
 static void heap_init(void) {
@@ -130,7 +145,7 @@ static int heap_payload_in_range(void *ptr) {
     if (addr < HEAP_BASE + 16 || addr >= HEAP_END - 8) {
         return 0;
     }
-    return (addr & 0xFUL) == 0;
+    return (addr & 0x7UL) == 0;
 }
 
 static void heap_poison_payload(block_header *H, size_t S) {
@@ -140,14 +155,20 @@ static void heap_poison_payload(block_header *H, size_t S) {
     }
 }
 
-static void heap_panic_invalid_free(void) {
+static void heap_panic_invalid_free(void *ptr) {
     heap_invalid_frees++;
-    kernel_panic("heap-invalid-free");
+    kernel_panic_with_detail("heap-invalid-free",
+                             heap_free_context,
+                             heap_free_context_return_address,
+                             (unsigned long)ptr);
 }
 
-static void heap_panic_double_free(void) {
+static void heap_panic_double_free(void *ptr) {
     heap_double_frees++;
-    kernel_panic("heap-double-free");
+    kernel_panic_with_detail("heap-double-free",
+                             heap_free_context,
+                             heap_free_context_return_address,
+                             (unsigned long)ptr);
 }
 
 static int heap_validate_allocated_header_unsafe(block_header *H, size_t *out_size) {
@@ -308,8 +329,12 @@ void free(void *ptr) {
         return;
     }
 
+    unsigned long caller = (unsigned long)__builtin_return_address(0);
     unsigned long flags = irq_save();
     free_calls++;
+    if (heap_free_context_return_address == 0) {
+        heap_free_context_return_address = caller;
+    }
 
     if (!heap_initialized) {
         heap_init();
@@ -320,9 +345,9 @@ void free(void *ptr) {
     if (!heap_validate_allocation_unsafe(ptr, &H, &S)) {
         unsigned int reason = heap_last_error;
         if (reason == HEAP_GUARD_DOUBLE_FREE) {
-            heap_panic_double_free();
+            heap_panic_double_free(ptr);
         } else {
-            heap_panic_invalid_free();
+            heap_panic_invalid_free(ptr);
         }
         irq_restore(flags);
         return;
@@ -377,6 +402,7 @@ void free(void *ptr) {
         insert_into_free_list((free_block *)H);
     }
 
+    heap_free_context_return_address = 0;
     irq_restore(flags);
 }
 
@@ -458,9 +484,9 @@ void *realloc(void *ptr, size_t size) {
     if (!heap_validate_allocation_unsafe(ptr, &H, &old_size)) {
         unsigned int reason = heap_last_error;
         if (reason == HEAP_GUARD_DOUBLE_FREE) {
-            heap_panic_double_free();
+            heap_panic_double_free(ptr);
         } else {
-            heap_panic_invalid_free();
+            heap_panic_invalid_free(ptr);
         }
         irq_restore(flags);
         return NULL;
@@ -483,17 +509,138 @@ void *realloc(void *ptr, size_t size) {
     return new_ptr;
 }
 
+int heap_pressure_selftest(void) {
+    const size_t sizes[HEAP_PRESSURE_BLOCK_COUNT] = {
+        16, 64, 256, 1024, 4096, 8192, 16384, 32768
+    };
+    const unsigned int free_order[HEAP_PRESSURE_BLOCK_COUNT] = {
+        1, 3, 5, 7, 0, 2, 4, 6
+    };
+    void *blocks[HEAP_PRESSURE_BLOCK_COUNT] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+    unsigned long before_free = heap_free_bytes();
+    unsigned long before_allocated = heap_allocated_bytes();
+    unsigned long peak = 0;
+
+    if (!heap_integrity_check()) {
+        heap_pressure_record(0, 0);
+        return 0;
+    }
+
+    for (unsigned int i = 0; i < HEAP_PRESSURE_BLOCK_COUNT; i++) {
+        blocks[i] = malloc(sizes[i]);
+        if (blocks[i] == NULL) {
+            for (unsigned int j = 0; j < i; j++) {
+                if (blocks[j] != NULL) {
+                    free(blocks[j]);
+                    blocks[j] = NULL;
+                }
+            }
+            unsigned long after_free_failed = heap_free_bytes();
+            unsigned long leak_failed = before_free > after_free_failed ? before_free - after_free_failed : 0;
+            heap_pressure_record(peak, leak_failed);
+            return 0;
+        }
+
+        unsigned char *p = (unsigned char *)blocks[i];
+        for (size_t j = 0; j < sizes[i]; j++) {
+            p[j] = (unsigned char)(0xC0U + i);
+        }
+
+        unsigned long allocated = heap_allocated_bytes();
+        unsigned long delta = allocated > before_allocated ? allocated - before_allocated : 0;
+        if (delta > peak) {
+            peak = delta;
+        }
+    }
+
+    for (unsigned int i = 0; i < HEAP_PRESSURE_BLOCK_COUNT; i++) {
+        unsigned int index = free_order[i];
+        unsigned char *p = (unsigned char *)blocks[index];
+        if (p[0] != (unsigned char)(0xC0U + index) ||
+            p[sizes[index] - 1] != (unsigned char)(0xC0U + index)) {
+            for (unsigned int j = 0; j < HEAP_PRESSURE_BLOCK_COUNT; j++) {
+                if (blocks[j] != NULL) {
+                    free(blocks[j]);
+                    blocks[j] = NULL;
+                }
+            }
+            unsigned long after_free_bad_pattern = heap_free_bytes();
+            unsigned long leak_bad_pattern = before_free > after_free_bad_pattern
+                ? before_free - after_free_bad_pattern
+                : 0;
+            heap_pressure_record(peak, leak_bad_pattern);
+            return 0;
+        }
+        free(blocks[index]);
+        blocks[index] = NULL;
+    }
+
+    int ok = heap_integrity_check();
+    unsigned long after_free = heap_free_bytes();
+    unsigned long after_allocated = heap_allocated_bytes();
+    unsigned long leak = 0;
+    if (before_free > after_free) {
+        leak = before_free - after_free;
+    } else if (after_allocated > before_allocated) {
+        leak = after_allocated - before_allocated;
+    }
+    heap_pressure_record(peak, leak);
+    return ok && after_free == before_free && after_allocated == before_allocated;
+}
+
+unsigned long heap_pressure_last_peak_bytes(void) {
+    unsigned long flags = irq_save();
+    unsigned long peak = heap_pressure_last_peak;
+    irq_restore(flags);
+    return peak;
+}
+
+unsigned long heap_pressure_last_leak_bytes(void) {
+    unsigned long flags = irq_save();
+    unsigned long leak = heap_pressure_last_leak;
+    irq_restore(flags);
+    return leak;
+}
+
+void heap_guard_invalid_free_test(void) {
+    free((void *)0x123450UL);
+    kernel_panic("heap-invalid-free-test-survived");
+}
+
+void heap_guard_double_free_test(void) {
+    void *p = malloc(32);
+    if (p == NULL) {
+        kernel_panic("heap-double-free-test-alloc");
+    }
+
+    free(p);
+    free(p);
+    kernel_panic("heap-double-free-test-survived");
+}
+
 //===----------------------------------------------------------------------===//
 // Swift runtime slow allocation — backed by the Stage-1 heap above.
 //===----------------------------------------------------------------------===//
 
 void *swift_slowAlloc(size_t size, size_t alignMask) {
-    // alignMask is (alignment - 1), or ~0 / 0 meaning "default" (16-byte).
-    if (alignMask == 0 || alignMask == (size_t)-1 || alignMask <= 15) {
+    if (size == 0) {
+        size = 1;
+    }
+
+    // Swift's runtime treats alignMask == ~0 as unknown/default alignment and
+    // intentionally routes it through the aligned path so matching deallocation
+    // can use the aligned-free contract.
+    if (alignMask <= 15) {
         return malloc(size);
     }
+
+    size_t alignment = alignMask + 1;
+    if (alignMask == (size_t)-1) {
+        alignment = 16;
+    }
+
     void *p = NULL;
-    if (posix_memalign(&p, alignMask + 1, size) != 0) {
+    if (posix_memalign(&p, alignment, size) != 0) {
         return NULL;
     }
     return p;
@@ -501,8 +648,16 @@ void *swift_slowAlloc(size_t size, size_t alignMask) {
 
 void swift_slowDealloc(void *ptr, size_t size, size_t alignMask) {
     (void)size;
-    (void)alignMask;
+
+    unsigned long flags = irq_save();
+    heap_free_context = HEAP_FREE_CONTEXT_SWIFT_SLOW_DEALLOC;
+    heap_free_context_align_mask = alignMask;
+    heap_free_context_return_address = (unsigned long)__builtin_return_address(0);
     free(ptr);
+    heap_free_context = HEAP_FREE_CONTEXT_DIRECT;
+    heap_free_context_align_mask = 0;
+    heap_free_context_return_address = 0;
+    irq_restore(flags);
 }
 
 unsigned long heap_total_bytes(void) {

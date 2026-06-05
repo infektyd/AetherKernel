@@ -3,12 +3,12 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V8 hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V11 hardware-verified on real Raspberry Pi 4B**
 > (2026-06-05) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
 > marker, the Runtime V6 retained-record marker, the Runtime V7 memory marker,
-> the Runtime V8 allocator-guard marker, and UART shell command responses over
+> the Runtime V8 allocator-guard marker, Runtime V9-V11 self-test markers, and UART shell command responses over
 > PL011 serial @ 115200.
 
 ## What works (verified)
@@ -29,6 +29,9 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V6 retained panic/fault records | ✅ | hardware run printed `runtime v6: retained panic/fault records`; `panic-test` and `fault-test` watchdog-reset and the next boot reported `retained valid=1 kind=panic/fault` |
 | Runtime V7 memory map + frame allocator | ✅ | hardware run printed `runtime v7: memory map + frame allocator`; `memmap` reported `valid=1 regions=7 page_size=4096`; `frames` reported `total=14336 free=14336 used=0 selftest=1`; 3-cycle netboot loop passed |
 | Runtime V8 allocator/frame guardrails | ✅ | hardware run printed `runtime v8: allocator guardrails`; `heapcheck` reported `ok=1 error=0 invalid_frees=0 double_frees=0 corruptions=0`; `framecheck` reported `ok=1 total=14336 free=14336 used=0 stress=1`; 3-cycle netboot loop passed |
+| Runtime V9 bounded memory pressure self-tests | ✅ | hardware run printed `runtime v9: bounded memory pressure self-tests`; `stress` reported `ok=1 heap=1 frames=1 heap_leak=0 frame_leak=0` |
+| Runtime V10 explicit guard probes | ✅ | hardware run printed `runtime v10: explicit guard probes`; `frameprobe` reported `ok=1 last_ok=1`; destructive `heap-invalid-free-test` wrote retained `reason=heap-invalid-free` |
+| Runtime V11 boot/soak invariants | ✅ | hardware run printed `runtime v11: boot and soak invariants`; `bootcheck` and `soak` reported `ok=1`; retained clear/readback survived after fixing 8-byte Swift heap-object dealloc |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -86,13 +89,13 @@ Sources/Application/GPIO.swift UART pin mux + historical ACT-LED helpers
 Sources/Application/Exceptions.swift  prints machine-checkable sync fault lines + ESR/ELR/FAR
 Sources/Application/TimerSleep.swift   8-slot CNTP-backed async continuation sleep
 Sources/Application/UARTRX.swift       Runtime V4 IRQ-backed UART RX async byte bridge
-Sources/Application/UARTShell.swift    Runtime V8 line command shell over UART RX
-Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V8 async cadences + shell
-Sources/Support/alloc.c               Runtime V8 fixed heap allocator + guard checks
+Sources/Application/UARTShell.swift    Runtime V11 line command shell over UART RX
+Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V11 async cadences + shell
+Sources/Support/alloc.c               Runtime V11 fixed heap allocator + guard/pressure checks
 Sources/Support/diagnostics.c         Runtime V6 IRQ/fault/panic counters + retained reset record
-Sources/Support/memory_map.c          Runtime V8 fixed memory map + guarded 4 KiB frame allocator
+Sources/Support/memory_map.c          Runtime V11 fixed memory map + guarded 4 KiB frame allocator
 build.sh / flash.sh / netboot-doctor.sh / netflash.sh / net-iterate.sh
-prepare-tftp.sh / serve-netboot.sh / serial-reset.sh / serial-command.sh
+prepare-tftp.sh / serve-netboot.sh / serial-reset.sh / serial-command.sh / serial-probe.sh
 macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
 ```
 
@@ -161,8 +164,25 @@ macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
      bad frees and double frees and exposes a fixed-storage stress selftest that allocates and
      returns four frames. Hardware proof: fresh netboot printed `runtime v8: allocator guardrails`;
      `heapcheck` returned `ok=1 error=0 invalid_frees=0 double_frees=0 corruptions=0`;
-     `framecheck` returned `ok=1 total=14336 free=14336 used=0 bad_frees=0 double_frees=0 error=0 stress=1`;
-     a 3-cycle `net-iterate.sh` loop passed.
+   `framecheck` returned `ok=1 total=14336 free=14336 used=0 bad_frees=0 double_frees=0 error=0 stress=1`;
+   a 3-cycle `net-iterate.sh` loop passed.
+  - **Runtime V9 — bounded memory pressure self-tests.** ✅ hardware-verified.
+    The shell `stress` command runs fixed-size heap and frame pressure loops, records peak/leak counters,
+    and avoids dynamic allocation in the test harness. Hardware proof: `stress ok=1 heap=1 frames=1
+    heap_peak=62928 frame_peak=16 heap_leak=0 frame_leak=0`.
+  - **Runtime V10 — explicit guard probes.** ✅ hardware-verified.
+    Non-destructive `frameprobe` verifies bad-frame and double-frame frees are counted without changing
+    final frame ownership. Destructive heap guard commands intentionally panic so retained records prove
+    the allocator fails loudly. Hardware proof: `frameprobe ok=1 last_ok=1 ...`; `heap-invalid-free-test`
+    rebooted and retained `reason=heap-invalid-free`.
+  - **Runtime V11 — boot and soak invariants.** ✅ hardware-verified.
+    Startup and shell `bootcheck` report memory-map, heap, frame, and retained-record health; `soak` runs
+    repeated bounded pressure rounds. `net-iterate.sh` now probes `status`, `bootcheck`, `stress`, and
+    `soak` by default. During V11 proof, retained read/clear exposed a Swift embedded heap-object
+    deallocation mismatch: this toolchain's `_swift_allocObject` calls `posix_memalign` with an 8-byte
+    floor and later calls `free(object)` directly. The allocator now accepts 8-byte-aligned
+    `posix_memalign` payloads while keeping header/footer validation strict. Hardware proof after the fix:
+    `retained clear ok=1`, `retained valid=0`, and `bootcheck ok=1 ... retained_valid=0`.
 
 ## Provenance
 
