@@ -1,9 +1,10 @@
 //===----------------------------------------------------------------------===//
-// Runtime V5 UART shell.
+// Runtime V6 UART shell.
 //
 // Line-oriented ASCII command surface over the IRQ-backed PL011 RX path. The
 // shell awaits bytes from UARTRX.swift instead of polling the UART FIFO. V5 adds
-// diagnostics commands that expose kernel pressure and fault signals.
+// diagnostics commands that expose kernel pressure and fault signals; V6 adds
+// retained panic/fault records across watchdog reset.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -33,11 +34,11 @@ func shellBufferEquals(_ s: StaticString) -> Bool {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,panic-test,fault-test,reboot\n")
 }
 
 func printStatus() {
@@ -205,6 +206,56 @@ func printFaults() {
   uartPuts("\n")
 }
 
+func printRetainedKind(_ kind: UInt32) {
+  if kind == KERNEL_RETAINED_KIND_PANIC {
+    uartPuts("panic")
+  } else if kind == KERNEL_RETAINED_KIND_FAULT {
+    uartPuts("fault")
+  } else {
+    uartPuts("none")
+  }
+}
+
+func printRetainedReason() {
+  var i: UInt32 = 0
+  let n = kernel_retained_reason_len()
+  while i < n {
+    let b = UInt8(kernel_retained_reason_byte(i) & 0xFF)
+    if b >= 0x20 && b < 0x7F {
+      uartPutc(b)
+    } else {
+      uartPutc(0x2E)
+    }
+    i += 1
+  }
+}
+
+func printRetained() {
+  let valid = kernel_retained_valid()
+  let kind = kernel_retained_kind()
+
+  uartPuts("retained valid=")
+  uartPutDec(UInt64(valid))
+  uartPuts(" kind=")
+  printRetainedKind(kind)
+  uartPuts(" seq=")
+  uartPutDec(UInt64(kernel_retained_sequence()))
+  uartPuts(" esr=")
+  uartPutHexCompact(UInt64(kernel_retained_esr()))
+  uartPuts(" elr=")
+  uartPutHexCompact(UInt64(kernel_retained_elr()))
+  uartPuts(" far=")
+  uartPutHexCompact(UInt64(kernel_retained_far()))
+  uartPuts(" reason=")
+  printRetainedReason()
+  uartPuts("\n")
+}
+
+func clearRetained() {
+  kernel_retained_clear()
+  uartPuts("retained clear ok=1\n")
+}
+
 func shellPanicTest() {
   uartPuts("shell panic-test reason=command\n")
   uartDrainTx()
@@ -288,6 +339,10 @@ func processUartShellLine() {
     printMemcheck()
   } else if shellBufferEquals("faults") {
     printFaults()
+  } else if shellBufferEquals("retained") {
+    printRetained()
+  } else if shellBufferEquals("retained-clear") {
+    clearRetained()
   } else if shellBufferEquals("panic-test") {
     shellPanicTest()
   } else if shellBufferEquals("fault-test") {

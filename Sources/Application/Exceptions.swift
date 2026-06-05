@@ -30,6 +30,9 @@ func kernelExceptionHandler(_ esr: UInt64, _ elr: UInt64, _ far: UInt64) {
   uartPuts("\n")
   uartPuts("FAR_EL1 = ")
   uartPutHex(far)
-  uartPuts("\nhalted.\n")
-  while true {}
+  uartPuts("\nwatchdog reset.\n")
+  kernel_retained_write_fault(UInt(esr), UInt(elr), UInt(far))
+  uartDrainTx()
+  watchdog_reset_now()
+  while true { wait_for_interrupt() }
 }

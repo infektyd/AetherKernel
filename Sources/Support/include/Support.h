@@ -132,7 +132,13 @@ unsigned int executor_ready_capacity(void);
 unsigned int executor_delayed_count(void);
 unsigned int executor_delayed_capacity(void);
 
-// Runtime V5 diagnostics: fixed-storage counters and panic/fault records.
+// Runtime V5/V6 diagnostics: fixed-storage counters plus retained panic/fault
+// records across watchdog reset.
+#define KERNEL_RETAINED_RECORD_ADDR 0x003ff000UL
+#define KERNEL_RETAINED_KIND_NONE   0U
+#define KERNEL_RETAINED_KIND_PANIC  1U
+#define KERNEL_RETAINED_KIND_FAULT  2U
+
 void kernel_irq_record(unsigned int intid);
 unsigned long kernel_irq_total_count(void);
 unsigned long kernel_irq_cntp_count(void);
@@ -147,6 +153,17 @@ unsigned long kernel_fault_esr(void);
 unsigned long kernel_fault_elr(void);
 unsigned long kernel_fault_far(void);
 unsigned int kernel_panic_seen(void);
+unsigned int kernel_retained_valid(void);
+unsigned int kernel_retained_kind(void);
+unsigned long kernel_retained_sequence(void);
+unsigned long kernel_retained_esr(void);
+unsigned long kernel_retained_elr(void);
+unsigned long kernel_retained_far(void);
+unsigned int kernel_retained_reason_len(void);
+unsigned int kernel_retained_reason_byte(unsigned int index);
+void kernel_retained_clear(void);
+void kernel_retained_write_panic(const char *reason);
+void kernel_retained_write_fault(unsigned long esr, unsigned long elr, unsigned long far);
 void kernel_panic(const char *reason);
 void kernel_panic_test(void);
 void kernel_trigger_sync_fault(void);

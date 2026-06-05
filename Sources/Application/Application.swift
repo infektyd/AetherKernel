@@ -64,13 +64,15 @@ struct Application {
 
     // Runtime V2: multiple Swift async tasks sleep on the same CNTP timer
     // arbiter. Runtime V4 adds IRQ-backed UART RX for the shell. Runtime V5
-    // exposes diagnostics over that same command surface.
+    // exposes diagnostics, and Runtime V6 retains panic/fault records across
+    // watchdog reset.
     uart_rx_irq_init()
     gicInitRuntimeIRQs()
     uart_rx_irq_enable()
     uartPuts("runtime v2: shared CNTP timer arbiter, multi-task async sleep\n")
     uartPuts("runtime v4: irq-backed uart shell\n")
     uartPuts("runtime v5: diagnostics shell\n")
+    uartPuts("runtime v6: retained panic/fault records\n")
     Task { await fastHeartbeat() }
     Task { await slowHeartbeat() }
     Task { await longHeartbeat() }
