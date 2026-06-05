@@ -4,9 +4,9 @@
 //===----------------------------------------------------------------------===//
 // AetherKernel — cooperative global executor (Stage 2).
 //
-// Single-threaded FIFO ready ring + unordered delay queue. All queue mutation
-// is bracketed by irq_save()/irq_restore() because the CNTP IRQ (INTID 30)
-// promotes delayed jobs concurrently with the drain pump.
+// Single-threaded FIFO ready ring. Runtime delay/deadline hooks intentionally
+// panic in this milestone because TimerSleep.swift owns CNTP (INTID 30) for the
+// one async heartbeat sleeper.
 //===----------------------------------------------------------------------===//
 
 #define READY_CAPACITY 64
@@ -99,8 +99,9 @@ static SwiftJob *ready_pop_unsafe(void) {
 }
 
 //===----------------------------------------------------------------------===//
-// Delay queue (unordered; linear scan for minimum deadline). Caller must
-// hold an irq_save() critical section.
+// Historical delay queue helpers. They are kept compiled for now, but no
+// supported current path may enqueue into them because TimerSleep.swift owns CNTP.
+// Caller must hold an irq_save() critical section.
 //===----------------------------------------------------------------------===//
 
 static void delay_push_unsafe(unsigned long long deadlineTicks, SwiftJob *job) {
@@ -191,11 +192,9 @@ SWIFT_CC(swift) void swift_task_enqueueMainExecutorImpl(SwiftJob *job) {
 
 SWIFT_CC(swift) void swift_task_enqueueGlobalWithDelayImpl(SwiftJobDelay delayNs,
                                                            SwiftJob *job) {
-    unsigned long long deadlineTicks = read_cntpct() + ns_to_ticks(delayNs);
-    unsigned long flags = irq_save();
-    delay_push_unsafe(deadlineTicks, job);
-    irq_restore(flags);
-    arm_next_deadline();
+    (void)delayNs;
+    (void)job;
+    executor_panic("runtime delay hook unsupported; TimerSleep.swift owns CNTP");
 }
 
 SWIFT_CC(swift) void swift_task_enqueueGlobalWithDeadlineImpl(long long sec,
@@ -206,21 +205,11 @@ SWIFT_CC(swift) void swift_task_enqueueGlobalWithDeadlineImpl(long long sec,
                                                               SwiftJob *job) {
     (void)tsec;
     (void)tnsec;
-
-    SwiftTime now = swift_time_now((SwiftClockId)clock);
-    unsigned long long now_ns = swift_time_to_ns(now);
-    unsigned long long target_ns = deadline_to_ns(sec, nsec);
-    unsigned long long delay_ns = 0;
-
-    if (target_ns > now_ns) {
-        delay_ns = target_ns - now_ns;
-    }
-
-    unsigned long long deadlineTicks = read_cntpct() + ns_to_ticks(delay_ns);
-    unsigned long flags = irq_save();
-    delay_push_unsafe(deadlineTicks, job);
-    irq_restore(flags);
-    arm_next_deadline();
+    (void)sec;
+    (void)nsec;
+    (void)clock;
+    (void)job;
+    executor_panic("runtime deadline hook unsupported; TimerSleep.swift owns CNTP");
 }
 
 SWIFT_CC(swift) SwiftExecutorRef swift_task_getMainExecutorImpl(void) {
@@ -289,6 +278,5 @@ swift_task_asyncMainDrainQueueImpl(void) {
 //===----------------------------------------------------------------------===//
 
 void executor_on_timer_irq(void) {
-    promote_due_jobs();
-    arm_next_deadline();
+    executor_panic("executor timer IRQ unsupported; TimerSleep.swift owns CNTP");
 }

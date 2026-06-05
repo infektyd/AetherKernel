@@ -1,6 +1,6 @@
 //===----------------------------------------------------------------------===//
-// Minimal GPIO for the green ACT LED (GPIO42) — a secondary liveness signal
-// alongside the UART. Same register math the verified blink used.
+// Minimal GPIO for the UART pin mux plus historical green ACT LED (GPIO42)
+// helpers. Current liveness is the serial async heartbeat.
 //===----------------------------------------------------------------------===//
 import Support
 

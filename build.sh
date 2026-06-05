@@ -27,7 +27,8 @@ echo "==> extracting flat binary -> kernel8.img"
 # zero-filling gaps. __BOOT (pinned to 0x80000) carries _start first.
 uv run ./macho2bin.py "$BIN" kernel8.img \
   --base-address 0x80000 \
-  --segments '__BOOT,__TEXT,__DATA'
+  --segments '__BOOT,__TEXT,__DATA' \
+  --max-end-address 0x400000
 echo "==> kernel8.img:"
 ls -la kernel8.img
 echo "==> done."

@@ -1,11 +1,10 @@
 //===----------------------------------------------------------------------===//
-// ARM generic timer (EL1 physical timer), polled.
+// ARM generic timer (EL1 physical timer), historical polled helpers.
 //
 // This replaces the cycle-counted busy `delay()` with a real, frequency-based
-// wait off CNTP. We poll CNTP_CTL_EL0.ISTATUS rather than take an interrupt —
-// ISTATUS reflects the timer condition regardless of the IRQ mask, so we get an
-// accurate hardware-timed tick with no GIC. (Interrupt-driven ticks come once
-// the GIC-400 is up — the next milestone.)
+// wait off CNTP. The current async heartbeat does not use these helpers:
+// TimerSleep.swift owns CNTP and resumes the one outstanding continuation from
+// the GIC timer IRQ. Keep these functions for earlier bring-up reference only.
 //
 // EL1 access to the physical timer was enabled in boot.S
 // (CNTHCTL_EL2 = EL1PCTEN|EL1PCEN, CNTVOFF_EL2 = 0).
@@ -13,7 +12,7 @@
 import Support
 
 private let CTL_ENABLE: UInt = 1 << 0   // start the timer
-private let CTL_IMASK: UInt = 1 << 1    // mask the IRQ output (no GIC yet)
+private let CTL_IMASK: UInt = 1 << 1    // mask the IRQ output
 private let CTL_ISTATUS: UInt = 1 << 2  // read-only: condition met
 
 // Tick frequency in Hz (CNTFRQ_EL0, firmware-programmed, ≈54 MHz on the Pi 4).
@@ -36,4 +35,3 @@ func timerArmIRQ(_ secs: UInt) {
   write_cntp_tval(timerFrequency() * secs)
   write_cntp_ctl(1)   // ENABLE, IMASK=0
 }
-

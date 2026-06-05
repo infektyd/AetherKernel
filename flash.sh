@@ -8,6 +8,26 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BOOT="${1:-/Volumes/bootfs}"
 
+sha256_file() {
+  shasum -a 256 "$1" | awk '{print $1}'
+}
+
+verify_copy() {
+  local src="$1"
+  local dst="$2"
+  local src_hash
+  local dst_hash
+  src_hash="$(sha256_file "$src")"
+  dst_hash="$(sha256_file "$dst")"
+  if [ "$src_hash" != "$dst_hash" ]; then
+    echo "verify failed for $(basename "$dst")"
+    echo "  source: $src_hash"
+    echo "  target: $dst_hash"
+    exit 1
+  fi
+  echo "verified $(basename "$dst") sha256 $dst_hash"
+}
+
 if [ ! -d "$BOOT" ]; then
   echo "Boot partition not found at: $BOOT"
   echo "Mount the SD card and pass its path, e.g. ./flash.sh /Volumes/boot"
@@ -30,5 +50,7 @@ fi
 cp "$SCRIPT_DIR/kernel8.img" "$BOOT/kernel8.img"
 cp "$SCRIPT_DIR/config.txt" "$BOOT/config.txt"
 sync
+verify_copy "$SCRIPT_DIR/kernel8.img" "$BOOT/kernel8.img"
+verify_copy "$SCRIPT_DIR/config.txt" "$BOOT/config.txt"
 echo "flashed kernel8.img + config.txt -> $BOOT"
 echo "eject the SD, move it to the Pi, then open the serial console (see RUNBOOK.md)."

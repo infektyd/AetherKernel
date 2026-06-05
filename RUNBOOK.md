@@ -24,9 +24,11 @@ Prepare the SD card's boot partition (typically mounted on macOS at `/Volumes/bo
    arm_64bit=1
    enable_uart=1
    dtoverlay=disable-bt
+   init_uart_clock=48000000
+   enable_gic=1
    ```
-   *(Note: `dtoverlay=disable-bt` routes the high-quality PL011 UART0 to GPIO14/15 instead of the mini-UART).*
-3. **Flash kernel:** Copy the newly built `kernel8.img` onto the root of the boot partition.
+   *(Note: `dtoverlay=disable-bt` routes the high-quality PL011 UART0 to GPIO14/15 instead of the mini-UART; `init_uart_clock=48000000` matches the kernel's PL011 baud divisor; `enable_gic=1` keeps the timer IRQ path available.)*
+3. **Flash kernel:** Run `./flash.sh /Volumes/bootfs` or copy the newly built `kernel8.img` onto the root of the boot partition. The script verifies `kernel8.img` and `config.txt` with SHA-256 after copying.
 
 ## 3. Serial Monitor on macOS
 Open a terminal on macOS to monitor the serial output:
@@ -45,14 +47,14 @@ Open a terminal on macOS to monitor the serial output:
 ## 4. Boot & Expected Output
 1. Insert the SD card back into the Raspberry Pi 4B.
 2. Connect the Raspberry Pi's USB-C power supply.
-3. Within a couple of seconds, the serial terminal should print the kernel's banner.
-4. **Liveness Check:** A blinking green ACT LED on the Pi serves as a secondary liveness indicator.
+3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, and repeating `async tick N` lines.
+4. **Liveness Check:** Current liveness is the serial `async tick N` heartbeat. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
 
 ## 5. Troubleshooting
 * **No output:**
   * Double-check that the adapter voltage jumper is set to 3.3V.
   * Verify TX/RX crossover wiring (swap RX and TX wires on the Pi header and test again if silent).
-  * Confirm that `config.txt` includes `enable_uart=1` and `dtoverlay=disable-bt`.
+  * Confirm that `config.txt` includes `enable_uart=1`, `dtoverlay=disable-bt`, `init_uart_clock=48000000`, and `enable_gic=1`.
   * Confirm the serial client baud rate is set to 115200.
   * Verify `kernel8.img` was successfully copied to the boot partition.
 * **Garbage/Corrupted characters:** The baud rate is mismatched. Ensure the terminal is set to 115200.

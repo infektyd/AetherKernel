@@ -97,8 +97,8 @@ void *realloc(void *ptr, unsigned long size);
 // in libswift_Concurrency.a; it forwards to our swift_task_asyncMainDrainQueueImpl).
 // It is void(void) so the swiftcall/cdecl ABI difference is immaterial here.
 void swift_task_asyncMainDrainQueue(void);
-// Called from the Swift GIC IRQ handler on INTID 30 (Stage 3+): matures the delay
-// queue and re-arms CNTP. No-op-safe to call even with an empty delay queue.
+// Unsupported in the current milestone: TimerSleep.swift owns CNTP. This panics
+// visibly if a future path accidentally wires executor delays back into INTID 30.
 void executor_on_timer_irq(void);
 
 // Timer-sleep hardware (Sources/Support/timersleep_hw.c). All in non-inline C
@@ -120,5 +120,4 @@ void watchdog_reset_now(void);
 void watchdog_arm_seconds(unsigned int seconds);
 void watchdog_pet_seconds(unsigned int seconds);
 void watchdog_disable(void);
-
 

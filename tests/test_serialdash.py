@@ -1,5 +1,6 @@
 import pathlib
 import sys
+import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -46,3 +47,40 @@ def test_feed_tracks_control_byte_telemetry_and_rate_samples() -> None:
     assert dash.nul_bytes == 1
     assert dash._recent_bytes() == 4
     assert dash._rate_sparkline(8)
+
+
+def test_currentel_milestone_accepts_short_hex() -> None:
+    dash = serialdash.Dashboard("/tmp/aether-test.log")
+
+    dash._feed(b"CurrentEL = 0x4\n")
+
+    assert dash.milestone_el1 is True
+
+
+def test_currentel_milestone_accepts_padded_uart_hex() -> None:
+    dash = serialdash.Dashboard("/tmp/aether-test.log")
+
+    dash._feed(b"CurrentEL = 0x0000000000000004\n")
+
+    assert dash.milestone_el1 is True
+
+
+def test_poll_io_does_not_select_on_regular_log_fd(monkeypatch) -> None:
+    with tempfile.NamedTemporaryFile() as f:
+        f.write(b"")
+        f.flush()
+        dash = serialdash.Dashboard(f.name)
+        assert dash.follower.try_open()
+        log_fd = dash.follower.fd
+        assert log_fd is not None
+        captured_fds: list[int] = []
+
+        def fake_select(fds, _write, _error, _timeout):
+            captured_fds.extend(fds)
+            return [], [], []
+
+        monkeypatch.setattr(serialdash.select, "select", fake_select)
+
+        dash.poll_io(0)
+
+        assert log_fd not in captured_fds

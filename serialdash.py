@@ -31,7 +31,7 @@ HIGHLIGHT_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"beat\s+\d+", re.I), "beat"),
 ]
 
-MILESTONE_EL1 = re.compile(r"CurrentEL\s*=\s*0x4\b", re.I)
+MILESTONE_EL1 = re.compile(r"CurrentEL\s*=\s*0x0*4\b", re.I)
 MILESTONE_EXCEPTION = re.compile(r"EXCEPTION|ESR", re.I)
 
 
@@ -308,22 +308,24 @@ class Dashboard:
         return "live" if self._is_live() else "idle"
 
     def poll_io(self, timeout: float) -> None:
+        self._feed(self.follower.read_chunk())
+        self._maybe_flush_partial()
+
         fds: list[int] = []
-        if self.follower.fd is not None:
-            fds.append(self.follower.fd)
-        stdin_fd = sys.stdin.fileno()
-        fds.append(stdin_fd)
+        stdin_fd: int | None = None
+        try:
+            stdin_fd = sys.stdin.fileno()
+        except (OSError, ValueError):
+            stdin_fd = None
+        if stdin_fd is not None:
+            fds.append(stdin_fd)
+        if not fds:
+            time.sleep(timeout)
+            return
         try:
             ready, _, _ = select.select(fds, [], [], timeout)
         except (ValueError, OSError):
             ready = []
-
-        if self.follower.fd is not None and self.follower.fd in ready:
-            self._feed(self.follower.read_chunk())
-        elif self.follower.waiting():
-            self.follower.try_open()
-
-        self._maybe_flush_partial()
 
         if stdin_fd in ready:
             return  # caller reads keys
@@ -463,7 +465,7 @@ class Dashboard:
         m1 = "[x]" if self.milestone_output else "[ ]"
         m2 = "[x]" if self.milestone_el1 else "[ ]"
         m3 = "[x]" if self.milestone_exception else "[ ]"
-        milestones = f" {m1} output  {m2} EL1 (CurrentEL=0x4)  {m3} exception"
+        milestones = f" {m1} output  {m2} EL1 CurrentEL  {m3} exception"
         help_line = " q quit  h hex  c clear  PgUp/Dn scroll  End/G follow"
         if self.status_msg:
             milestones = _display_text(self.status_msg)[: max(0, w - 1)]
