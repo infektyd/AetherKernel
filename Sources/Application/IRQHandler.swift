@@ -7,6 +7,7 @@ import Support
 func irqHandler() {
   let iar = gicAck()
   let intid = iar & 0x3FF                  // low 10 bits = INTID
+  kernel_irq_record(intid)
   if intid == 1022 || intid == 1023 { return }  // spurious (1023) / secure-we-can't-ack (1022): NO EOI
   if intid == CNTP_GIC_INTID {             // CNTP timer
     serviceTimerSleepers()                 // resume due sleep continuations; re-arms shared CNTP

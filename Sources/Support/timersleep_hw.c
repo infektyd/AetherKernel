@@ -95,3 +95,28 @@ unsigned int kernel_timer_active_mask(void) {
     irq_restore(flags);
     return mask;
 }
+
+unsigned int kernel_timer_active_count(void) {
+    unsigned long flags = irq_save();
+    unsigned int count = 0;
+
+    for (unsigned int i = 0; i < KERNEL_TIMER_CLIENT_COUNT; i++) {
+        if (g_active[i]) {
+            count++;
+        }
+    }
+
+    irq_restore(flags);
+    return count;
+}
+
+unsigned long kernel_timer_deadline_ticks(unsigned int client) {
+    if (!valid_client(client)) {
+        return 0;
+    }
+
+    unsigned long flags = irq_save();
+    unsigned long deadline = g_active[client] ? g_deadline[client] : 0;
+    irq_restore(flags);
+    return deadline;
+}

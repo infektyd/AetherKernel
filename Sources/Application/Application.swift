@@ -63,13 +63,14 @@ struct Application {
     uartPuts("CNTFRQ = "); uartPutHex(UInt64(timerFrequency())); uartPuts(" Hz (generic timer)\n")
 
     // Runtime V2: multiple Swift async tasks sleep on the same CNTP timer
-    // arbiter. Runtime V4 adds IRQ-backed UART RX for the shell while preserving
-    // the same cooperative Swift executor.
+    // arbiter. Runtime V4 adds IRQ-backed UART RX for the shell. Runtime V5
+    // exposes diagnostics over that same command surface.
     uart_rx_irq_init()
     gicInitRuntimeIRQs()
     uart_rx_irq_enable()
     uartPuts("runtime v2: shared CNTP timer arbiter, multi-task async sleep\n")
     uartPuts("runtime v4: irq-backed uart shell\n")
+    uartPuts("runtime v5: diagnostics shell\n")
     Task { await fastHeartbeat() }
     Task { await slowHeartbeat() }
     Task { await longHeartbeat() }

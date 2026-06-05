@@ -83,7 +83,7 @@ def test_runtime_v4_preserves_runtime_v3_shell_contract_and_updates_net_iterate_
     net_iterate = read_repo("net-iterate.sh")
 
     for marker in (
-        "shell ready commands=help,status,heap,queues,tasks,reboot",
+        "shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,panic-test,fault-test,reboot",
         "status uptime_ms=",
         "heap total=",
         "queues ready=",
@@ -94,4 +94,5 @@ def test_runtime_v4_preserves_runtime_v3_shell_contract_and_updates_net_iterate_
         assert marker in shell
 
     assert "runtime v4: irq-backed uart shell" in net_iterate
-    assert "shell ready commands=help,status,heap,queues,tasks,reboot" in net_iterate
+    assert "runtime v5: diagnostics shell" in net_iterate
+    assert "shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,panic-test,fault-test,reboot" in net_iterate

@@ -122,11 +122,34 @@ unsigned long heap_malloc_count(void);
 unsigned long heap_free_count(void);
 unsigned long heap_realloc_count(void);
 unsigned long heap_calloc_count(void);
+unsigned long heap_allocated_bytes(void);
+unsigned long heap_high_water_bytes(void);
+unsigned long heap_failed_alloc_count(void);
+int heap_integrity_check(void);
 
 unsigned int executor_ready_count(void);
 unsigned int executor_ready_capacity(void);
 unsigned int executor_delayed_count(void);
 unsigned int executor_delayed_capacity(void);
+
+// Runtime V5 diagnostics: fixed-storage counters and panic/fault records.
+void kernel_irq_record(unsigned int intid);
+unsigned long kernel_irq_total_count(void);
+unsigned long kernel_irq_cntp_count(void);
+unsigned long kernel_irq_uart0_count(void);
+unsigned long kernel_irq_spurious_count(void);
+unsigned long kernel_irq_unknown_count(void);
+unsigned int kernel_timer_active_count(void);
+unsigned long kernel_timer_deadline_ticks(unsigned int client);
+void kernel_record_fault(unsigned long esr, unsigned long elr, unsigned long far);
+unsigned int kernel_fault_seen(void);
+unsigned long kernel_fault_esr(void);
+unsigned long kernel_fault_elr(void);
+unsigned long kernel_fault_far(void);
+unsigned int kernel_panic_seen(void);
+void kernel_panic(const char *reason);
+void kernel_panic_test(void);
+void kernel_trigger_sync_fault(void);
 
 // Tiny fixed shell line buffer used by UARTShell.swift. The buffer capacity is
 // defined in Swift's command parser contract; C owns the mutable byte storage so

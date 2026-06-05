@@ -1,8 +1,9 @@
 //===----------------------------------------------------------------------===//
-// Runtime V4 UART shell.
+// Runtime V5 UART shell.
 //
 // Line-oriented ASCII command surface over the IRQ-backed PL011 RX path. The
-// shell awaits bytes from UARTRX.swift instead of polling the UART FIFO.
+// shell awaits bytes from UARTRX.swift instead of polling the UART FIFO. V5 adds
+// diagnostics commands that expose kernel pressure and fault signals.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -32,11 +33,11 @@ func shellBufferEquals(_ s: StaticString) -> Bool {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,status,heap,queues,tasks,reboot\n")
+  uartPuts("shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,status,heap,queues,tasks,reboot\n")
+  uartPuts("shell help commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,panic-test,fault-test,reboot\n")
 }
 
 func printStatus() {
@@ -70,6 +71,12 @@ func printHeap() {
   uartPutDec(UInt64(heap_free_bytes()))
   uartPuts(" largest=")
   uartPutDec(UInt64(heap_largest_free_bytes()))
+  uartPuts(" allocated=")
+  uartPutDec(UInt64(heap_allocated_bytes()))
+  uartPuts(" high_water=")
+  uartPutDec(UInt64(heap_high_water_bytes()))
+  uartPuts(" failed_allocs=")
+  uartPutDec(UInt64(heap_failed_alloc_count()))
   uartPuts(" mallocs=")
   uartPutDec(UInt64(heap_malloc_count()))
   uartPuts(" frees=")
@@ -109,6 +116,107 @@ func printTasks() {
   uartPuts("task long count=")
   uartPutDec(runtimeLongCount)
   uartPuts(" period_ms=2000\n")
+}
+
+func printDiag() {
+  let uptime = (UInt64(kernel_timer_now()) &* 1000) / UInt64(timerFrequency())
+  let heapOK = heap_integrity_check() != 0
+
+  uartPuts("diag version=v5 uptime_ms=")
+  uartPutDec(uptime)
+  uartPuts(" heap_ok=")
+  uartPutDec(UInt64(heapOK ? 1 : 0))
+  uartPuts(" heap_free=")
+  uartPutDec(UInt64(heap_free_bytes()))
+  uartPuts(" heap_high_water=")
+  uartPutDec(UInt64(heap_high_water_bytes()))
+  uartPuts(" heap_failed_allocs=")
+  uartPutDec(UInt64(heap_failed_alloc_count()))
+  uartPuts(" irq_total=")
+  uartPutDec(UInt64(kernel_irq_total_count()))
+  uartPuts(" irq_unknown=")
+  uartPutDec(UInt64(kernel_irq_unknown_count()))
+  uartPuts(" uart_rx_overflows=")
+  uartPutDec(UInt64(uart_rx_overflow_count()))
+  uartPuts("\n")
+}
+
+func printIrqs() {
+  uartPuts("irqs total=")
+  uartPutDec(UInt64(kernel_irq_total_count()))
+  uartPuts(" cntp=")
+  uartPutDec(UInt64(kernel_irq_cntp_count()))
+  uartPuts(" uart0=")
+  uartPutDec(UInt64(kernel_irq_uart0_count()))
+  uartPuts(" spurious=")
+  uartPutDec(UInt64(kernel_irq_spurious_count()))
+  uartPuts(" unknown=")
+  uartPutDec(UInt64(kernel_irq_unknown_count()))
+  uartPuts("\n")
+}
+
+func printTimers() {
+  uartPuts("timers now=")
+  uartPutDec(UInt64(kernel_timer_now()))
+  uartPuts(" freq=")
+  uartPutDec(UInt64(timerFrequency()))
+  uartPuts(" active_count=")
+  uartPutDec(UInt64(kernel_timer_active_count()))
+  uartPuts(" active_mask=")
+  uartPutHexCompact(UInt64(kernel_timer_active_mask()))
+  uartPuts(" sleep_deadline=")
+  uartPutDec(UInt64(kernel_timer_deadline_ticks(KERNEL_TIMER_CLIENT_SLEEP)))
+  uartPuts(" executor_deadline=")
+  uartPutDec(UInt64(kernel_timer_deadline_ticks(KERNEL_TIMER_CLIENT_EXECUTOR)))
+  uartPuts("\n")
+}
+
+func printMemcheck() {
+  let ok = heap_integrity_check() != 0
+
+  uartPuts("memcheck ok=")
+  uartPutDec(UInt64(ok ? 1 : 0))
+  uartPuts(" total=")
+  uartPutDec(UInt64(heap_total_bytes()))
+  uartPuts(" free=")
+  uartPutDec(UInt64(heap_free_bytes()))
+  uartPuts(" largest=")
+  uartPutDec(UInt64(heap_largest_free_bytes()))
+  uartPuts(" allocated=")
+  uartPutDec(UInt64(heap_allocated_bytes()))
+  uartPuts(" high_water=")
+  uartPutDec(UInt64(heap_high_water_bytes()))
+  uartPuts(" failed_allocs=")
+  uartPutDec(UInt64(heap_failed_alloc_count()))
+  uartPuts("\n")
+}
+
+func printFaults() {
+  uartPuts("faults seen=")
+  uartPutDec(UInt64(kernel_fault_seen()))
+  uartPuts(" panic_seen=")
+  uartPutDec(UInt64(kernel_panic_seen()))
+  uartPuts(" esr=")
+  uartPutHexCompact(UInt64(kernel_fault_esr()))
+  uartPuts(" elr=")
+  uartPutHexCompact(UInt64(kernel_fault_elr()))
+  uartPuts(" far=")
+  uartPutHexCompact(UInt64(kernel_fault_far()))
+  uartPuts("\n")
+}
+
+func shellPanicTest() {
+  uartPuts("shell panic-test reason=command\n")
+  uartDrainTx()
+  kernel_panic_test()
+  while true { wait_for_interrupt() }
+}
+
+func shellFaultTest() {
+  uartPuts("shell fault-test reason=command\n")
+  uartDrainTx()
+  kernel_trigger_sync_fault()
+  while true { wait_for_interrupt() }
 }
 
 func shellReboot(_ reason: StaticString) {
@@ -170,6 +278,20 @@ func processUartShellLine() {
     printQueues()
   } else if shellBufferEquals("tasks") {
     printTasks()
+  } else if shellBufferEquals("diag") {
+    printDiag()
+  } else if shellBufferEquals("irqs") {
+    printIrqs()
+  } else if shellBufferEquals("timers") {
+    printTimers()
+  } else if shellBufferEquals("memcheck") {
+    printMemcheck()
+  } else if shellBufferEquals("faults") {
+    printFaults()
+  } else if shellBufferEquals("panic-test") {
+    shellPanicTest()
+  } else if shellBufferEquals("fault-test") {
+    shellFaultTest()
   } else if shellBufferEquals("reboot") {
     shellRebootCommand()
   } else {

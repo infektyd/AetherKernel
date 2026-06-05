@@ -117,7 +117,7 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V4 marker, `rtv2 fast/slow/long` zero-lines,
+AetherKernel banner plus Runtime V5 marker, `rtv2 fast/slow/long` zero-lines,
 and `shell ready`.
 
 The first reset after adding this workflow is still physical if the currently
@@ -138,14 +138,16 @@ reset step is handled by:
 ```
 
 The expected serial flow is bootloader `TFTP_GET` lines, then the AetherKernel
-banner, padded `CurrentEL`, repeating `rtv2 fast/slow/long` cadences, and:
+banner, padded `CurrentEL`, repeating `rtv2 fast/slow/long` cadences, the
+Runtime V5 marker, and:
 
 ```text
-shell ready commands=help,status,heap,queues,tasks,reboot
+runtime v5: diagnostics shell
+shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,panic-test,fault-test,reboot
 ```
 
 The current kernel image services UART RX through PL011 receive interrupts into
-a fixed byte ring, then wakes the Runtime V4 async shell reader. `r` or `R`
+a fixed byte ring, then wakes the Runtime V5 async shell reader. `r` or `R`
 still triggers `watchdog_reset_now()` and re-enters the EEPROM boot path. Line
 commands can be sent from the Mac:
 
@@ -154,10 +156,21 @@ commands can be sent from the Mac:
 ./serial-command.sh heap
 ./serial-command.sh queues
 ./serial-command.sh tasks
+./serial-command.sh diag
+./serial-command.sh irqs
+./serial-command.sh timers
+./serial-command.sh memcheck
+./serial-command.sh faults
 ```
 
 Expected response prefixes are `status uptime_ms=`, `heap total=`,
-`queues ready=`, and `task fast count=` / `task slow count=` / `task long count=`.
+`queues ready=`, `task fast count=` / `task slow count=` / `task long count=`,
+`diag version=v5`, `irqs total=`, `timers now=`, `memcheck ok=`, and
+`faults seen=`.
+
+`panic-test` and `fault-test` intentionally halt the kernel after printing their
+diagnostic line. Do not use them as part of the normal iteration proof unless
+you are deliberately testing panic/fault reporting and are ready to reset.
 
 ## 4. Serial Monitor on macOS
 Open a terminal on macOS to monitor the serial output:
@@ -176,8 +189,8 @@ Open a terminal on macOS to monitor the serial output:
 ## 5. Boot & Expected Output
 1. Insert the SD card back into the Raspberry Pi 4B.
 2. Connect the Raspberry Pi's USB-C power supply.
-3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, `runtime v4: irq-backed uart shell`, repeating `rtv2 fast/slow/long` lines, and `shell ready`.
-4. **Liveness Check:** Current liveness is the serial Runtime V4 cadence output plus UART shell responses. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
+3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, `runtime v4: irq-backed uart shell`, `runtime v5: diagnostics shell`, repeating `rtv2 fast/slow/long` lines, and `shell ready`.
+4. **Liveness Check:** Current liveness is the serial Runtime V5 cadence output plus UART shell diagnostic responses. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
 
 ## 6. Troubleshooting
 * **No output:**

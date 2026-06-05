@@ -3,6 +3,7 @@
 #define HEAP_BASE 0x400000UL
 #define HEAP_SIZE 0x400000UL
 #define HEAP_END  (HEAP_BASE + HEAP_SIZE)
+#define HEAP_PAYLOAD_SIZE ((HEAP_END - 8) - (HEAP_BASE + 8) - 16)
 
 #define EINVAL 22
 #define ENOMEM 12
@@ -25,6 +26,8 @@ static unsigned long malloc_calls = 0;
 static unsigned long free_calls = 0;
 static unsigned long realloc_calls = 0;
 static unsigned long calloc_calls = 0;
+static unsigned long heap_high_water = 0;
+static unsigned long heap_failed_allocs = 0;
 
 static void heap_init(void) {
     // Left sentinel: at HEAP_BASE (8 bytes), value = 1 (allocated, payload 0)
@@ -41,7 +44,7 @@ static void heap_init(void) {
     // literal) so the initial block's footer butts exactly against the right
     // sentinel — otherwise end-of-heap coalescing reads the gap as a fake block.
     // = (HEAP_END-8) - (HEAP_BASE+8) - 16 = 0x3FFFE0.
-    size_t payload_size = (HEAP_END - 8) - (HEAP_BASE + 8) - 16;
+    size_t payload_size = HEAP_PAYLOAD_SIZE;
     first->size = payload_size; // Low bit is 0 (free)
     first->next = NULL;
 
@@ -73,6 +76,31 @@ static void remove_from_free_list(free_block *b) {
 static void insert_into_free_list(free_block *b) {
     b->next = free_list_head;
     free_list_head = b;
+}
+
+static unsigned long heap_free_bytes_unsafe(void) {
+    unsigned long total = 0;
+    free_block *curr = free_list_head;
+    while (curr != NULL) {
+        total += curr->size & ~1UL;
+        curr = curr->next;
+    }
+    return total;
+}
+
+static unsigned long heap_allocated_bytes_unsafe(void) {
+    unsigned long free_bytes = heap_free_bytes_unsafe();
+    if (free_bytes >= HEAP_PAYLOAD_SIZE) {
+        return 0;
+    }
+    return HEAP_PAYLOAD_SIZE - free_bytes;
+}
+
+static void heap_update_high_water_unsafe(void) {
+    unsigned long allocated = heap_allocated_bytes_unsafe();
+    if (allocated > heap_high_water) {
+        heap_high_water = allocated;
+    }
 }
 
 void *malloc(size_t size) {
@@ -107,6 +135,7 @@ void *malloc(size_t size) {
     }
 
     if (found == NULL) {
+        heap_failed_allocs++;
         irq_restore(flags);
         return NULL;
     }
@@ -148,6 +177,7 @@ void *malloc(size_t size) {
         }
     }
 
+    heap_update_high_water_unsafe();
     irq_restore(flags);
     return (void *)((char *)found + 8);
 }
@@ -260,6 +290,9 @@ void *calloc(size_t nmemb, size_t size) {
 
     size_t total = nmemb * size;
     if (total / nmemb != size) {
+        flags = irq_save();
+        heap_failed_allocs++;
+        irq_restore(flags);
         return NULL; // Overflow
     }
 
@@ -345,12 +378,7 @@ unsigned long heap_free_bytes(void) {
         heap_init();
     }
 
-    unsigned long total = 0;
-    free_block *curr = free_list_head;
-    while (curr != NULL) {
-        total += curr->size & ~1UL;
-        curr = curr->next;
-    }
+    unsigned long total = heap_free_bytes_unsafe();
 
     irq_restore(flags);
     return total;
@@ -402,4 +430,119 @@ unsigned long heap_calloc_count(void) {
     unsigned long count = calloc_calls;
     irq_restore(flags);
     return count;
+}
+
+unsigned long heap_allocated_bytes(void) {
+    unsigned long flags = irq_save();
+    if (!heap_initialized) {
+        heap_init();
+    }
+
+    unsigned long allocated = heap_allocated_bytes_unsafe();
+    irq_restore(flags);
+    return allocated;
+}
+
+unsigned long heap_high_water_bytes(void) {
+    unsigned long flags = irq_save();
+    unsigned long high_water = heap_high_water;
+    irq_restore(flags);
+    return high_water;
+}
+
+unsigned long heap_failed_alloc_count(void) {
+    unsigned long flags = irq_save();
+    unsigned long count = heap_failed_allocs;
+    irq_restore(flags);
+    return count;
+}
+
+int heap_integrity_check(void) {
+    unsigned long flags = irq_save();
+    if (!heap_initialized) {
+        heap_init();
+    }
+
+    if (*(size_t *)HEAP_BASE != 1UL) {
+        irq_restore(flags);
+        return 0;
+    }
+    if (*(size_t *)(HEAP_END - 8) != 1UL) {
+        irq_restore(flags);
+        return 0;
+    }
+
+    char *p = (char *)(HEAP_BASE + 8);
+    char *end = (char *)(HEAP_END - 8);
+    unsigned long blocks = 0;
+    while (p < end) {
+        block_header *h = (block_header *)p;
+        size_t raw = h->size;
+        size_t size = raw & ~1UL;
+        char *footer_addr = p + 8 + size;
+
+        if (size == 0 || (size & 0xFUL) != 0) {
+            irq_restore(flags);
+            return 0;
+        }
+        if (footer_addr + 8 > end) {
+            irq_restore(flags);
+            return 0;
+        }
+        if (*(size_t *)footer_addr != raw) {
+            irq_restore(flags);
+            return 0;
+        }
+
+        p += 16 + size;
+        blocks++;
+        if (blocks > 65536) {
+            irq_restore(flags);
+            return 0;
+        }
+    }
+
+    if (p != end) {
+        irq_restore(flags);
+        return 0;
+    }
+
+    free_block *curr = free_list_head;
+    blocks = 0;
+    while (curr != NULL) {
+        unsigned long addr = (unsigned long)curr;
+        if (addr < HEAP_BASE + 8 || addr >= HEAP_END - 8) {
+            irq_restore(flags);
+            return 0;
+        }
+
+        size_t size = curr->size & ~1UL;
+        size_t *footer = (size_t *)((char *)curr + 8 + size);
+        if ((curr->size & 1UL) != 0) {
+            irq_restore(flags);
+            return 0;
+        }
+        if ((size & 0xFUL) != 0 || size == 0) {
+            irq_restore(flags);
+            return 0;
+        }
+        if ((unsigned long)(footer + 1) > HEAP_END - 8) {
+            irq_restore(flags);
+            return 0;
+        }
+        if (*footer != size) {
+            irq_restore(flags);
+            return 0;
+        }
+
+        curr = curr->next;
+        blocks++;
+        if (blocks > 65536) {
+            irq_restore(flags);
+            return 0;
+        }
+    }
+
+    irq_restore(flags);
+    return 1;
 }

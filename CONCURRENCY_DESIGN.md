@@ -1,7 +1,21 @@
 # AetherKernel — Milestone 4 design: async/await on bare metal (cooperative executor)
 
 **Status:** ✅ IMPLEMENTED. Stage 2/3 were hardware-verified 2026-06-04; Runtime V2 shared-CNTP
-timer arbitration and Runtime V3 UART shell/control plane were hardware-verified 2026-06-05.
+timer arbitration, Runtime V3 UART shell/control plane, Runtime V4 IRQ-backed UART RX, and
+Runtime V5 diagnostics shell were hardware-verified 2026-06-05.
+
+> ## Runtime V5 ground truth (2026-06-05)
+> The IRQ-backed UART shell now exposes diagnostics commands:
+> `diag`, `irqs`, `timers`, `memcheck`, `faults`, `panic-test`, and `fault-test`.
+> Safe command proof on hardware returned machine-checkable `diag version=v5`, `irqs total=`,
+> `timers now=`, `memcheck ok=1`, and `faults seen=0` lines while `rtv2 fast/slow/long`
+> cadences continued. `panic-test` and `fault-test` intentionally halt the kernel and are not
+> normal liveness checks.
+
+> ## Runtime V4 ground truth (2026-06-05)
+> PL011 RX is IRQ-backed. UART0 receive/receive-timeout interrupts drain into a fixed C byte
+> ring, route through GIC INTID 153 to CPU0, and wake one Swift async shell waiter. The shell no
+> longer polls RX every 25 ms; it awaits `uartReadByteAsync()`.
 
 > ## Runtime V3 ground truth (2026-06-05)
 > A dedicated async UART shell task polls PL011 RX every 25 ms using `timerSleepMillis`.

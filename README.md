@@ -3,11 +3,11 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V4 hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V5 hardware-verified on real Raspberry Pi 4B**
 > (2026-06-05) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
-> async cadences, the IRQ-backed UART shell marker, and UART shell command
-> responses over PL011 serial @ 115200.
+> async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
+> marker, and UART shell command responses over PL011 serial @ 115200.
 
 ## What works (verified on the build side)
 
@@ -23,6 +23,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Embedded Swift Runtime V2 async scheduler | ✅ | hardware run printed independent `rtv2 fast/slow/long` cadences; shared CNTP arbiter drives continuation sleeps + executor delays |
 | Runtime V3 UART shell/control plane | ✅ | hardware run printed `shell ready`; `status`, `heap`, `queues`, and `tasks` returned machine-checkable `key=value` lines |
 | Runtime V4 IRQ-backed UART RX shell | ✅ | hardware run printed `runtime v4: irq-backed uart shell`; `status`, `heap`, `queues`, and `tasks` returned over PL011 RX interrupts; `serial-reset.sh` rebooted back into netboot |
+| Runtime V5 diagnostics shell | ✅ | hardware run printed `runtime v5: diagnostics shell`; `diag`, `irqs`, `timers`, `memcheck`, and `faults` returned machine-checkable lines; 3-cycle netboot loop passed |
 | EL1 exception vectors | ✅ (IRQ) | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync/fault slots still untriggered |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -77,11 +78,12 @@ Sources/Support/vectors.S     16-entry EL1 vector table -> common syndrome handl
 Sources/Support/include/      C volatile MMIO shim (mmio_read32/write32, nop, CurrentEL)
 Sources/Application/UART.swift PL011 driver (init/putc/puts/puthex)
 Sources/Application/GPIO.swift UART pin mux + historical ACT-LED helpers
-Sources/Application/Exceptions.swift  prints ESR/ELR/FAR on fault
+Sources/Application/Exceptions.swift  prints machine-checkable sync fault lines + ESR/ELR/FAR
 Sources/Application/TimerSleep.swift   8-slot CNTP-backed async continuation sleep
 Sources/Application/UARTRX.swift       Runtime V4 IRQ-backed UART RX async byte bridge
-Sources/Application/UARTShell.swift    Runtime V4 line command shell over UART RX
-Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V4 async cadences + shell
+Sources/Application/UARTShell.swift    Runtime V5 line command shell over UART RX
+Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V5 async cadences + shell
+Sources/Support/diagnostics.c         Runtime V5 IRQ/fault/panic counters and panic/fault test hooks
 build.sh / flash.sh / netboot-doctor.sh / netflash.sh / net-iterate.sh
 prepare-tftp.sh / serve-netboot.sh / serial-reset.sh / serial-command.sh
 macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
@@ -126,6 +128,12 @@ macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
      async shell waiter. Hardware proof: fresh netboot printed `runtime v4: irq-backed uart shell`;
      `serial-command.sh status`, `heap`, `queues`, and `tasks` returned response lines while
      `rtv2 fast/slow/long` cadences continued; `serial-reset.sh` rebooted back into netboot.
+   - **Runtime V5 — diagnostics and fault/IRQ self-inspection.** ✅ hardware-verified. The UART
+     shell now accepts `diag`, `irqs`, `timers`, `memcheck`, `faults`, `panic-test`, and
+     `fault-test` in addition to the V3 commands. Safe proof commands returned `diag version=v5`,
+     `irqs total=`, `timers now=`, `memcheck ok=1`, and `faults seen=0` while async cadences
+     continued. `panic-test` and `fault-test` are intentionally destructive and are not part of
+     the normal liveness proof.
 
 ## Provenance
 

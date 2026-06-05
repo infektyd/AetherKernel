@@ -10,6 +10,15 @@ import Support
 
 @_cdecl("kernel_exception_handler")
 func kernelExceptionHandler(_ esr: UInt64, _ elr: UInt64, _ far: UInt64) {
+  kernel_record_fault(UInt(esr), UInt(elr), UInt(far))
+  uartPuts("\nfault kind=sync esr=")
+  uartPutHexCompact(esr)
+  uartPuts(" elr=")
+  uartPutHexCompact(elr)
+  uartPuts(" far=")
+  uartPutHexCompact(far)
+  uartPuts("\n")
+
   uartPuts("\n*** AetherKernel EXCEPTION ***\n")
   uartPuts("ESR_EL1 = ")
   uartPutHex(esr)
