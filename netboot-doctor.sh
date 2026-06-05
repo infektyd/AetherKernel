@@ -30,6 +30,19 @@ die() {
   exit 1
 }
 
+print_tftp_diagnostics() {
+  local dns_delta="$1"
+
+  if printf '%s' "$dns_delta" | grep -Eq "failed sending .*/start4\\.elf|timeout sending .*/start4\\.elf"; then
+    echo "diagnostic: Pi bootloader did not reliably receive start4.elf over TFTP."
+    echo "diagnostic: kernel was not reached; try restarting serve-netboot with AETHER_TFTP_NO_BLOCKSIZE=1 for an A/B test."
+  fi
+
+  if printf '%s' "$dns_delta" | grep -Eq "failed sending .*/kernel8\\.img|timeout sending .*/kernel8\\.img"; then
+    echo "diagnostic: kernel8.img transfer was attempted but not cleanly completed before fallback/retry."
+  fi
+}
+
 file_size() {
   if [ -f "$1" ]; then
     stat -f %z "$1" 2>/dev/null || stat -c %s "$1"
@@ -99,7 +112,7 @@ dns_start="$(file_size "$DNSMASQ_LOG")"
 
 echo
 echo "ACTION: reset or power-cycle the Pi once now."
-echo "I am watching for: dnsmasq sends $PREFIX/kernel8.img + serial prints a fresh AetherKernel banner."
+echo "I am watching for: dnsmasq sends $PREFIX/kernel8.img + serial prints fresh Runtime V4 shell markers."
 echo "Timeout: ${TIMEOUT_S}s"
 
 deadline=$((SECONDS + TIMEOUT_S))
@@ -109,7 +122,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
 
   if printf '%s' "$dns_delta" | grep -q "$PREFIX/.*kernel8.img" \
     && printf '%s' "$serial_delta" | grep -q "=== AetherKernel ===" \
-    && printf '%s' "$serial_delta" | grep -q "async tick 0x0000000000000000"; then
+    && printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
+    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,reboot"; then
     echo "netboot bring-up verified"
     echo "--- dnsmasq delta ---"
     printf '%s\n' "$dns_delta" | tail -n 80
@@ -121,6 +135,7 @@ while [ "$SECONDS" -lt "$deadline" ]; do
 done
 
 echo "netboot bring-up did not verify within ${TIMEOUT_S}s"
+print_tftp_diagnostics "$(file_delta "$DNSMASQ_LOG" "$dns_start")"
 echo "--- dnsmasq delta ---"
 file_delta "$DNSMASQ_LOG" "$dns_start" | tail -n 80
 echo "--- serial delta ---"

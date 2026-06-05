@@ -6,7 +6,7 @@
 #
 # Builds and stages kernel8.img/config.txt, sends the serial reset command, and
 # watches dnsmasq + serial logs for proof that the Pi fetched over TFTP,
-# booted the staged image, and brought up the Runtime V3 UART shell.
+# booted the staged image, and brought up the Runtime V4 IRQ-backed UART shell.
 #===----------------------------------------------------------------------===#
 set -euo pipefail
 
@@ -28,6 +28,19 @@ usage() {
 die() {
   echo "net-iterate: $*" >&2
   exit 1
+}
+
+print_tftp_diagnostics() {
+  local dns_delta="$1"
+
+  if printf '%s' "$dns_delta" | grep -Eq "failed sending .*/start4\\.elf|timeout sending .*/start4\\.elf"; then
+    echo "diagnostic: Pi bootloader did not reliably receive start4.elf over TFTP."
+    echo "diagnostic: kernel was not reached; try restarting serve-netboot with AETHER_TFTP_NO_BLOCKSIZE=1 for an A/B test."
+  fi
+
+  if printf '%s' "$dns_delta" | grep -Eq "failed sending .*/kernel8\\.img|timeout sending .*/kernel8\\.img"; then
+    echo "diagnostic: kernel8.img transfer was attempted but not cleanly completed before fallback/retry."
+  fi
 }
 
 file_size() {
@@ -91,6 +104,7 @@ last_serial_delta=""
 while [ "$attempt" -le "$RETRIES" ]; do
   serial_start="$(file_size "$SERIAL_LOG")"
   dns_start="$(file_size "$DNSMASQ_LOG")"
+  sd_fallback_seen=0
 
   echo "netboot attempt ${attempt}/${RETRIES}: reset Pi, then wait up to ${TIMEOUT_S}s for TFTP fetch + fresh AetherKernel boot..."
   "$SCRIPT_DIR/serial-reset.sh" "$SERIAL_PORT"
@@ -100,11 +114,19 @@ while [ "$attempt" -le "$RETRIES" ]; do
     dns_delta="$(file_delta "$DNSMASQ_LOG" "$dns_start")"
     serial_delta="$(file_delta "$SERIAL_LOG" "$serial_start")"
 
+    if printf '%s' "$serial_delta" | grep -q "async heartbeat: timer-backed sleep 1s"; then
+      echo "netboot attempt ${attempt}/${RETRIES} booted stale SD fallback image detected"
+      echo "--- serial delta from stale fallback ---"
+      printf '%s\n' "$serial_delta" | tail -n 120
+      exit 2
+    fi
+
     if printf '%s' "$dns_delta" | grep -q "$PREFIX/.*kernel8.img" \
       && printf '%s' "$serial_delta" | grep -q "=== AetherKernel ===" \
       && printf '%s' "$serial_delta" | grep -q "rtv2 fast 0x0000000000000000" \
       && printf '%s' "$serial_delta" | grep -q "rtv2 slow 0x0000000000000000" \
       && printf '%s' "$serial_delta" | grep -q "rtv2 long 0x0000000000000000" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
       && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,reboot"; then
       echo "netboot iteration verified on attempt ${attempt}/${RETRIES}"
       echo "--- dnsmasq delta ---"
@@ -113,16 +135,33 @@ while [ "$attempt" -le "$RETRIES" ]; do
       printf '%s\n' "$serial_delta" | tail -n 120
       exit 0
     fi
+
+    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,reboot"; then
+      echo "netboot attempt ${attempt}/${RETRIES} current Runtime V4 SD fallback image detected"
+      echo "TFTP kernel fetch was not verified; staged network image is not proven."
+      print_tftp_diagnostics "$dns_delta"
+      last_dns_delta="$dns_delta"
+      last_serial_delta="$serial_delta"
+      sd_fallback_seen=1
+      break
+    fi
     sleep 1
   done
 
-  last_dns_delta="$(file_delta "$DNSMASQ_LOG" "$dns_start")"
-  last_serial_delta="$(file_delta "$SERIAL_LOG" "$serial_start")"
-  echo "netboot attempt ${attempt}/${RETRIES} did not verify within ${TIMEOUT_S}s"
+  if [ "$sd_fallback_seen" != "1" ]; then
+    last_dns_delta="$(file_delta "$DNSMASQ_LOG" "$dns_start")"
+    last_serial_delta="$(file_delta "$SERIAL_LOG" "$serial_start")"
+    echo "netboot attempt ${attempt}/${RETRIES} did not verify within ${TIMEOUT_S}s"
+  fi
 
   if [ "$attempt" -lt "$RETRIES" ]; then
+    if [ "$sd_fallback_seen" = "1" ]; then
+      echo "retrying after current Runtime V4 SD fallback..."
+    fi
     echo "--- dnsmasq delta from failed attempt ---"
     printf '%s\n' "$last_dns_delta" | tail -n 40
+    print_tftp_diagnostics "$last_dns_delta"
     echo "--- serial delta from failed attempt ---"
     printf '%s\n' "$last_serial_delta" | tail -n 60
     echo "retrying..."
@@ -132,8 +171,16 @@ while [ "$attempt" -le "$RETRIES" ]; do
 done
 
 echo "netboot iteration did not verify after ${RETRIES} attempt(s)"
+print_tftp_diagnostics "$last_dns_delta"
+if printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
+  && printf '%s' "$last_serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,reboot"; then
+  echo "final result: current Runtime V4 SD fallback image booted, but staged network image is not proven."
+  final_exit=3
+else
+  final_exit=1
+fi
 echo "--- dnsmasq delta from final attempt ---"
 printf '%s\n' "$last_dns_delta" | tail -n 80
 echo "--- serial delta from final attempt ---"
 printf '%s\n' "$last_serial_delta" | tail -n 120
-exit 1
+exit "$final_exit"

@@ -136,6 +136,16 @@ unsigned int uart_shell_buffer_count(void);
 int uart_shell_buffer_append(unsigned int byte);
 unsigned int uart_shell_buffer_get(unsigned int index);
 
+// IRQ-backed PL011 UART RX byte ring (Sources/Support/uart_rx_irq.c).
+// The IRQ service path uses fixed storage only: no allocation, no Swift calls.
+void uart_rx_irq_init(void);
+void uart_rx_irq_enable(void);
+void uart_rx_irq_service(void);
+int uart_rx_ring_read_byte(unsigned int *out);
+unsigned int uart_rx_ring_count(void);
+unsigned int uart_rx_ring_capacity(void);
+unsigned int uart_rx_overflow_count(void);
+
 // MMU setup (Sources/Support/mmu.c). Called from boot.S after the EL1 drop and
 // before _main: identity-maps RAM as Normal Inner-Shareable cacheable (peripherals
 // as Device) so the concurrency runtime's ldxr/stxr atomics have an exclusive monitor.

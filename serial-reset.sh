@@ -40,6 +40,7 @@ fi
 if [ "${AETHER_SERIAL_RESET_DRY_RUN:-0}" = "1" ]; then
   echo "serial port: $PORT"
   echo "payload: $PAYLOAD"
+  echo "frame: ${PAYLOAD}\\n"
   exit 0
 fi
 
@@ -50,7 +51,7 @@ import termios
 import time
 
 port = sys.argv[1]
-payload = sys.argv[2].encode("ascii")
+payload = (sys.argv[2] + "\n").encode("ascii")
 
 fd = os.open(port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
 try:

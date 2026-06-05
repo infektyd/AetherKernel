@@ -65,7 +65,7 @@ def test_uart_shell_declares_commands_and_machine_checkable_responses() -> None:
 
     assert "let UART_SHELL_BUFFER_CAPACITY: Int = 80" in shell
     assert "func startUartShellTask()" in shell
-    assert "func pollUartShell()" in shell
+    assert "func processUartShellByte(_ b: UInt8)" in shell
 
 
 def test_runtime_v3_keeps_single_byte_reset_compatibility() -> None:

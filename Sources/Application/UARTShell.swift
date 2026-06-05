@@ -1,14 +1,14 @@
 //===----------------------------------------------------------------------===//
-// Runtime V3 UART shell.
+// Runtime V4 UART shell.
 //
-// Line-oriented ASCII command surface over the existing PL011 RX path. This is
-// intentionally polled from an async task for V3; UART RX interrupts become the
-// next driver-layer milestone.
+// Line-oriented ASCII command surface over the IRQ-backed PL011 RX path. The
+// shell awaits bytes from UARTRX.swift instead of polling the UART FIFO.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
 
 let UART_SHELL_BUFFER_CAPACITY: Int = 80
+nonisolated(unsafe) var resetAliasCheckScheduled: Bool = false
 
 func isResetAlias(_ b: UInt8) -> Bool {
   b == 0x72 || b == 0x52
@@ -115,14 +115,41 @@ func shellReboot(_ reason: StaticString) {
   uartPuts("shell reboot reason=")
   uartPuts(reason)
   uartPuts("\n")
+  uartDrainTx()
   watchdog_reset_now()
   while true { wait_for_interrupt() }
 }
 
 func shellRebootCommand() {
   uartPuts("shell reboot reason=command\n")
+  uartDrainTx()
   watchdog_reset_now()
   while true { wait_for_interrupt() }
+}
+
+func resetAliasQuietWindow() async {
+  await timerSleepMillis(20)
+
+  var shouldReset = false
+  let flags = irq_save()
+  if uart_shell_buffer_count() == 1 {
+    let b = UInt8(uart_shell_buffer_get(0) & 0xFF)
+    shouldReset = isResetAlias(b)
+  }
+  resetAliasCheckScheduled = false
+  irq_restore(flags)
+
+  if shouldReset {
+    shellReboot("alias")
+  }
+}
+
+func scheduleResetAliasCheckIfNeeded() {
+  if resetAliasCheckScheduled {
+    return
+  }
+  resetAliasCheckScheduled = true
+  Task { await resetAliasQuietWindow() }
 }
 
 func processUartShellLine() {
@@ -152,34 +179,23 @@ func processUartShellLine() {
   }
 }
 
-func pollUartShell() {
-  var readAny = false
-
-  while let b = uartTryReadByte() {
-    readAny = true
-
-    if b == 0x0A || b == 0x0D {
-      processUartShellLine()
-      uart_shell_buffer_clear()
-    } else if uart_shell_buffer_append(UInt32(b)) == 0 {
-      uartPuts("shell error reason=line_too_long\n")
-      uart_shell_buffer_clear()
-    }
-  }
-
-  if !readAny && uart_shell_buffer_count() == 1 {
-    let b = UInt8(uart_shell_buffer_get(0) & 0xFF)
-    if isResetAlias(b) {
-      shellReboot("alias")
-    }
+func processUartShellByte(_ b: UInt8) {
+  if b == 0x0A || b == 0x0D {
+    processUartShellLine()
+    uart_shell_buffer_clear()
+  } else if uart_shell_buffer_append(UInt32(b)) == 0 {
+    uartPuts("shell error reason=line_too_long\n")
+    uart_shell_buffer_clear()
+  } else if uart_shell_buffer_count() == 1 && isResetAlias(b) {
+    scheduleResetAliasCheckIfNeeded()
   }
 }
 
 func uartShellMain() async {
   printShellReady()
   while true {
-    pollUartShell()
-    await timerSleepMillis(25)
+    let b = await uartReadByteAsync()
+    processUartShellByte(b)
   }
 }
 

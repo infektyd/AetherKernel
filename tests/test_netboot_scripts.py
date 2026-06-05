@@ -6,6 +6,10 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
+def read_repo(path: str) -> str:
+    return (ROOT / path).read_text()
+
+
 def run_script(name: str, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     script_env = os.environ.copy()
     if env:
@@ -201,6 +205,7 @@ def test_serial_reset_dry_run_targets_default_usb_ttl_port() -> None:
 
     assert "/dev/cu.usbserial-B0044J1V" in result.stdout
     assert "payload: r" in result.stdout
+    assert "frame: r\\n" in result.stdout
 
 
 def test_net_iterate_dry_run_describes_stage_reset_watch_loop() -> None:
@@ -223,6 +228,33 @@ def test_net_iterate_dry_run_describes_stage_reset_watch_loop() -> None:
     assert "timeout per attempt: 150s" in result.stdout
 
 
+def test_net_iterate_detects_stale_sd_fallback_image() -> None:
+    net_iterate = read_repo("net-iterate.sh")
+
+    assert "async heartbeat: timer-backed sleep 1s" in net_iterate
+    assert "stale SD fallback image detected" in net_iterate
+
+
+def test_net_iterate_reports_current_v4_sd_fallback_without_claiming_netboot() -> None:
+    net_iterate = read_repo("net-iterate.sh")
+
+    assert "current Runtime V4 SD fallback image detected" in net_iterate
+    assert "TFTP kernel fetch was not verified" in net_iterate
+    assert "sd_fallback_seen=1" in net_iterate
+    assert "retrying after current Runtime V4 SD fallback" in net_iterate
+    assert "final_exit=3" in net_iterate
+    assert 'exit "$final_exit"' in net_iterate
+
+
+def test_net_iterate_classifies_start4_tftp_failures_as_bootloader_transfer() -> None:
+    net_iterate = read_repo("net-iterate.sh")
+
+    assert "failed sending .*/start4\\\\.elf" in net_iterate
+    assert "timeout sending .*/start4\\\\.elf" in net_iterate
+    assert "kernel was not reached" in net_iterate
+    assert "AETHER_TFTP_NO_BLOCKSIZE=1" in net_iterate
+
+
 def test_netboot_doctor_dry_run_shows_human_reset_gate() -> None:
     result = run_script(
         "netboot-doctor.sh",
@@ -240,3 +272,20 @@ def test_netboot_doctor_dry_run_shows_human_reset_gate() -> None:
     assert "ACTION: reset or power-cycle the Pi once" in result.stdout
     assert "watch TFTP prefix: aether-test/" in result.stdout
     assert "/tmp/aether-serial.log" in result.stdout
+
+
+def test_netboot_doctor_verifies_runtime_v4_markers() -> None:
+    doctor = read_repo("netboot-doctor.sh")
+
+    assert "runtime v4: irq-backed uart shell" in doctor
+    assert "shell ready commands=help,status,heap,queues,tasks,reboot" in doctor
+    assert "async tick 0x0000000000000000" not in doctor
+
+
+def test_netboot_doctor_classifies_start4_tftp_failures_as_bootloader_transfer() -> None:
+    doctor = read_repo("netboot-doctor.sh")
+
+    assert "failed sending .*/start4\\\\.elf" in doctor
+    assert "timeout sending .*/start4\\\\.elf" in doctor
+    assert "kernel was not reached" in doctor
+    assert "AETHER_TFTP_NO_BLOCKSIZE=1" in doctor

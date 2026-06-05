@@ -19,6 +19,7 @@ private let CR: UInt = 0x30    // Control register
 private let IMSC: UInt = 0x38  // Interrupt mask set/clear
 private let ICR: UInt = 0x44   // Interrupt clear
 
+private let FR_BUSY: UInt32 = 1 << 3  // UART is transmitting
 private let FR_RXFE: UInt32 = 1 << 4  // Receive FIFO empty
 private let FR_TXFF: UInt32 = 1 << 5  // Transmit FIFO full
 
@@ -61,6 +62,10 @@ func uartPuts(_ s: StaticString) {
     uartPutc(b)
     i += 1
   }
+}
+
+func uartDrainTx() {
+  while (mmio_read32(UART0_BASE + FR) & FR_BUSY) != 0 { nop() }
 }
 
 func uartPutByteStringFromShellBuffer() {

@@ -96,8 +96,11 @@ minimum `5000` is too tight for reliable firmware fetches on this bench.
    EEPROM static-IP config supplies the Pi's IP and server IP. UDP port 69
    requires root; if sudo credentials are not cached, macOS will reject startup
    until you run it from an admin-authenticated terminal. Leave dnsmasq blocksize
-   negotiation enabled; `AETHER_TFTP_NO_BLOCKSIZE=1` is a diagnostic fallback,
-   not the default for this Pi 4.
+   negotiation enabled by default. If bootloader logs repeatedly show
+   `failed sending .../start4.elf`, `timeout sending .../start4.elf`, or
+   `Read aether/start4.elf failed`, restart `serve-netboot.sh` with
+   `AETHER_TFTP_NO_BLOCKSIZE=1` for a clean A/B test before suspecting the
+   kernel image.
 
 If the EEPROM is already network-booting but still has a bad timeout, stage a
 TFTP self-update by placing `pieeprom.sig` and `pieeprom.upd` in
@@ -114,8 +117,8 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V3 `rtv2 fast/slow/long` zero-lines and
-`shell ready`.
+AetherKernel banner plus Runtime V4 marker, `rtv2 fast/slow/long` zero-lines,
+and `shell ready`.
 
 The first reset after adding this workflow is still physical if the currently
 running SD image predates the serial reset hook. For that first proof, use the
@@ -141,9 +144,10 @@ banner, padded `CurrentEL`, repeating `rtv2 fast/slow/long` cadences, and:
 shell ready commands=help,status,heap,queues,tasks,reboot
 ```
 
-The current kernel image polls UART RX from a dedicated 25 ms Runtime V3 shell
-task. `r` or `R` still triggers `watchdog_reset_now()` and re-enters the EEPROM
-boot path. Line commands can be sent from the Mac:
+The current kernel image services UART RX through PL011 receive interrupts into
+a fixed byte ring, then wakes the Runtime V4 async shell reader. `r` or `R`
+still triggers `watchdog_reset_now()` and re-enters the EEPROM boot path. Line
+commands can be sent from the Mac:
 
 ```bash
 ./serial-command.sh status
@@ -172,8 +176,8 @@ Open a terminal on macOS to monitor the serial output:
 ## 5. Boot & Expected Output
 1. Insert the SD card back into the Raspberry Pi 4B.
 2. Connect the Raspberry Pi's USB-C power supply.
-3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, repeating `rtv2 fast/slow/long` lines, and `shell ready`.
-4. **Liveness Check:** Current liveness is the serial Runtime V3 cadence output plus UART shell responses. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
+3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, `runtime v4: irq-backed uart shell`, repeating `rtv2 fast/slow/long` lines, and `shell ready`.
+4. **Liveness Check:** Current liveness is the serial Runtime V4 cadence output plus UART shell responses. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
 
 ## 6. Troubleshooting
 * **No output:**

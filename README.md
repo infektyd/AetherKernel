@@ -3,10 +3,11 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V3 hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V4 hardware-verified on real Raspberry Pi 4B**
 > (2026-06-05) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
-> async cadences, and UART shell command responses over PL011 serial @ 115200.
+> async cadences, the IRQ-backed UART shell marker, and UART shell command
+> responses over PL011 serial @ 115200.
 
 ## What works (verified on the build side)
 
@@ -21,6 +22,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | GIC-400 IRQ routing — CNTP (INTID 30) → EL1 vector → `wfi` idle | ✅ | **interrupt-driven `irq N` @ 1.0002 s mean on hardware; CPU idles in `wfi`** |
 | Embedded Swift Runtime V2 async scheduler | ✅ | hardware run printed independent `rtv2 fast/slow/long` cadences; shared CNTP arbiter drives continuation sleeps + executor delays |
 | Runtime V3 UART shell/control plane | ✅ | hardware run printed `shell ready`; `status`, `heap`, `queues`, and `tasks` returned machine-checkable `key=value` lines |
+| Runtime V4 IRQ-backed UART RX shell | ✅ | hardware run printed `runtime v4: irq-backed uart shell`; `status`, `heap`, `queues`, and `tasks` returned over PL011 RX interrupts; `serial-reset.sh` rebooted back into netboot |
 | EL1 exception vectors | ✅ (IRQ) | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync/fault slots still untriggered |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -63,8 +65,9 @@ brew install dnsmasq        # one-time host dependency
 
 See `RUNBOOK.md` for the required one-time EEPROM config. Keep `flash.sh` as the
 SD recovery path. The exact Pi 4 bootloader settings live in
-`netboot-eeprom-config.txt`. On the current bench, dnsmasq blocksize negotiation
-must stay enabled; `AETHER_TFTP_NO_BLOCKSIZE=1` is only a diagnostic fallback.
+`netboot-eeprom-config.txt`. If Pi bootloader logs show repeated
+`start4.elf` early-terminate or timeout failures, restart `serve-netboot.sh`
+with `AETHER_TFTP_NO_BLOCKSIZE=1` as the first server-side A/B test.
 
 ## Layout
 
@@ -76,8 +79,9 @@ Sources/Application/UART.swift PL011 driver (init/putc/puts/puthex)
 Sources/Application/GPIO.swift UART pin mux + historical ACT-LED helpers
 Sources/Application/Exceptions.swift  prints ESR/ELR/FAR on fault
 Sources/Application/TimerSleep.swift   8-slot CNTP-backed async continuation sleep
-Sources/Application/UARTShell.swift    Runtime V3 line command shell over UART RX
-Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V3 async cadences + shell
+Sources/Application/UARTRX.swift       Runtime V4 IRQ-backed UART RX async byte bridge
+Sources/Application/UARTShell.swift    Runtime V4 line command shell over UART RX
+Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V4 async cadences + shell
 build.sh / flash.sh / netboot-doctor.sh / netflash.sh / net-iterate.sh
 prepare-tftp.sh / serve-netboot.sh / serial-reset.sh / serial-command.sh
 macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
@@ -117,6 +121,11 @@ macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
      `tasks`, and `reboot`; `r`/`R` remain watchdog-reset aliases for the netboot loop. Hardware proof:
      fresh netboot printed `shell ready commands=help,status,heap,queues,tasks,reboot`, and
      `serial-command.sh` produced `status`, `heap`, `queues`, and `tasks` response lines.
+   - **Runtime V4 — IRQ-backed UART RX.** ✅ hardware-verified. PL011 RX/receive-timeout interrupts
+     drain into a fixed C byte ring, route through GIC INTID 153 to CPU0, and wake a single Swift
+     async shell waiter. Hardware proof: fresh netboot printed `runtime v4: irq-backed uart shell`;
+     `serial-command.sh status`, `heap`, `queues`, and `tasks` returned response lines while
+     `rtv2 fast/slow/long` cadences continued; `serial-reset.sh` rebooted back into netboot.
 
 ## Provenance
 

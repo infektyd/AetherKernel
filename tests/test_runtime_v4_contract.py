@@ -60,6 +60,24 @@ def test_irq_handler_routes_confirmed_uart0_intid() -> None:
     assert "gicEnableInterrupt(UART0_GIC_INTID" in gic
 
 
+def test_reboot_responses_are_drained_before_watchdog_reset() -> None:
+    uart = read_repo("Sources/Application/UART.swift")
+    shell = read_repo("Sources/Application/UARTShell.swift")
+
+    assert "func uartDrainTx()" in uart
+    assert "FR_BUSY" in uart
+    assert "uartDrainTx()" in shell
+    assert shell.index("uartDrainTx()") < shell.index("watchdog_reset_now()")
+
+
+def test_uart0_spi_is_targeted_to_cpu0() -> None:
+    gic = read_repo("Sources/Application/GIC.swift")
+
+    assert "GICD_ITARGETSR" in gic
+    assert "gicSetTargetCpu0" in gic
+    assert "gicSetTargetCpu0(intid)" in gic
+
+
 def test_runtime_v4_preserves_runtime_v3_shell_contract_and_updates_net_iterate_gate() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
     net_iterate = read_repo("net-iterate.sh")

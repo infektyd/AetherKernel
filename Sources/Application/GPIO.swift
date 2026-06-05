@@ -1,6 +1,6 @@
 //===----------------------------------------------------------------------===//
 // Minimal GPIO for the UART pin mux plus historical green ACT LED (GPIO42)
-// helpers. Current liveness is the serial Runtime V3 cadence + shell output.
+// helpers. Current liveness is the serial Runtime V4 cadence + shell output.
 //===----------------------------------------------------------------------===//
 import Support
 
