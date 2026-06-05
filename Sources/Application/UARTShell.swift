@@ -1,11 +1,11 @@
 //===----------------------------------------------------------------------===//
-// Runtime V7 UART shell.
+// Runtime V8 UART shell.
 //
 // Line-oriented ASCII command surface over the IRQ-backed PL011 RX path. The
 // shell awaits bytes from UARTRX.swift instead of polling the UART FIFO. V5 adds
 // diagnostics commands that expose kernel pressure and fault signals; V6 adds
 // retained panic/fault records across watchdog reset. V7 adds memory ownership
-// and frame allocator inspection.
+// and frame allocator inspection. V8 adds allocator guard/status self-checks.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -35,11 +35,11 @@ func shellBufferEquals(_ s: StaticString) -> Bool {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,panic-test,fault-test,reboot\n")
 }
 
 func printStatus() {
@@ -338,6 +338,49 @@ func printFrames() {
   uartPuts("\n")
 }
 
+func printHeapcheck() {
+  let ok = heap_guard_selftest() != 0
+
+  uartPuts("heapcheck ok=")
+  uartPutDec(UInt64(ok ? 1 : 0))
+  uartPuts(" error=")
+  uartPutDec(UInt64(heap_guard_last_error()))
+  uartPuts(" invalid_frees=")
+  uartPutDec(UInt64(heap_invalid_free_count()))
+  uartPuts(" double_frees=")
+  uartPutDec(UInt64(heap_double_free_count()))
+  uartPuts(" corruptions=")
+  uartPutDec(UInt64(heap_corruption_count()))
+  uartPuts(" free=")
+  uartPutDec(UInt64(heap_free_bytes()))
+  uartPuts(" largest=")
+  uartPutDec(UInt64(heap_largest_free_bytes()))
+  uartPuts("\n")
+}
+
+func printFramecheck() {
+  let stress = kernel_frame_allocator_stress_selftest()
+  let ok = stress != 0 && kernel_frame_free_count() == kernel_frame_total_count()
+
+  uartPuts("framecheck ok=")
+  uartPutDec(UInt64(ok ? 1 : 0))
+  uartPuts(" total=")
+  uartPutDec(UInt64(kernel_frame_total_count()))
+  uartPuts(" free=")
+  uartPutDec(UInt64(kernel_frame_free_count()))
+  uartPuts(" used=")
+  uartPutDec(UInt64(kernel_frame_used_count()))
+  uartPuts(" bad_frees=")
+  uartPutDec(UInt64(kernel_frame_bad_free_count()))
+  uartPuts(" double_frees=")
+  uartPutDec(UInt64(kernel_frame_double_free_count()))
+  uartPuts(" error=")
+  uartPutDec(UInt64(kernel_frame_last_error()))
+  uartPuts(" stress=")
+  uartPutDec(UInt64(stress))
+  uartPuts("\n")
+}
+
 func shellPanicTest() {
   uartPuts("shell panic-test reason=command\n")
   uartDrainTx()
@@ -429,6 +472,10 @@ func processUartShellLine() {
     printMemmap()
   } else if shellBufferEquals("frames") {
     printFrames()
+  } else if shellBufferEquals("heapcheck") {
+    printHeapcheck()
+  } else if shellBufferEquals("framecheck") {
+    printFramecheck()
   } else if shellBufferEquals("panic-test") {
     shellPanicTest()
   } else if shellBufferEquals("fault-test") {

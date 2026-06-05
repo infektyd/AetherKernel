@@ -48,6 +48,9 @@ static unsigned long frame_used;
 static unsigned int memory_initialized;
 static unsigned int memory_map_valid;
 static unsigned int memory_last_error;
+static unsigned int frame_last_error;
+static unsigned long frame_bad_frees;
+static unsigned long frame_double_frees;
 
 static unsigned int frame_bit(unsigned long index) {
     return 1U << (unsigned int)(index & 31UL);
@@ -67,6 +70,10 @@ static void frame_mark_used(unsigned long index) {
 
 static void frame_mark_free(unsigned long index) {
     frame_bitmap[frame_word(index)] &= ~frame_bit(index);
+}
+
+static void frame_record_error(unsigned int error) {
+    frame_last_error = error;
 }
 
 static int page_aligned(unsigned long value) {
@@ -251,20 +258,30 @@ unsigned long kernel_frame_alloc(void) {
         if (!frame_is_used(i)) {
             frame_mark_used(i);
             frame_used++;
+            frame_record_error(KERNEL_FRAME_ERROR_NONE);
             irq_restore(flags);
             return KERNEL_FRAME_BASE + (i * KERNEL_PAGE_SIZE);
         }
     }
 
+    frame_record_error(KERNEL_FRAME_ERROR_EXHAUSTED);
     irq_restore(flags);
     return 0;
 }
 
 int kernel_frame_free(unsigned long address) {
     if (address < KERNEL_FRAME_BASE || address >= KERNEL_FRAME_LIMIT) {
+        unsigned long flags = irq_save();
+        frame_bad_frees++;
+        frame_record_error(KERNEL_FRAME_ERROR_BAD_FREE);
+        irq_restore(flags);
         return 0;
     }
     if (!page_aligned(address)) {
+        unsigned long flags = irq_save();
+        frame_bad_frees++;
+        frame_record_error(KERNEL_FRAME_ERROR_BAD_FREE);
+        irq_restore(flags);
         return 0;
     }
 
@@ -274,12 +291,15 @@ int kernel_frame_free(unsigned long address) {
         kernel_memory_init();
     }
     if (!frame_is_used(index)) {
+        frame_double_frees++;
+        frame_record_error(KERNEL_FRAME_ERROR_DOUBLE_FREE);
         irq_restore(flags);
         return 0;
     }
 
     frame_mark_free(index);
     frame_used--;
+    frame_record_error(KERNEL_FRAME_ERROR_NONE);
     irq_restore(flags);
     return 1;
 }
@@ -296,4 +316,57 @@ int kernel_frame_allocator_selftest(void) {
         return 0;
     }
     return kernel_frame_free(frame);
+}
+
+unsigned int kernel_frame_last_error(void) {
+    unsigned long flags = irq_save();
+    unsigned int error = frame_last_error;
+    irq_restore(flags);
+    return error;
+}
+
+unsigned long kernel_frame_bad_free_count(void) {
+    unsigned long flags = irq_save();
+    unsigned long count = frame_bad_frees;
+    irq_restore(flags);
+    return count;
+}
+
+unsigned long kernel_frame_double_free_count(void) {
+    unsigned long flags = irq_save();
+    unsigned long count = frame_double_frees;
+    irq_restore(flags);
+    return count;
+}
+
+int kernel_frame_allocator_stress_selftest(void) {
+    unsigned long before_free = kernel_frame_free_count();
+    unsigned long before_used = kernel_frame_used_count();
+    unsigned long frames[4] = {0, 0, 0, 0};
+
+    for (unsigned int i = 0; i < 4; i++) {
+        frames[i] = kernel_frame_alloc();
+        if (frames[i] == 0 || !page_aligned(frames[i])) {
+            for (unsigned int j = 0; j < i; j++) {
+                (void)kernel_frame_free(frames[j]);
+            }
+            return 0;
+        }
+        for (unsigned int j = 0; j < i; j++) {
+            if (frames[i] == frames[j]) {
+                for (unsigned int k = 0; k <= i; k++) {
+                    (void)kernel_frame_free(frames[k]);
+                }
+                return 0;
+            }
+        }
+    }
+
+    for (unsigned int i = 0; i < 4; i++) {
+        if (!kernel_frame_free(frames[i])) {
+            return 0;
+        }
+    }
+
+    return kernel_frame_free_count() == before_free && kernel_frame_used_count() == before_used;
 }

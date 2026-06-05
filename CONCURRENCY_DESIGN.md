@@ -5,6 +5,22 @@ timer arbitration, Runtime V3 UART shell/control plane, Runtime V4 IRQ-backed UA
 Runtime V5 diagnostics shell were hardware-verified 2026-06-05.
 Runtime V6 retained panic/fault records were hardware-verified 2026-06-05.
 Runtime V7 memory map and frame allocator invariants were hardware-verified 2026-06-05.
+Runtime V8 allocator/frame guardrails were hardware-verified 2026-06-05.
+
+> ## Runtime V8 ground truth (2026-06-05)
+> V8 keeps the V7 physical memory ownership model: heap allocation still lives in the fixed
+> `0x00400000`-`0x00800000` window, and the frame allocator still manages only
+> `0x00800000`-`0x04000000`. It does not add frame-backed heap allocation, paging, or
+> desktop/networking work. It hardens the existing allocator paths instead: `free` and
+> `realloc` validate heap pointers before metadata mutation, detect double frees, keep
+> stable `HEAP_GUARD_*` reason codes, count invalid/double/corruption events, and poison
+> freed payloads. Fresh `malloc` payloads are not filled. Real allocator misuse panics;
+> shell self-checks stay non-destructive. The frame allocator now tracks bad frees and
+> double frees and exposes a fixed-storage stress selftest. Hardware proof: fresh netboot
+> printed `runtime v8: allocator guardrails`; `heapcheck` reported
+> `ok=1 error=0 invalid_frees=0 double_frees=0 corruptions=0`; `framecheck` reported
+> `ok=1 total=14336 free=14336 used=0 bad_frees=0 double_frees=0 error=0 stress=1`;
+> a 3-cycle `net-iterate.sh` loop passed.
 
 > ## Runtime V7 ground truth (2026-06-05)
 > The kernel has an explicit fixed low-memory ownership map and a fixed-storage

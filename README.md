@@ -3,12 +3,13 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V7 hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V8 hardware-verified on real Raspberry Pi 4B**
 > (2026-06-05) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
 > marker, the Runtime V6 retained-record marker, the Runtime V7 memory marker,
-> and UART shell command responses over PL011 serial @ 115200.
+> the Runtime V8 allocator-guard marker, and UART shell command responses over
+> PL011 serial @ 115200.
 
 ## What works (verified)
 
@@ -27,6 +28,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V5 diagnostics shell | ✅ | hardware run printed `runtime v5: diagnostics shell`; `diag`, `irqs`, `timers`, `memcheck`, and `faults` returned machine-checkable lines; 3-cycle netboot loop passed |
 | Runtime V6 retained panic/fault records | ✅ | hardware run printed `runtime v6: retained panic/fault records`; `panic-test` and `fault-test` watchdog-reset and the next boot reported `retained valid=1 kind=panic/fault` |
 | Runtime V7 memory map + frame allocator | ✅ | hardware run printed `runtime v7: memory map + frame allocator`; `memmap` reported `valid=1 regions=7 page_size=4096`; `frames` reported `total=14336 free=14336 used=0 selftest=1`; 3-cycle netboot loop passed |
+| Runtime V8 allocator/frame guardrails | ✅ | hardware run printed `runtime v8: allocator guardrails`; `heapcheck` reported `ok=1 error=0 invalid_frees=0 double_frees=0 corruptions=0`; `framecheck` reported `ok=1 total=14336 free=14336 used=0 stress=1`; 3-cycle netboot loop passed |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -84,10 +86,11 @@ Sources/Application/GPIO.swift UART pin mux + historical ACT-LED helpers
 Sources/Application/Exceptions.swift  prints machine-checkable sync fault lines + ESR/ELR/FAR
 Sources/Application/TimerSleep.swift   8-slot CNTP-backed async continuation sleep
 Sources/Application/UARTRX.swift       Runtime V4 IRQ-backed UART RX async byte bridge
-Sources/Application/UARTShell.swift    Runtime V7 line command shell over UART RX
-Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V7 async cadences + shell
+Sources/Application/UARTShell.swift    Runtime V8 line command shell over UART RX
+Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V8 async cadences + shell
+Sources/Support/alloc.c               Runtime V8 fixed heap allocator + guard checks
 Sources/Support/diagnostics.c         Runtime V6 IRQ/fault/panic counters + retained reset record
-Sources/Support/memory_map.c          Runtime V7 fixed memory map + 4 KiB frame allocator
+Sources/Support/memory_map.c          Runtime V8 fixed memory map + guarded 4 KiB frame allocator
 build.sh / flash.sh / netboot-doctor.sh / netflash.sh / net-iterate.sh
 prepare-tftp.sh / serve-netboot.sh / serial-reset.sh / serial-command.sh
 macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
@@ -150,6 +153,15 @@ macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
      to `0x04000000` with fixed bitmap storage. Hardware proof: fresh netboot printed
      `runtime v7: memory map + frame allocator`; `memmap` returned `valid=1 regions=7 page_size=4096`;
      `frames` returned `total=14336 free=14336 used=0 reserved=0 base=0x800000 limit=0x4000000 selftest=1`;
+     a 3-cycle `net-iterate.sh` loop passed.
+   - **Runtime V8 — allocator and frame guardrails.** ✅ hardware-verified.
+     Real allocator misuse now fails loudly before metadata mutation: `free`/`realloc` validate
+     heap pointers, detect double frees, preserve stable `HEAP_GUARD_*` reason codes, count
+     invalid/double/corruption events, and poison freed payloads. The frame allocator tracks
+     bad frees and double frees and exposes a fixed-storage stress selftest that allocates and
+     returns four frames. Hardware proof: fresh netboot printed `runtime v8: allocator guardrails`;
+     `heapcheck` returned `ok=1 error=0 invalid_frees=0 double_frees=0 corruptions=0`;
+     `framecheck` returned `ok=1 total=14336 free=14336 used=0 bad_frees=0 double_frees=0 error=0 stress=1`;
      a 3-cycle `net-iterate.sh` loop passed.
 
 ## Provenance

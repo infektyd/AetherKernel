@@ -127,6 +127,26 @@ unsigned long heap_high_water_bytes(void);
 unsigned long heap_failed_alloc_count(void);
 int heap_integrity_check(void);
 
+// Runtime V8 heap guardrails. These are stable machine-checkable reason codes:
+// shell output and tests should not depend on allocator internals.
+#define HEAP_GUARD_OK             0U
+#define HEAP_GUARD_SENTINEL       1U
+#define HEAP_GUARD_BLOCK_SIZE     2U
+#define HEAP_GUARD_BLOCK_FOOTER   3U
+#define HEAP_GUARD_FREE_RANGE     4U
+#define HEAP_GUARD_FREE_ALLOCATED 5U
+#define HEAP_GUARD_FREE_FOOTER    6U
+#define HEAP_GUARD_FREE_DUP       7U
+#define HEAP_GUARD_INVALID_FREE   8U
+#define HEAP_GUARD_DOUBLE_FREE    9U
+#define HEAP_GUARD_BACKPTR        10U
+
+unsigned int heap_guard_last_error(void);
+unsigned long heap_invalid_free_count(void);
+unsigned long heap_double_free_count(void);
+unsigned long heap_corruption_count(void);
+int heap_guard_selftest(void);
+
 unsigned int executor_ready_count(void);
 unsigned int executor_ready_capacity(void);
 unsigned int executor_delayed_count(void);
@@ -141,6 +161,11 @@ unsigned int executor_delayed_capacity(void);
 #define KERNEL_MEMORY_REGION_KIND_RESERVED 1U
 #define KERNEL_MEMORY_REGION_KIND_HEAP     2U
 #define KERNEL_MEMORY_REGION_KIND_FRAMES   3U
+
+#define KERNEL_FRAME_ERROR_NONE        0U
+#define KERNEL_FRAME_ERROR_BAD_FREE    1U
+#define KERNEL_FRAME_ERROR_DOUBLE_FREE 2U
+#define KERNEL_FRAME_ERROR_EXHAUSTED   3U
 
 void kernel_memory_init(void);
 unsigned int kernel_memory_region_count(void);
@@ -162,6 +187,10 @@ unsigned long kernel_frame_reserved_count(void);
 unsigned long kernel_frame_alloc(void);
 int kernel_frame_free(unsigned long address);
 int kernel_frame_allocator_selftest(void);
+unsigned int kernel_frame_last_error(void);
+unsigned long kernel_frame_bad_free_count(void);
+unsigned long kernel_frame_double_free_count(void);
+int kernel_frame_allocator_stress_selftest(void);
 
 // Runtime V5/V6 diagnostics: fixed-storage counters plus retained panic/fault
 // records across watchdog reset.

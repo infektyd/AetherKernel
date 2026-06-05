@@ -117,7 +117,7 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V7 marker, `rtv2 fast/slow/long` zero-lines,
+AetherKernel banner plus Runtime V8 marker, `rtv2 fast/slow/long` zero-lines,
 and the expanded `shell ready` command list.
 
 The first reset after adding this workflow is still physical if the currently
@@ -139,13 +139,14 @@ reset step is handled by:
 
 The expected serial flow is bootloader `TFTP_GET` lines, then the AetherKernel
 banner, padded `CurrentEL`, repeating `rtv2 fast/slow/long` cadences, the
-Runtime V5, V6, and V7 markers, and:
+Runtime V5, V6, V7, and V8 markers, and:
 
 ```text
 runtime v5: diagnostics shell
 runtime v6: retained panic/fault records
 runtime v7: memory map + frame allocator
-shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,panic-test,fault-test,reboot
+runtime v8: allocator guardrails
+shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,panic-test,fault-test,reboot
 ```
 
 The current kernel image services UART RX through PL011 receive interrupts into
@@ -166,6 +167,8 @@ commands can be sent from the Mac:
 ./serial-command.sh retained
 ./serial-command.sh memmap
 ./serial-command.sh frames
+./serial-command.sh heapcheck
+./serial-command.sh framecheck
 ```
 
 Expected response prefixes are `status uptime_ms=`, `heap total=`,
@@ -177,6 +180,13 @@ Runtime V7 adds:
 ```text
 memmap valid=1 regions=7 page_size=4096
 frames total=14336 free=14336 used=0 reserved=0 base=0x800000 limit=0x4000000 selftest=1
+```
+
+Runtime V8 adds non-destructive allocator/frame guard checks:
+
+```text
+heapcheck ok=1 error=0 invalid_frees=0 double_frees=0 corruptions=0
+framecheck ok=1 total=14336 free=14336 used=0 bad_frees=0 double_frees=0 error=0 stress=1
 ```
 
 `panic-test` and `fault-test` are intentionally destructive: each writes a
@@ -202,8 +212,8 @@ Open a terminal on macOS to monitor the serial output:
 ## 5. Boot & Expected Output
 1. Insert the SD card back into the Raspberry Pi 4B.
 2. Connect the Raspberry Pi's USB-C power supply.
-3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, `runtime v4: irq-backed uart shell`, `runtime v5: diagnostics shell`, `runtime v6: retained panic/fault records`, `runtime v7: memory map + frame allocator`, repeating `rtv2 fast/slow/long` lines, and `shell ready`.
-4. **Liveness Check:** Current liveness is the serial Runtime V7 cadence output plus UART shell diagnostic responses. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
+3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, `runtime v4: irq-backed uart shell`, `runtime v5: diagnostics shell`, `runtime v6: retained panic/fault records`, `runtime v7: memory map + frame allocator`, `runtime v8: allocator guardrails`, repeating `rtv2 fast/slow/long` lines, and `shell ready`.
+4. **Liveness Check:** Current liveness is the serial Runtime V8 cadence output plus UART shell diagnostic responses. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
 
 ## 6. Troubleshooting
 * **No output:**
