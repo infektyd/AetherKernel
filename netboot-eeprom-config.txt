@@ -1,0 +1,13 @@
+# Raspberry Pi 4 EEPROM netboot config for AetherKernel bench iteration.
+#
+# Use this as the source of truth when configuring a bootloader recovery SD.
+# BOOT_ORDER=0xf12 means: network first, SD fallback, repeat.
+
+BOOT_UART=1
+BOOT_ORDER=0xf12
+TFTP_FILE_TIMEOUT=30000
+TFTP_IP=10.42.0.1
+CLIENT_IP=10.42.0.2
+SUBNET=255.255.255.0
+TFTP_PREFIX=1
+TFTP_PREFIX_STR=aether/

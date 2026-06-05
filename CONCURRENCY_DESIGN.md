@@ -1,6 +1,15 @@
 # AetherKernel — Milestone 4 design: async/await on bare metal (cooperative executor)
 
-**Status:** ✅ UNBLOCKED — ready to implement. (Resolved 2026-06-04.)
+**Status:** ✅ IMPLEMENTED. Stage 2/3 were hardware-verified 2026-06-04; Runtime V2 shared-CNTP
+timer arbitration was hardware-verified 2026-06-05.
+
+> ## Runtime V2 ground truth (2026-06-05)
+> CNTP is now owned by a shared timer arbiter in `timersleep_hw.c`, with separate clients for
+> continuation sleeps and executor delayed jobs. `TimerSleep.swift` uses an 8-slot continuation
+> queue (`timerSleepMillis`/`timerSleepSeconds`), and `executor.c` implements
+> `swift_task_enqueueGlobalWithDelayImpl` plus `swift_task_enqueueGlobalWithDeadlineImpl` against
+> the same arbiter. The live hardware proof is a netbooted image printing independent
+> `rtv2 fast`, `rtv2 slow`, and `rtv2 long` cadences.
 
 > ## Resolution: build on the Mach-O path, which ships `_Concurrency`
 > `_Concurrency` is NOT built for `aarch64-none-none-elf` (true in both 6.0 and 6.3.2), but IT IS
@@ -53,7 +62,7 @@
 > SWIFT_CC(swift) void  swift_task_checkIsolatedImpl(SwiftExecutorRef e);                 // no-op
 > SWIFT_CC(swift) int8_t swift_task_isIsolatingCurrentContextImpl(SwiftExecutorRef e);    // return 1 (isolated)
 > SWIFT_RUNTIME_ATTRIBUTE_NORETURN SWIFT_CC(swift) void swift_task_asyncMainDrainQueueImpl(void); // THE PUMP
-> SWIFT_CC(swift) void swift_task_enqueueGlobalWithDeadlineImpl(long long s,long long ns,long long ts,long long tns,int clk,SwiftJob*); // route→delay or assert
+> SWIFT_CC(swift) void swift_task_enqueueGlobalWithDeadlineImpl(long long s,long long ns,long long ts,long long tns,int clk,SwiftJob*); // route to delay queue or enqueue if due
 > SWIFT_CC(swift) void swift_task_donateThreadToGlobalExecutorUntilImpl(bool(*cond)(void*),void*ctx);      // dummy/assert (optional)
 > // run a job: swift_job_run(job, swift_executor_generic());   // inline in the header → _swift_job_run_c
 > // SwiftJobDelay = unsigned long long (ns). Job priority via swift_job_getPriority(job) if we want priority ordering.
@@ -66,12 +75,12 @@
 
 ## 0. Goal
 Run real Swift `async/await` on the metal: a single-threaded **cooperative executor** whose time
-source is the GIC-400 timer IRQ we already have. Payoff demo — an async heartbeat:
+source is the GIC-400 timer IRQ we already have. Historical Stage 3 payoff demo — a one-task heartbeat:
 ```swift
 func asyncMain() async {
   var n: UInt64 = 0
   while true {
-    uartPuts("async tick ")            // StaticString — NOT interpolation (Embedded)
+    uartPuts("rtv2 slow ")             // StaticString — NOT interpolation (Embedded)
     uartPutHex(n)
     uartPuts("\n")
     try? await Task.sleep(for: .seconds(1))   // suspends; CPU sleeps in wfi
@@ -79,8 +88,9 @@ func asyncMain() async {
   }
 }
 ```
-Success on hardware = `async tick N` ~1 s apart with the CPU **idle in `wfi` between ticks**, woken
-only when the timer IRQ fires the suspended continuation. Structured concurrency, hardware-timer-backed.
+Current Runtime V2 success on hardware = independent `rtv2 fast/slow/long` cadences with the CPU
+**idle in `wfi` between jobs**, woken when the timer IRQ matures continuation sleeps or executor delays.
+Structured concurrency, hardware-timer-backed.
 
 ## 1. Why this is more than the polled/IRQ heartbeat
 Milestone 3 was an IRQ that prints. This is the IRQ **resuming a suspended `async` task** — i.e. the
@@ -159,6 +169,6 @@ Sync `main`: `uartInit` → banner → `gicInitTimerIRQ` → allocator init → 
 - Independent rebuild; `git diff` additive; **disassembly-verify** the hook symbols are defined
   (`swift_task_enqueueGlobal` etc. present, not unresolved), the run-queue critical section masks IRQ,
   the timer→run-queue handoff, allocator integer-only, no FP in the executor.
-- Hardware: `async tick N` ~1.0 s apart, `wfi` idle between (scope the LED / serial cadence).
+- Hardware: `rtv2 fast/slow/long` cadences, `wfi` idle between jobs (serial cadence is the liveness signal).
 - Fallback if `Task.sleep` is unavailable in 6.0 Embedded: implement a custom awaitable backed directly
   by the timer IRQ (a continuation the IRQ resumes), proving the executor without depending on Clock.

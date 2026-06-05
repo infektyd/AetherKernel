@@ -2,11 +2,11 @@
 #include "Support.h"
 
 //===----------------------------------------------------------------------===//
-// AetherKernel — cooperative global executor (Stage 2).
+// AetherKernel — cooperative global executor (Runtime V2).
 //
-// Single-threaded FIFO ready ring. Runtime delay/deadline hooks intentionally
-// panic in this milestone because TimerSleep.swift owns CNTP (INTID 30) for the
-// one async heartbeat sleeper.
+// Single-threaded FIFO ready ring plus a fixed delayed-job queue. CNTP ownership
+// is shared through the kernel timer arbiter: this executor owns the EXECUTOR
+// client deadline, while TimerSleep.swift owns the SLEEP client deadline.
 //===----------------------------------------------------------------------===//
 
 #define READY_CAPACITY 64
@@ -71,9 +71,10 @@ static unsigned long long swift_time_to_ns(SwiftTime t) {
          + (unsigned long long)t.nanoseconds;
 }
 
-static unsigned long long deadline_to_ns(long long sec, long long nsec) {
-    return (unsigned long long)sec * 1000000000ULL
-         + (unsigned long long)nsec;
+static unsigned long long time_parts_to_ns(long long sec, long long nsec) {
+    unsigned long long s = sec > 0 ? (unsigned long long)sec : 0;
+    unsigned long long ns = nsec > 0 ? (unsigned long long)nsec : 0;
+    return s * 1000000000ULL + ns;
 }
 
 //===----------------------------------------------------------------------===//
@@ -99,8 +100,8 @@ static SwiftJob *ready_pop_unsafe(void) {
 }
 
 //===----------------------------------------------------------------------===//
-// Historical delay queue helpers. They are kept compiled for now, but no
-// supported current path may enqueue into them because TimerSleep.swift owns CNTP.
+// Delay queue helpers. The executor owns the KERNEL_TIMER_CLIENT_EXECUTOR
+// deadline in the shared CNTP arbiter.
 // Caller must hold an irq_save() critical section.
 //===----------------------------------------------------------------------===//
 
@@ -127,9 +128,40 @@ static unsigned long long delay_min_deadline_unsafe(void) {
     return min;
 }
 
+static void executor_rearm_timer_unsafe(void) {
+    if (delayed_count == 0) {
+        kernel_timer_clear_deadline(KERNEL_TIMER_CLIENT_EXECUTOR);
+        return;
+    }
+    kernel_timer_set_deadline(KERNEL_TIMER_CLIENT_EXECUTOR,
+                              (unsigned long)delay_min_deadline_unsafe());
+}
+
+static void delay_schedule_deadline(unsigned long long deadlineTicks,
+                                    SwiftJob *job) {
+    unsigned long flags = irq_save();
+    delay_push_unsafe(deadlineTicks, job);
+    executor_rearm_timer_unsafe();
+    irq_restore(flags);
+}
+
+static void delay_schedule_ns(unsigned long long delayNs, SwiftJob *job) {
+    if (delayNs == 0) {
+        swift_task_enqueueGlobalImpl(job);
+        return;
+    }
+
+    unsigned long long ticks = ns_to_ticks(delayNs);
+    if (ticks == 0) {
+        ticks = 1;
+    }
+
+    delay_schedule_deadline((unsigned long long)kernel_timer_now() + ticks, job);
+}
+
 static void promote_due_jobs(void) {
     unsigned long flags = irq_save();
-    unsigned long long now = read_cntpct();
+    unsigned long long now = kernel_timer_now();
     unsigned int i = 0;
 
     while (i < delayed_count) {
@@ -144,35 +176,13 @@ static void promote_due_jobs(void) {
         }
     }
 
+    executor_rearm_timer_unsafe();
     irq_restore(flags);
 }
 
 static void arm_next_deadline(void) {
     unsigned long flags = irq_save();
-
-    if (delayed_count == 0) {
-        // No jobs on the C delay queue. Leave CNTP untouched: in Stage 3 the timer
-        // is owned by the Swift timer-sleep path (TimerSleep.swift), and disabling
-        // it here would clobber a pending sleeper's wakeup. (The runtime's
-        // Task.sleep — which would feed this delay queue — is unavailable in
-        // Embedded Swift, so this queue stays empty in practice.)
-        irq_restore(flags);
-        return;
-    }
-
-    unsigned long long now = read_cntpct();
-    unsigned long long min = delay_min_deadline_unsafe();
-    unsigned long long tval;
-
-    if (min <= now) {
-        tval = 1;
-    } else {
-        tval = min - now;
-    }
-
-    write_cntp_tval(tval);
-    write_cntp_ctl(1);
-
+    executor_rearm_timer_unsafe();
     irq_restore(flags);
 }
 
@@ -192,9 +202,7 @@ SWIFT_CC(swift) void swift_task_enqueueMainExecutorImpl(SwiftJob *job) {
 
 SWIFT_CC(swift) void swift_task_enqueueGlobalWithDelayImpl(SwiftJobDelay delayNs,
                                                            SwiftJob *job) {
-    (void)delayNs;
-    (void)job;
-    executor_panic("runtime delay hook unsupported; TimerSleep.swift owns CNTP");
+    delay_schedule_ns((unsigned long long)delayNs, job);
 }
 
 SWIFT_CC(swift) void swift_task_enqueueGlobalWithDeadlineImpl(long long sec,
@@ -205,11 +213,17 @@ SWIFT_CC(swift) void swift_task_enqueueGlobalWithDeadlineImpl(long long sec,
                                                               SwiftJob *job) {
     (void)tsec;
     (void)tnsec;
-    (void)sec;
-    (void)nsec;
-    (void)clock;
-    (void)job;
-    executor_panic("runtime deadline hook unsupported; TimerSleep.swift owns CNTP");
+
+    SwiftTime now = swift_time_now((SwiftClockId)clock);
+    unsigned long long nowNs = swift_time_to_ns(now);
+    unsigned long long targetNs = time_parts_to_ns(sec, nsec);
+
+    if (targetNs <= nowNs) {
+        swift_task_enqueueGlobalImpl(job);
+        return;
+    }
+
+    delay_schedule_ns(targetNs - nowNs, job);
 }
 
 SWIFT_CC(swift) SwiftExecutorRef swift_task_getMainExecutorImpl(void) {
@@ -278,5 +292,5 @@ swift_task_asyncMainDrainQueueImpl(void) {
 //===----------------------------------------------------------------------===//
 
 void executor_on_timer_irq(void) {
-    executor_panic("executor timer IRQ unsupported; TimerSleep.swift owns CNTP");
+    promote_due_jobs();
 }

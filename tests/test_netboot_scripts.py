@@ -1,0 +1,242 @@
+import os
+import pathlib
+import subprocess
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
+def run_script(name: str, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    script_env = os.environ.copy()
+    if env:
+        script_env.update(env)
+    return subprocess.run(
+        [str(ROOT / name), *args],
+        cwd=ROOT,
+        env=script_env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+
+
+def test_config_names_kernel8_img_explicitly() -> None:
+    config = (ROOT / "config.txt").read_text()
+
+    assert "\nkernel=kernel8.img\n" in f"\n{config}\n"
+
+
+def test_eeprom_netboot_config_matches_direct_bench_defaults() -> None:
+    config = (ROOT / "netboot-eeprom-config.txt").read_text()
+
+    for line in (
+        "BOOT_UART=1",
+        "BOOT_ORDER=0xf12",
+        "TFTP_FILE_TIMEOUT=30000",
+        "TFTP_IP=10.42.0.1",
+        "CLIENT_IP=10.42.0.2",
+        "SUBNET=255.255.255.0",
+        "TFTP_PREFIX=1",
+        "TFTP_PREFIX_STR=aether/",
+    ):
+        assert line in config
+
+
+def test_prepare_tftp_seeds_prefixed_tree_from_boot_partition(tmp_path: pathlib.Path) -> None:
+    boot = tmp_path / "bootfs"
+    root = tmp_path / "tftp"
+    boot.mkdir()
+    (boot / "start4.elf").write_text("firmware")
+    (boot / "fixup4.dat").write_text("fixup")
+    (boot / "bcm2711-rpi-4-b.dtb").write_text("dtb")
+    (boot / "overlays").mkdir()
+    (boot / "overlays" / "disable-bt.dtbo").write_text("overlay")
+
+    result = run_script(
+        "prepare-tftp.sh",
+        str(boot),
+        str(root),
+        env={"AETHER_TFTP_PREFIX": "aether-test"},
+    )
+
+    dest = root / "aether-test"
+    assert (dest / "start4.elf").read_text() == "firmware"
+    assert (dest / "fixup4.dat").read_text() == "fixup"
+    assert (dest / "overlays" / "disable-bt.dtbo").read_text() == "overlay"
+    assert "kernel=kernel8.img" in (dest / "config.txt").read_text()
+    assert str(dest) in result.stdout
+    assert not (dest / "start.elf").exists()
+    assert not (dest / "fixup.dat").exists()
+
+
+def test_prepare_tftp_can_download_minimal_firmware_set(tmp_path: pathlib.Path) -> None:
+    mirror = tmp_path / "firmware"
+    root = tmp_path / "tftp"
+    mirror.mkdir()
+    (mirror / "start4.elf").write_text("firmware")
+    (mirror / "fixup4.dat").write_text("fixup")
+    (mirror / "bcm2711-rpi-4-b.dtb").write_text("dtb")
+    (mirror / "overlays").mkdir()
+    (mirror / "overlays" / "disable-bt.dtbo").write_text("overlay")
+
+    result = run_script(
+        "prepare-tftp.sh",
+        "--download",
+        str(root),
+        env={
+            "AETHER_TFTP_PREFIX": "aether-test",
+            "AETHER_FIRMWARE_BASE_URL": mirror.as_uri(),
+        },
+    )
+
+    dest = root / "aether-test"
+    assert (dest / "start4.elf").read_text() == "firmware"
+    assert (dest / "fixup4.dat").read_text() == "fixup"
+    assert (dest / "bcm2711-rpi-4-b.dtb").read_text() == "dtb"
+    assert (dest / "overlays" / "disable-bt.dtbo").read_text() == "overlay"
+    assert "downloaded Raspberry Pi firmware" in result.stdout
+    assert not (dest / "start.elf").exists()
+    assert not (dest / "fixup.dat").exists()
+
+
+def test_prepare_tftp_prunes_stale_fallback_and_self_update_files(tmp_path: pathlib.Path) -> None:
+    mirror = tmp_path / "firmware"
+    root = tmp_path / "tftp"
+    dest = root / "aether-test"
+    mirror.mkdir()
+    (mirror / "start4.elf").write_text("firmware")
+    (mirror / "fixup4.dat").write_text("fixup")
+    (mirror / "bcm2711-rpi-4-b.dtb").write_text("dtb")
+    (mirror / "overlays").mkdir()
+    (mirror / "overlays" / "disable-bt.dtbo").write_text("overlay")
+    dest.mkdir(parents=True)
+    for stale in ("start.elf", "fixup.dat", "pieeprom.sig", "pieeprom.upd"):
+        (dest / stale).write_text("stale")
+
+    run_script(
+        "prepare-tftp.sh",
+        "--download",
+        str(root),
+        env={
+            "AETHER_TFTP_PREFIX": "aether-test",
+            "AETHER_FIRMWARE_BASE_URL": mirror.as_uri(),
+        },
+    )
+
+    for stale in ("start.elf", "fixup.dat", "pieeprom.sig", "pieeprom.upd"):
+        assert not (dest / stale).exists()
+
+
+def test_netflash_copies_kernel_and_config_with_hash_verification(tmp_path: pathlib.Path) -> None:
+    root = tmp_path / "tftp"
+    dest = root / "aether-test"
+    dest.mkdir(parents=True)
+    kernel = tmp_path / "kernel8.img"
+    config = tmp_path / "config.txt"
+    kernel.write_bytes(b"test-kernel")
+    config.write_text("kernel=kernel8.img\n")
+
+    result = run_script(
+        "netflash.sh",
+        str(root),
+        env={
+            "AETHER_TFTP_PREFIX": "aether-test",
+            "AETHER_NETFLASH_SKIP_BUILD": "1",
+            "AETHER_KERNEL_IMG": str(kernel),
+            "AETHER_CONFIG_TXT": str(config),
+        },
+    )
+
+    assert (dest / "kernel8.img").read_bytes() == b"test-kernel"
+    assert (dest / "config.txt").read_text() == "kernel=kernel8.img\n"
+    assert "verified kernel8.img sha256" in result.stdout
+    assert "verified config.txt sha256" in result.stdout
+
+
+def test_serve_netboot_dry_run_is_tftp_only_and_bound_to_interface(tmp_path: pathlib.Path) -> None:
+    root = tmp_path / "tftp"
+    (root / "aether-test").mkdir(parents=True)
+
+    result = run_script(
+        "serve-netboot.sh",
+        "en-test0",
+        str(root),
+        env={
+            "AETHER_TFTP_PREFIX": "aether-test",
+            "AETHER_NETBOOT_DRY_RUN": "1",
+            "DNSMASQ": "/usr/local/sbin/dnsmasq",
+        },
+    )
+
+    assert "--interface=en-test0" in result.stdout
+    assert "--enable-tftp" in result.stdout
+    assert f"--tftp-root={root}" in result.stdout
+    assert "--tftp-no-blocksize" not in result.stdout
+    assert "--port=0" in result.stdout
+    assert "--dhcp-range" not in result.stdout
+
+
+def test_serve_netboot_can_disable_blocksize_as_diagnostic(tmp_path: pathlib.Path) -> None:
+    root = tmp_path / "tftp"
+    (root / "aether-test").mkdir(parents=True)
+
+    result = run_script(
+        "serve-netboot.sh",
+        "en-test0",
+        str(root),
+        env={
+            "AETHER_TFTP_PREFIX": "aether-test",
+            "AETHER_NETBOOT_DRY_RUN": "1",
+            "AETHER_TFTP_NO_BLOCKSIZE": "1",
+            "DNSMASQ": "/usr/local/sbin/dnsmasq",
+        },
+    )
+
+    assert "--tftp-no-blocksize" in result.stdout
+
+
+def test_serial_reset_dry_run_targets_default_usb_ttl_port() -> None:
+    result = run_script("serial-reset.sh", env={"AETHER_SERIAL_RESET_DRY_RUN": "1"})
+
+    assert "/dev/cu.usbserial-B0044J1V" in result.stdout
+    assert "payload: r" in result.stdout
+
+
+def test_net_iterate_dry_run_describes_stage_reset_watch_loop() -> None:
+    result = run_script(
+        "net-iterate.sh",
+        env={
+            "AETHER_NETITERATE_DRY_RUN": "1",
+            "AETHER_TFTP_ROOT": "/tmp/aether-root",
+            "AETHER_TFTP_PREFIX": "aether-test",
+            "AETHER_SERIAL_PORT": "/dev/cu.test",
+        },
+    )
+
+    assert "./netflash.sh /tmp/aether-root" in result.stdout
+    assert "./serial-reset.sh /dev/cu.test" in result.stdout
+    assert "/tmp/aether-serial.log" in result.stdout
+    assert "/tmp/aether-dnsmasq.log" in result.stdout
+    assert "aether-test/" in result.stdout
+    assert "attempts: 3" in result.stdout
+    assert "timeout per attempt: 150s" in result.stdout
+
+
+def test_netboot_doctor_dry_run_shows_human_reset_gate() -> None:
+    result = run_script(
+        "netboot-doctor.sh",
+        env={
+            "AETHER_NETBOOT_DOCTOR_DRY_RUN": "1",
+            "AETHER_NETBOOT_INTERFACE": "en-test0",
+            "AETHER_NETBOOT_SERVER_IP": "10.99.0.1",
+            "AETHER_TFTP_ROOT": "/tmp/aether-root",
+            "AETHER_TFTP_PREFIX": "aether-test",
+        },
+    )
+
+    assert "check interface: en-test0 at 10.99.0.1" in result.stdout
+    assert "stage latest image: ./netflash.sh /tmp/aether-root" in result.stdout
+    assert "ACTION: reset or power-cycle the Pi once" in result.stdout
+    assert "watch TFTP prefix: aether-test/" in result.stdout
+    assert "/tmp/aether-serial.log" in result.stdout

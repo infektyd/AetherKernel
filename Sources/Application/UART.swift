@@ -19,6 +19,7 @@ private let CR: UInt = 0x30    // Control register
 private let IMSC: UInt = 0x38  // Interrupt mask set/clear
 private let ICR: UInt = 0x44   // Interrupt clear
 
+private let FR_RXFE: UInt32 = 1 << 4  // Receive FIFO empty
 private let FR_TXFF: UInt32 = 1 << 5  // Transmit FIFO full
 
 func uartInit() {
@@ -60,6 +61,13 @@ func uartPuts(_ s: StaticString) {
     uartPutc(b)
     i += 1
   }
+}
+
+func uartTryReadByte() -> UInt8? {
+  if (mmio_read32(UART0_BASE + FR) & FR_RXFE) != 0 {
+    return nil
+  }
+  return UInt8(mmio_read32(UART0_BASE + DR) & 0xFF)
 }
 
 // Print a 64-bit value as 0x-prefixed hex. Handy for CurrentEL / ESR / FAR.

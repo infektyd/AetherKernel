@@ -2,9 +2,9 @@
 // ARM generic timer (EL1 physical timer), historical polled helpers.
 //
 // This replaces the cycle-counted busy `delay()` with a real, frequency-based
-// wait off CNTP. The current async heartbeat does not use these helpers:
-// TimerSleep.swift owns CNTP and resumes the one outstanding continuation from
-// the GIC timer IRQ. Keep these functions for earlier bring-up reference only.
+// wait off CNTP. Runtime V2 async sleep does not use these helpers; it goes
+// through the shared CNTP timer arbiter instead. Keep these functions for
+// earlier bring-up reference only.
 //
 // EL1 access to the physical timer was enabled in boot.S
 // (CNTHCTL_EL2 = EL1PCTEN|EL1PCEN, CNTVOFF_EL2 = 0).

@@ -1,6 +1,6 @@
 //===----------------------------------------------------------------------===//
 // Minimal GPIO for the UART pin mux plus historical green ACT LED (GPIO42)
-// helpers. Current liveness is the serial async heartbeat.
+// helpers. Current liveness is the serial Runtime V2 cadence output.
 //===----------------------------------------------------------------------===//
 import Support
 
@@ -12,8 +12,8 @@ private let GPCLR1: UInt = 0x20002C
 
 // Route GPIO14 (TXD0) and GPIO15 (RXD0) to ALT0 = PL011 UART0 so the kernel's
 // serial output reaches header pins 8/10. We do this in code rather than trust
-// `dtoverlay=disable-bt` to have done it — verified on hardware: the heartbeat
-// ran but no UART bytes reached the header until the pins were muxed here.
+// `dtoverlay=disable-bt` to have done it — verified on hardware: the kernel ran
+// but no UART bytes reached the header until the pins were muxed here.
 //
 // GPFSEL1 holds GPIO10..19, 3 bits each. GPIO14 -> shift (14-10)*3 = 12,
 // GPIO15 -> shift 15. ALT0 = 0b100.

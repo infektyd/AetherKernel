@@ -97,16 +97,21 @@ void *realloc(void *ptr, unsigned long size);
 // in libswift_Concurrency.a; it forwards to our swift_task_asyncMainDrainQueueImpl).
 // It is void(void) so the swiftcall/cdecl ABI difference is immaterial here.
 void swift_task_asyncMainDrainQueue(void);
-// Unsupported in the current milestone: TimerSleep.swift owns CNTP. This panics
-// visibly if a future path accidentally wires executor delays back into INTID 30.
+// Executor delayed jobs share CNTP through the Runtime V2 timer arbiter.
 void executor_on_timer_irq(void);
 
-// Timer-sleep hardware (Sources/Support/timersleep_hw.c). All in non-inline C
-// because the CNTP inline-asm helpers get miscompiled when inlined into the
-// @_cdecl IRQ-path Swift function. arm: fire after `secs`; due: 1 if matured
-// (and disables CNTP), else re-arms and returns 0.
-void timer_sleep_arm(unsigned long secs);
-int  timer_sleep_due(void);
+// Shared CNTP timer arbiter (Sources/Support/timersleep_hw.c). All CNTP register
+// work stays in non-inline C because the inline-asm helpers were previously
+// miscompiled when inlined into the Swift IRQ path. Runtime V2 has two clients:
+// Swift continuation sleeps and the Swift executor's delayed jobs.
+#define KERNEL_TIMER_CLIENT_SLEEP    0U
+#define KERNEL_TIMER_CLIENT_EXECUTOR 1U
+#define KERNEL_TIMER_CLIENT_COUNT    2U
+
+unsigned long kernel_timer_now(void);
+void kernel_timer_set_deadline(unsigned int client, unsigned long deadlineTicks);
+void kernel_timer_clear_deadline(unsigned int client);
+void kernel_timer_rearm(void);
 
 // MMU setup (Sources/Support/mmu.c). Called from boot.S after the EL1 drop and
 // before _main: identity-maps RAM as Normal Inner-Shareable cacheable (peripherals
@@ -120,4 +125,3 @@ void watchdog_reset_now(void);
 void watchdog_arm_seconds(unsigned int seconds);
 void watchdog_pet_seconds(unsigned int seconds);
 void watchdog_disable(void);
-
