@@ -1,10 +1,11 @@
 //===----------------------------------------------------------------------===//
-// Runtime V6 UART shell.
+// Runtime V7 UART shell.
 //
 // Line-oriented ASCII command surface over the IRQ-backed PL011 RX path. The
 // shell awaits bytes from UARTRX.swift instead of polling the UART FIFO. V5 adds
 // diagnostics commands that expose kernel pressure and fault signals; V6 adds
-// retained panic/fault records across watchdog reset.
+// retained panic/fault records across watchdog reset. V7 adds memory ownership
+// and frame allocator inspection.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -34,11 +35,11 @@ func shellBufferEquals(_ s: StaticString) -> Bool {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,panic-test,fault-test,reboot\n")
 }
 
 func printStatus() {
@@ -256,6 +257,87 @@ func clearRetained() {
   uartPuts("retained clear ok=1\n")
 }
 
+func printMemoryRegionName(_ index: UInt32) {
+  var i: UInt32 = 0
+  let n = kernel_memory_region_name_len(index)
+  while i < n {
+    let b = UInt8(kernel_memory_region_name_byte(index, i) & 0xFF)
+    if b >= 0x20 && b < 0x7F {
+      uartPutc(b)
+    } else {
+      uartPutc(0x2E)
+    }
+    i += 1
+  }
+}
+
+func printMemoryRegionKind(_ kind: UInt32) {
+  if kind == KERNEL_MEMORY_REGION_KIND_RESERVED {
+    uartPuts("reserved")
+  } else if kind == KERNEL_MEMORY_REGION_KIND_HEAP {
+    uartPuts("heap")
+  } else if kind == KERNEL_MEMORY_REGION_KIND_FRAMES {
+    uartPuts("frames")
+  } else {
+    uartPuts("unknown")
+  }
+}
+
+func printMemmap() {
+  let count = kernel_memory_region_count()
+  uartPuts("memmap valid=")
+  uartPutDec(UInt64(kernel_memory_map_valid()))
+  uartPuts(" regions=")
+  uartPutDec(UInt64(count))
+  uartPuts(" page_size=")
+  uartPutDec(UInt64(KERNEL_PAGE_SIZE))
+  uartPuts(" reserved=")
+  uartPutDec(UInt64(kernel_memory_reserved_bytes()))
+  uartPuts(" error=")
+  uartPutDec(UInt64(kernel_memory_last_error()))
+  uartPuts("\n")
+
+  var i: UInt32 = 0
+  while i < count {
+    let start = kernel_memory_region_start(i)
+    let end = kernel_memory_region_end(i)
+    uartPuts(" region index=")
+    uartPutDec(UInt64(i))
+    uartPuts(" name=")
+    printMemoryRegionName(i)
+    uartPuts(" kind=")
+    printMemoryRegionKind(kernel_memory_region_kind(i))
+    uartPuts(" start=")
+    uartPutHexCompact(UInt64(start))
+    uartPuts(" end=")
+    uartPutHexCompact(UInt64(end))
+    uartPuts(" bytes=")
+    uartPutDec(UInt64(end - start))
+    uartPuts("\n")
+    i += 1
+  }
+}
+
+func printFrames() {
+  let selftest = kernel_frame_allocator_selftest()
+
+  uartPuts("frames total=")
+  uartPutDec(UInt64(kernel_frame_total_count()))
+  uartPuts(" free=")
+  uartPutDec(UInt64(kernel_frame_free_count()))
+  uartPuts(" used=")
+  uartPutDec(UInt64(kernel_frame_used_count()))
+  uartPuts(" reserved=")
+  uartPutDec(UInt64(kernel_frame_reserved_count()))
+  uartPuts(" base=")
+  uartPutHexCompact(UInt64(kernel_frame_base()))
+  uartPuts(" limit=")
+  uartPutHexCompact(UInt64(kernel_frame_limit()))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(selftest))
+  uartPuts("\n")
+}
+
 func shellPanicTest() {
   uartPuts("shell panic-test reason=command\n")
   uartDrainTx()
@@ -343,6 +425,10 @@ func processUartShellLine() {
     printRetained()
   } else if shellBufferEquals("retained-clear") {
     clearRetained()
+  } else if shellBufferEquals("memmap") {
+    printMemmap()
+  } else if shellBufferEquals("frames") {
+    printFrames()
   } else if shellBufferEquals("panic-test") {
     shellPanicTest()
   } else if shellBufferEquals("fault-test") {

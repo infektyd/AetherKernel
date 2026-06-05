@@ -112,7 +112,7 @@ dns_start="$(file_size "$DNSMASQ_LOG")"
 
 echo
 echo "ACTION: reset or power-cycle the Pi once now."
-echo "I am watching for: dnsmasq sends $PREFIX/kernel8.img + serial prints fresh Runtime V6 shell markers."
+echo "I am watching for: dnsmasq sends $PREFIX/kernel8.img + serial prints fresh Runtime V7 shell markers."
 echo "Timeout: ${TIMEOUT_S}s"
 
 deadline=$((SECONDS + TIMEOUT_S))
@@ -125,7 +125,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
     && printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
     && printf '%s' "$serial_delta" | grep -q "runtime v5: diagnostics shell" \
     && printf '%s' "$serial_delta" | grep -q "runtime v6: retained panic/fault records" \
-    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,panic-test,fault-test,reboot"; then
+    && printf '%s' "$serial_delta" | grep -q "runtime v7: memory map + frame allocator" \
+    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,panic-test,fault-test,reboot"; then
     echo "netboot bring-up verified"
     echo "--- dnsmasq delta ---"
     printf '%s\n' "$dns_delta" | tail -n 80

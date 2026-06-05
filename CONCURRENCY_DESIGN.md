@@ -4,6 +4,17 @@
 timer arbitration, Runtime V3 UART shell/control plane, Runtime V4 IRQ-backed UART RX, and
 Runtime V5 diagnostics shell were hardware-verified 2026-06-05.
 Runtime V6 retained panic/fault records were hardware-verified 2026-06-05.
+Runtime V7 memory map and frame allocator invariants were hardware-verified 2026-06-05.
+
+> ## Runtime V7 ground truth (2026-06-05)
+> The kernel has an explicit fixed low-memory ownership map and a fixed-storage
+> 4 KiB frame allocator for a conservative managed window from `0x00800000` to
+> `0x04000000`. The existing heap remains fixed at `0x00400000`-`0x00800000`;
+> V7 does not move heap allocation onto frames and does not add dynamic page-table
+> remapping. Hardware proof: fresh netboot printed `runtime v7: memory map + frame allocator`;
+> `memmap` reported `valid=1 regions=7 page_size=4096 reserved=8388608 error=0`;
+> `frames` reported `total=14336 free=14336 used=0 reserved=0 base=0x800000 limit=0x4000000 selftest=1`;
+> a 3-cycle `net-iterate.sh` loop passed.
 
 > ## Runtime V6 ground truth (2026-06-05)
 > Panic/fault paths now write a checksum-protected retained record before watchdog reset.

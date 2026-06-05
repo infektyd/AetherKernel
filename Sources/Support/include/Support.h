@@ -132,6 +132,37 @@ unsigned int executor_ready_capacity(void);
 unsigned int executor_delayed_count(void);
 unsigned int executor_delayed_capacity(void);
 
+// Runtime V7 memory ownership. V7 keeps the existing heap fixed and introduces
+// an explicit low-memory map plus a 4 KiB physical frame allocator above it.
+#define KERNEL_PAGE_SIZE   4096UL
+#define KERNEL_FRAME_BASE  0x00800000UL
+#define KERNEL_FRAME_LIMIT 0x04000000UL
+
+#define KERNEL_MEMORY_REGION_KIND_RESERVED 1U
+#define KERNEL_MEMORY_REGION_KIND_HEAP     2U
+#define KERNEL_MEMORY_REGION_KIND_FRAMES   3U
+
+void kernel_memory_init(void);
+unsigned int kernel_memory_region_count(void);
+unsigned long kernel_memory_region_start(unsigned int index);
+unsigned long kernel_memory_region_end(unsigned int index);
+unsigned int kernel_memory_region_kind(unsigned int index);
+unsigned int kernel_memory_region_name_len(unsigned int index);
+unsigned int kernel_memory_region_name_byte(unsigned int index, unsigned int offset);
+unsigned long kernel_memory_reserved_bytes(void);
+unsigned int kernel_memory_map_valid(void);
+unsigned int kernel_memory_last_error(void);
+
+unsigned long kernel_frame_base(void);
+unsigned long kernel_frame_limit(void);
+unsigned long kernel_frame_total_count(void);
+unsigned long kernel_frame_free_count(void);
+unsigned long kernel_frame_used_count(void);
+unsigned long kernel_frame_reserved_count(void);
+unsigned long kernel_frame_alloc(void);
+int kernel_frame_free(unsigned long address);
+int kernel_frame_allocator_selftest(void);
+
 // Runtime V5/V6 diagnostics: fixed-storage counters plus retained panic/fault
 // records across watchdog reset.
 #define KERNEL_RETAINED_RECORD_ADDR 0x003ff000UL

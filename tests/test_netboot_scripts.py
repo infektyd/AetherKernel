@@ -235,13 +235,13 @@ def test_net_iterate_detects_stale_sd_fallback_image() -> None:
     assert "stale SD fallback image detected" in net_iterate
 
 
-def test_net_iterate_reports_stale_pre_v6_sd_fallback_without_claiming_netboot() -> None:
+def test_net_iterate_reports_stale_pre_v7_sd_fallback_without_claiming_netboot() -> None:
     net_iterate = read_repo("net-iterate.sh")
 
-    assert "stale pre-V6 SD fallback image detected" in net_iterate
+    assert "stale pre-V7 SD fallback image detected" in net_iterate
     assert "TFTP kernel fetch was not verified" in net_iterate
     assert "sd_fallback_seen=1" in net_iterate
-    assert "retrying after stale pre-V6 SD fallback" in net_iterate
+    assert "retrying after stale pre-V7 SD fallback" in net_iterate
     assert "final_exit=3" in net_iterate
     assert 'exit "$final_exit"' in net_iterate
 
@@ -274,13 +274,14 @@ def test_netboot_doctor_dry_run_shows_human_reset_gate() -> None:
     assert "/tmp/aether-serial.log" in result.stdout
 
 
-def test_netboot_doctor_verifies_runtime_v6_markers() -> None:
+def test_netboot_doctor_verifies_runtime_v7_markers() -> None:
     doctor = read_repo("netboot-doctor.sh")
 
     assert "runtime v4: irq-backed uart shell" in doctor
     assert "runtime v5: diagnostics shell" in doctor
     assert "runtime v6: retained panic/fault records" in doctor
-    assert "shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,panic-test,fault-test,reboot" in doctor
+    assert "runtime v7: memory map + frame allocator" in doctor
+    assert "shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,panic-test,fault-test,reboot" in doctor
     assert "async tick 0x0000000000000000" not in doctor
 
 

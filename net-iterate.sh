@@ -6,7 +6,7 @@
 #
 # Builds and stages kernel8.img/config.txt, sends the serial reset command, and
 # watches dnsmasq + serial logs for proof that the Pi fetched over TFTP,
-# booted the staged image, and brought up the Runtime V6 retained-record shell.
+# booted the staged image, and brought up the Runtime V7 memory shell.
 #===----------------------------------------------------------------------===#
 set -euo pipefail
 
@@ -129,7 +129,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
       && printf '%s' "$serial_delta" | grep -q "runtime v5: diagnostics shell" \
       && printf '%s' "$serial_delta" | grep -q "runtime v6: retained panic/fault records" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,panic-test,fault-test,reboot"; then
+      && printf '%s' "$serial_delta" | grep -q "runtime v7: memory map + frame allocator" \
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,panic-test,fault-test,reboot"; then
       echo "netboot iteration verified on attempt ${attempt}/${RETRIES}"
       echo "--- dnsmasq delta ---"
       printf '%s\n' "$dns_delta" | tail -n 80
@@ -139,8 +140,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
     fi
 
     if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v6: retained panic/fault records"; then
-      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V6 SD fallback image detected"
+      && ! printf '%s' "$serial_delta" | grep -q "runtime v7: memory map + frame allocator"; then
+      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V7 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
       last_dns_delta="$dns_delta"
@@ -159,7 +160,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
 
   if [ "$attempt" -lt "$RETRIES" ]; then
     if [ "$sd_fallback_seen" = "1" ]; then
-      echo "retrying after stale pre-V6 SD fallback..."
+      echo "retrying after stale pre-V7 SD fallback..."
     fi
     echo "--- dnsmasq delta from failed attempt ---"
     printf '%s\n' "$last_dns_delta" | tail -n 40
@@ -175,8 +176,8 @@ done
 echo "netboot iteration did not verify after ${RETRIES} attempt(s)"
 print_tftp_diagnostics "$last_dns_delta"
 if printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v6: retained panic/fault records"; then
-  echo "final result: stale pre-V6 SD fallback image booted, but staged network image is not proven."
+  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v7: memory map + frame allocator"; then
+  echo "final result: stale pre-V7 SD fallback image booted, but staged network image is not proven."
   final_exit=3
 else
   final_exit=1
