@@ -31,7 +31,23 @@ hardware-verified 2026-06-06. Runtime V29 agent-oriented control session was
 hardware-verified 2026-06-06. Runtime V30 Swift-native kernel substrate
 certificate was hardware-verified 2026-06-06. Runtime V31 preemptive scheduler
 substrate was hardware-verified 2026-06-06. Runtime V32 SMP secondary-core
-bring-up was hardware-verified 2026-06-06.
+bring-up was hardware-verified 2026-06-06. Runtime V33 atomics, spinlocks, and
+per-core run queues were hardware-verified 2026-06-06.
+
+> ## Runtime V33 atomics, spinlocks, and per-core run queues ground truth (2026-06-06)
+> V33 adds the first Aether-owned synchronization substrate needed before real
+> cross-core dispatch: `__atomic_*` wrappers, spinlock selftests, and four fixed
+> per-core scheduler run queues protected by one lock per queue. Swift task
+> execution still stays on the cooperative executor; this slice proves the
+> bounded C surface and shell/certificate evidence. The live Pi proof passed a
+> normal `net-iterate.sh` run and a clean 3-cycle repeat. Proof lines included
+> `runtime v33: atomics spinlocks per-core run queues`, `bootcert ok=1 version=33
+> atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1
+> ... events_lost=0`, `certificate ok=1 version=33 substrate=1 bootcert=1
+> atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`,
+> `locks ok=1 version=33 atomics=1 spinlocks=1 acquisitions=2 contentions=0
+> selftest=1`, and `runqueues ok=1 version=33 cores=4 capacity=8 total=0
+> core0=0 core1=0 core2=0 core3=0 enqueues0=8 dequeues0=8 selftest=1`.
 
 > ## Runtime V32 SMP secondary-core bring-up ground truth (2026-06-06)
 > V32 keeps Swift execution on core 0 and releases A72 cores 1-3 into a fixed

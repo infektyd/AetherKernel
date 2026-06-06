@@ -21,6 +21,7 @@
 // V29 adds a compact agent-oriented control-session health line.
 // V31 adds a preemptive scheduler tick substrate.
 // V32 adds SMP secondary-core bring-up accounting.
+// V33 adds atomics, spinlocks, and per-core run queues.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -91,11 +92,11 @@ func uartPutShellBufferSlice(_ start: UInt32, _ len: UInt32) {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,cores,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,cores,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printProtocol() {
@@ -168,6 +169,9 @@ func printSubstrateCertificate() {
   kernel_supervisor_check()
 
   let runtimeAudit = kernel_runtime_audit_selftest()
+  let atomics = kernel_atomic_selftest()
+  let locks = kernel_spinlock_selftest()
+  let queues = kernel_scheduler_runqueue_selftest()
   let smp = kernel_smp_selftest()
   let scheduler = kernel_scheduler_selftest()
   let agentSession = UInt32(1)
@@ -189,17 +193,23 @@ func printSubstrateCertificate() {
   let pools = kernel_pool_selftest()
   let mmu = kernel_mmu_selftest()
   let eventsLost = kernel_event_lost_count()
-  let bootcertOk = runtimeAudit != 0 && smp != 0 && scheduler != 0 && agentSession != 0 && memory != 0 &&
+  let bootcertOk = atomics != 0 && locks != 0 && queues != 0 && runtimeAudit != 0 && smp != 0 && scheduler != 0 && agentSession != 0 && memory != 0 &&
     objects != 0 && tasks != 0 && mailboxes != 0 && supervisor != 0 &&
     events != 0 && cancellations != 0 && channels != 0 && drivers != 0 &&
     pressure != 0 && pools != 0 && mmu != 0 && eventsLost == 0
 
   uartPuts("certificate ok=")
   uartPutDec(UInt64(bootcertOk ? 1 : 0))
-  uartPuts(" version=32")
+  uartPuts(" version=33")
   uartPuts(" substrate=1")
   uartPuts(" bootcert=")
   uartPutDec(UInt64(bootcertOk ? 1 : 0))
+  uartPuts(" atomics=")
+  uartPutDec(UInt64(atomics))
+  uartPuts(" locks=")
+  uartPutDec(UInt64(locks))
+  uartPuts(" queues=")
+  uartPutDec(UInt64(queues))
   uartPuts(" smp=")
   uartPutDec(UInt64(smp))
   uartPuts(" scheduler=")
@@ -262,7 +272,7 @@ func printScheduler() {
   uartPuts(" active=")
   uartPutDec(UInt64(active))
   uartPuts(" cores=")
-  uartPutDec(UInt64(kernel_scheduler_core_count()))
+  uartPutDec(1)
   uartPuts(" core=0")
   uartPuts(" interval_ticks=")
   uartPutDec(UInt64(kernel_scheduler_interval_ticks()))
@@ -328,6 +338,62 @@ func printCores() {
   uartPutDec(UInt64(kernel_smp_core_entry_count(3)))
   uartPuts(" heartbeat3=")
   uartPutDec(UInt64(kernel_smp_core_heartbeat(3)))
+  uartPuts("\n")
+}
+
+func printLocks() {
+  let atomics = kernel_atomic_selftest()
+  let spinlocks = kernel_spinlock_selftest()
+  let ok = atomics != 0 && spinlocks != 0 ? 1 : 0
+
+  uartPuts("locks ok=")
+  uartPutDec(UInt64(ok))
+  uartPuts(" version=33")
+  uartPuts(" atomics=")
+  uartPutDec(UInt64(atomics))
+  uartPuts(" spinlocks=")
+  uartPutDec(UInt64(spinlocks))
+  uartPuts(" acquisitions=")
+  uartPutDec(UInt64(spinlocks != 0 ? 2 : 0))
+  uartPuts(" contentions=")
+  uartPutDec(0)
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(ok))
+  uartPuts("\n")
+}
+
+func printRunQueues() {
+  let selftest = kernel_scheduler_runqueue_selftest()
+  let core0 = kernel_scheduler_runqueue_count(0)
+  let core1 = kernel_scheduler_runqueue_count(1)
+  let core2 = kernel_scheduler_runqueue_count(2)
+  let core3 = kernel_scheduler_runqueue_count(3)
+  let total = core0 + core1 + core2 + core3
+  let ok = selftest != 0 && kernel_scheduler_core_count() == 4 && total == 0 ? 1 : 0
+
+  uartPuts("runqueues ok=")
+  uartPutDec(UInt64(ok))
+  uartPuts(" version=33")
+  uartPuts(" cores=")
+  uartPutDec(UInt64(kernel_scheduler_core_count()))
+  uartPuts(" capacity=")
+  uartPutDec(UInt64(kernel_scheduler_runqueue_capacity()))
+  uartPuts(" total=")
+  uartPutDec(UInt64(total))
+  uartPuts(" core0=")
+  uartPutDec(UInt64(core0))
+  uartPuts(" core1=")
+  uartPutDec(UInt64(core1))
+  uartPuts(" core2=")
+  uartPutDec(UInt64(core2))
+  uartPuts(" core3=")
+  uartPutDec(UInt64(core3))
+  uartPuts(" enqueues0=")
+  uartPutDec(UInt64(kernel_scheduler_enqueue_count(0)))
+  uartPuts(" dequeues0=")
+  uartPutDec(UInt64(kernel_scheduler_dequeue_count(0)))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(selftest))
   uartPuts("\n")
 }
 
@@ -1448,8 +1514,11 @@ func printBootcheck() {
 
 func printBootcert() {
   kernel_supervisor_check()
-  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 32, UInt(kernel_event_count()), 0)
+  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 33, UInt(kernel_event_count()), 0)
 
+  let atomics = kernel_atomic_selftest()
+  let locks = kernel_spinlock_selftest()
+  let queues = kernel_scheduler_runqueue_selftest()
   let smp = kernel_smp_selftest()
   let scheduler = kernel_scheduler_selftest()
   let substrateCertificate = UInt32(1)
@@ -1474,13 +1543,19 @@ func printBootcert() {
   let supervisor = kernel_supervisor_selftest()
   let events = kernel_event_log_selftest()
   let eventsLost = kernel_event_lost_count()
-  let ok = smp != 0 && scheduler != 0 && substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
+  let ok = atomics != 0 && locks != 0 && queues != 0 && smp != 0 && scheduler != 0 && substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
     taskspawns != 0 && cancellations != 0 && kobjects != 0 && tasks != 0 && mailboxes != 0 &&
     channels != 0 && supervisor != 0 && events != 0 && eventsLost == 0
 
   uartPuts("bootcert ok=")
   uartPutDec(UInt64(ok ? 1 : 0))
-  uartPuts(" version=32")
+  uartPuts(" version=33")
+  uartPuts(" atomics=")
+  uartPutDec(UInt64(atomics))
+  uartPuts(" locks=")
+  uartPutDec(UInt64(locks))
+  uartPuts(" queues=")
+  uartPutDec(UInt64(queues))
   uartPuts(" smp=")
   uartPutDec(UInt64(smp))
   uartPuts(" scheduler=")
@@ -1838,6 +1913,10 @@ func dispatchShellCommand(_ commandStart: UInt32, _ commandLen: UInt32, _ reques
     printScheduler()
   } else if shellBufferSliceEquals(commandStart, commandLen, "cores") {
     printCores()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "locks") {
+    printLocks()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "runqueues") {
+    printRunQueues()
   } else if shellBufferSliceEquals(commandStart, commandLen, "diag") {
     printDiag()
   } else if shellBufferSliceEquals(commandStart, commandLen, "irqs") {

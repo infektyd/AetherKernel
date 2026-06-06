@@ -435,22 +435,36 @@ certificate ok=1 version=32 substrate=1 bootcert=1 smp=1 scheduler=1 agent=1 run
 cores ok=1 version=32 capacity=4 online=4 mask=0xf primary=0 release=0xe selftest=1 core0=1 entries0=1 heartbeat0=1 core1=1 entries1=1 heartbeat1=... core2=1 entries2=1 heartbeat2=... core3=1 entries3=1 heartbeat3=...
 ```
 
+Runtime V33 atomics, spinlocks, and per-core run queues adds the first bounded
+cross-core synchronization substrate plus `locks` and `runqueues` proof commands:
+
+```text
+bootcert ok=1 version=33 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 taxonomy=1 protocol=1 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+certificate ok=1 version=33 substrate=1 bootcert=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 protocol=2 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 swift=6.3.2 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+locks ok=1 version=33 atomics=1 spinlocks=1 acquisitions=2 contentions=0 selftest=1
+runqueues ok=1 version=33 cores=4 capacity=8 total=0 core0=0 core1=0 core2=0 core3=0 enqueues0=8 dequeues0=8 selftest=1
+```
+
 `serial-probe.sh` sends one command and waits for a matching response line:
 
 ```bash
 ./serial-probe.sh status '^status uptime_ms=.*timer_mask='
 ./serial-probe.sh protocol '^protocol version=2 .*begin_end=1 .*errors=1'
 ./serial-probe.sh 'req id=25 cmd=status' '^resp id=25 ok=1 cmd=status end'
-./serial-probe.sh bootcert '^bootcert ok=1 version=32 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
+./serial-probe.sh bootcert '^bootcert ok=1 version=33 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
 ./serial-probe.sh runtime '^runtime ok=1 version=28 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5'
 ./serial-probe.sh agent '^agent ok=1 version=29 health=green .*bootcert=1 .*runtime=1 .*protocol=2 .*events_lost=0'
 ./serial-probe.sh 'req id=29 cmd=agent' '^resp id=29 ok=1 cmd=agent end'
-./serial-probe.sh certificate '^certificate ok=1 version=32 substrate=1 .*bootcert=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0'
+./serial-probe.sh certificate '^certificate ok=1 version=33 substrate=1 .*bootcert=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0'
 ./serial-probe.sh 'req id=30 cmd=certificate' '^resp id=30 ok=1 cmd=certificate end'
 ./serial-probe.sh sched '^sched ok=1 version=31 .*active=1 .*cores=1 .*core=0 .*ticks=[1-9][0-9]* .*irq_ticks=[1-9][0-9]* .*preemptions=[1-9][0-9]* .*selftest=1'
 ./serial-probe.sh 'req id=31 cmd=sched' '^resp id=31 ok=1 cmd=sched end'
 ./serial-probe.sh cores '^cores ok=1 version=32 .*capacity=4 .*online=4 .*mask=0xf .*primary=0 .*release=0xe .*selftest=1'
 ./serial-probe.sh 'req id=32 cmd=cores' '^resp id=32 ok=1 cmd=cores end'
+./serial-probe.sh locks '^locks ok=1 version=33 .*atomics=1 .*spinlocks=1 .*selftest=1'
+./serial-probe.sh 'req id=33 cmd=locks' '^resp id=33 ok=1 cmd=locks end'
+./serial-probe.sh runqueues '^runqueues ok=1 version=33 .*cores=4 .*capacity=[1-9][0-9]* .*total=0 .*selftest=1'
+./serial-probe.sh 'req id=34 cmd=runqueues' '^resp id=34 ok=1 cmd=runqueues end'
 ./serial-probe.sh canceltest '^canceltest ok=1 .*completed=1'
 ./serial-probe.sh taskcheck '^taskcheck ok=1 .*spawns='
 ./serial-probe.sh channeltest '^channeltest ok=1 .*received=1'
@@ -500,8 +514,8 @@ Open a terminal on macOS to monitor the serial output:
 ## 5. Boot & Expected Output
 1. Insert the SD card back into the Raspberry Pi 4B.
 2. Connect the Raspberry Pi's USB-C power supply.
-3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, Runtime V4 through V31 markers, repeating `rtv2 fast/slow/long` lines, `bootcheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, `poolstats ok=1`, `drivers count=4 capacity=4 selftest=1`, `drivercheck ok=1`, `protocol version=2`, `agent ok=1 version=29 health=green`, `certificate ok=1 version=31 substrate=1`, `sched ok=1 version=31`, and `shell ready`.
-4. **Liveness Check:** Current liveness is the serial Runtime V31 cadence output plus UART shell diagnostic responses, especially `bootcert ok=1 version=31 scheduler=1 certificate=1 agent=1 runtime=1`, `certificate ok=1 version=31 substrate=1 bootcert=1 scheduler=1`, `sched ok=1 version=31 active=1`, `agent ok=1 version=29 health=green`, `agent-session ok=1 version=29 health=green`, `protocol version=2`, `resp id=30 ok=1 cmd=certificate end`, `resp id=31 ok=1 cmd=sched end`, `drivercheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, and `poolstats ok=1`. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
+3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, Runtime V4 through V33 markers, repeating `rtv2 fast/slow/long` lines, `bootcheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, `poolstats ok=1`, `drivers count=4 capacity=4 selftest=1`, `drivercheck ok=1`, `protocol version=2`, `agent ok=1 version=29 health=green`, `certificate ok=1 version=33 substrate=1`, `sched ok=1 version=31`, `cores ok=1 version=32`, `locks ok=1 version=33`, `runqueues ok=1 version=33`, and `shell ready`.
+4. **Liveness Check:** Current liveness is the serial Runtime V33 cadence output plus UART shell diagnostic responses, especially `bootcert ok=1 version=33 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1`, `certificate ok=1 version=33 substrate=1 bootcert=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1`, `sched ok=1 version=31 active=1`, `cores ok=1 version=32 capacity=4 online=4`, `locks ok=1 version=33 atomics=1 spinlocks=1`, `runqueues ok=1 version=33 cores=4`, `agent ok=1 version=29 health=green`, `agent-session ok=1 version=29 health=green`, `protocol version=2`, `resp id=30 ok=1 cmd=certificate end`, `resp id=31 ok=1 cmd=sched end`, `resp id=33 ok=1 cmd=locks end`, `resp id=34 ok=1 cmd=runqueues end`, `drivercheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, and `poolstats ok=1`. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
 
 ## 6. Troubleshooting
 * **No output:**

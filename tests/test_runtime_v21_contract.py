@@ -5,7 +5,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V21 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,"
-    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,cores,diag,irqs,timers,memcheck,faults,retained,"
+    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,"
     "bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
     "heap-double-free-test,panic-test,fault-test,reboot"
@@ -79,7 +79,7 @@ def test_runtime_v21_application_shell_and_bootcert_surface_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
 
     assert "runtime v21: mmu ownership boundary" in app
-    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 32, 0, 0)" in app
+    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 33, 0, 0)" in app
     assert "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 21, UInt(kernel_mmu_selftest()), 0)" in app
 
     for marker in (
@@ -114,7 +114,7 @@ def test_runtime_v21_netboot_gates_and_probe_exist() -> None:
     for marker in (
         "probe shell: mmu",
         "^mmu ok=1 .*regions=4 .*block_size=0x40000000",
-        "^bootcert ok=1 version=32 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
-        "stale pre-V32 SD fallback",
+        "^bootcert ok=1 version=33 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "stale pre-V33 SD fallback",
     ):
         assert marker in net_iterate

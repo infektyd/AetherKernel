@@ -1,14 +1,15 @@
 #include "Support.h"
 
 //===----------------------------------------------------------------------===//
-// Runtime V31 preemptive scheduler substrate.
+// Runtime V33 per-core scheduler run queues.
 //
 // This is intentionally still a substrate, not cross-core Swift task dispatch.
-// It owns a periodic CNTP timer client, records IRQ preemption opportunities,
-// and exposes a bounded core-0 run queue shape for later SMP slices.
+// It owns a periodic CNTP timer client, records IRQ preemption opportunities on
+// core 0, and exposes bounded spinlock-protected queues for all A72 cores.
 //===----------------------------------------------------------------------===//
 
 typedef struct scheduler_core {
+    kernel_spinlock_t lock;
     unsigned long ticks;
     unsigned long irq_ticks;
     unsigned long preemptions;
@@ -27,6 +28,16 @@ static unsigned long interval_ticks_value;
 
 static int valid_core(unsigned int core_id) {
     return core_id < KERNEL_SCHEDULER_CORE_CAPACITY;
+}
+
+static void lock_core(unsigned int core_id, unsigned long *flags) {
+    *flags = irq_save();
+    kernel_spinlock_lock(&cores[core_id].lock);
+}
+
+static void unlock_core(unsigned int core_id, unsigned long flags) {
+    kernel_spinlock_unlock(&cores[core_id].lock);
+    irq_restore(flags);
 }
 
 static void clear_core_unsafe(scheduler_core *core) {
@@ -71,6 +82,7 @@ static int queue_pop_unsafe(scheduler_core *core, unsigned int *out) {
 void kernel_scheduler_init(void) {
     unsigned long flags = irq_save();
     for (unsigned int i = 0; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        kernel_spinlock_init(&cores[i].lock);
         clear_core_unsafe(&cores[i]);
     }
     initialized = 1;
@@ -111,11 +123,11 @@ void kernel_scheduler_on_timer_irq(void) {
         interval = 1;
     }
 
-    unsigned long flags = irq_save();
+    kernel_spinlock_lock(&cores[0].lock);
     cores[0].ticks++;
     cores[0].irq_ticks++;
     cores[0].preemptions++;
-    irq_restore(flags);
+    kernel_spinlock_unlock(&cores[0].lock);
 
     kernel_timer_set_deadline(KERNEL_TIMER_CLIENT_SCHEDULER, now + interval);
 }
@@ -139,19 +151,65 @@ unsigned int kernel_scheduler_runqueue_count(unsigned int core_id) {
     if (!valid_core(core_id)) {
         return 0;
     }
-    unsigned long flags = irq_save();
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
     unsigned int count = cores[core_id].count;
-    irq_restore(flags);
+    unlock_core(core_id, flags);
     return count;
+}
+
+int kernel_scheduler_enqueue(unsigned int core_id, unsigned int token) {
+    if (!valid_core(core_id) || token == 0) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    int ok = queue_push_unsafe(&cores[core_id], token);
+    unlock_core(core_id, flags);
+    return ok;
+}
+
+int kernel_scheduler_dequeue(unsigned int core_id, unsigned int *out_token) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    int ok = queue_pop_unsafe(&cores[core_id], out_token);
+    unlock_core(core_id, flags);
+    return ok;
+}
+
+unsigned int kernel_scheduler_runqueue_head(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned int head = cores[core_id].head;
+    unlock_core(core_id, flags);
+    return head;
+}
+
+unsigned int kernel_scheduler_runqueue_tail(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned int tail = cores[core_id].tail;
+    unlock_core(core_id, flags);
+    return tail;
 }
 
 unsigned long kernel_scheduler_tick_count(unsigned int core_id) {
     if (!valid_core(core_id)) {
         return 0;
     }
-    unsigned long flags = irq_save();
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
     unsigned long count = cores[core_id].ticks;
-    irq_restore(flags);
+    unlock_core(core_id, flags);
     return count;
 }
 
@@ -159,9 +217,10 @@ unsigned long kernel_scheduler_irq_tick_count(unsigned int core_id) {
     if (!valid_core(core_id)) {
         return 0;
     }
-    unsigned long flags = irq_save();
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
     unsigned long count = cores[core_id].irq_ticks;
-    irq_restore(flags);
+    unlock_core(core_id, flags);
     return count;
 }
 
@@ -169,9 +228,10 @@ unsigned long kernel_scheduler_preempt_count(unsigned int core_id) {
     if (!valid_core(core_id)) {
         return 0;
     }
-    unsigned long flags = irq_save();
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
     unsigned long count = cores[core_id].preemptions;
-    irq_restore(flags);
+    unlock_core(core_id, flags);
     return count;
 }
 
@@ -179,9 +239,10 @@ unsigned long kernel_scheduler_enqueue_count(unsigned int core_id) {
     if (!valid_core(core_id)) {
         return 0;
     }
-    unsigned long flags = irq_save();
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
     unsigned long count = cores[core_id].enqueues;
-    irq_restore(flags);
+    unlock_core(core_id, flags);
     return count;
 }
 
@@ -189,9 +250,10 @@ unsigned long kernel_scheduler_dequeue_count(unsigned int core_id) {
     if (!valid_core(core_id)) {
         return 0;
     }
-    unsigned long flags = irq_save();
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
     unsigned long count = cores[core_id].dequeues;
-    irq_restore(flags);
+    unlock_core(core_id, flags);
     return count;
 }
 
@@ -206,7 +268,7 @@ int kernel_scheduler_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 31U) {
+    if (KERNEL_SCHEDULER_VERSION != 33U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY) {
@@ -219,15 +281,43 @@ int kernel_scheduler_selftest(void) {
         return 0;
     }
 
-    unsigned int value = 0;
-    unsigned long flags = irq_save();
-    unsigned int before = cores[0].count;
-    int ok = before == 0 &&
-        queue_push_unsafe(&cores[0], 0x31U) &&
-        queue_pop_unsafe(&cores[0], &value) &&
-        value == 0x31U &&
-        cores[0].count == 0;
-    irq_restore(flags);
+    return kernel_scheduler_runqueue_selftest();
+}
 
-    return ok ? 1 : 0;
+int kernel_scheduler_runqueue_selftest(void) {
+    if (!initialized) {
+        kernel_scheduler_init();
+    }
+    if (KERNEL_SCHEDULER_VERSION != 33U) {
+        return 0;
+    }
+    if (kernel_scheduler_core_count() != 4U) {
+        return 0;
+    }
+    if (kernel_scheduler_runqueue_capacity() != KERNEL_SCHEDULER_RUNQUEUE_CAPACITY) {
+        return 0;
+    }
+
+    for (unsigned int core_id = 0; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+        unsigned int value = 0;
+        unsigned int token = 0x33U + core_id;
+        unsigned int before = kernel_scheduler_runqueue_count(core_id);
+        if (before != 0) {
+            return 0;
+        }
+        if (!kernel_scheduler_enqueue(core_id, token)) {
+            return 0;
+        }
+        if (kernel_scheduler_runqueue_count(core_id) != 1U) {
+            return 0;
+        }
+        if (!kernel_scheduler_dequeue(core_id, &value)) {
+            return 0;
+        }
+        if (value != token || kernel_scheduler_runqueue_count(core_id) != 0U) {
+            return 0;
+        }
+    }
+
+    return 1;
 }

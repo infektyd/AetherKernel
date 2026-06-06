@@ -189,12 +189,13 @@ struct Application {
     // Runtime V28 adds a Swift runtime dependency audit.
     // Runtime V31 adds a preemptive scheduler tick substrate.
     // Runtime V32 adds SMP secondary-core bring-up accounting.
+    // Runtime V33 adds atomics, spinlocks, and per-core run queues.
     kernel_memory_init()
     kernel_pool_init()
     kernel_cancel_init()
     kernel_event_log_init()
     kernel_scheduler_init()
-    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 32, 0, 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 33, 0, 0)
     kernel_object_registry_init()
     kernel_driver_registry_init()
     kernel_task_registry_init()
@@ -236,6 +237,7 @@ struct Application {
     uartPuts("runtime v30: swift-native kernel substrate certificate\n")
     uartPuts("runtime v31: preemptive scheduler substrate\n")
     uartPuts("runtime v32: smp secondary-core bring-up\n")
+    uartPuts("runtime v33: atomics spinlocks per-core run queues\n")
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(kernel_cancel_selftest()), 0)
     kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19, UInt(aetherTaskSpawnSelftest()), UInt(kernel_task_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20, UInt(aetherChannelSelftest()), UInt(kernel_mailbox_count()))
@@ -250,6 +252,8 @@ struct Application {
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 30, 1, UInt(kernel_event_lost_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 31, UInt(kernel_scheduler_selftest()), UInt(kernel_scheduler_core_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 32, UInt(kernel_smp_selftest()), UInt(kernel_smp_online_count()))
+    let runtimeV33 = kernel_atomic_selftest() != 0 && kernel_spinlock_selftest() != 0 && kernel_scheduler_runqueue_selftest() != 0 ? 1 : 0
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 33, UInt(runtimeV33), UInt(kernel_scheduler_core_count()))
     let handleSelftest = kernel_object_handle_selftest()
     let capSelftest = kernel_object_capcheck_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_HANDLE, UInt(handleSelftest), UInt(capSelftest), 0)

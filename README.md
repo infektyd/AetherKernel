@@ -3,7 +3,7 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V32 SMP secondary-core bring-up hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V33 atomics, spinlocks, and per-core run queues hardware-verified on real Raspberry Pi 4B**
 > (2026-06-06) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
@@ -45,7 +45,15 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 > version=32 substrate=1 bootcert=1 smp=1 scheduler=1 agent=1 runtime=1
 > ... events_lost=0`, and `cores ok=1 version=32 capacity=4 online=4 mask=0xf
 > primary=0 release=0xe selftest=1 ...` with advancing secondary heartbeats across
-> a clean 3-cycle live netboot repeat.
+> a clean 3-cycle live netboot repeat. Runtime V33 added the first Aether-owned
+> cross-core synchronization surface and proved `bootcert ok=1 version=33
+> atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1
+> ... events_lost=0`, `certificate ok=1 version=33 substrate=1 bootcert=1
+> atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`,
+> `locks ok=1 version=33 atomics=1 spinlocks=1 acquisitions=2 contentions=0
+> selftest=1`, and `runqueues ok=1 version=33 cores=4 capacity=8 total=0
+> core0=0 core1=0 core2=0 core3=0 enqueues0=8 dequeues0=8 selftest=1` across a
+> clean 3-cycle live netboot repeat.
 
 ## What works (verified)
 
@@ -89,6 +97,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V30 Swift-native kernel substrate certificate | ✅ | hardware run printed `runtime v30: swift-native kernel substrate certificate`; `bootcert ok=1 version=30 certificate=1 agent=1 runtime=1 taxonomy=1 ... events_lost=0`; `certificate ok=1 version=30 substrate=1 bootcert=1 agent=1 runtime=1 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 ... events_lost=0`; `certificate-loop ok=1 version=30 cycles=3 completed=3 ... events_lost=0` |
 | Runtime V31 preemptive scheduler substrate | ✅ | hardware run printed `runtime v31: preemptive scheduler substrate`; `bootcert ok=1 version=31 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`; `certificate ok=1 version=31 substrate=1 bootcert=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`; `sched ok=1 version=31 active=1 cores=1 core=0 interval_ticks=2700000 ticks=152 irq_ticks=152 preemptions=152 runqueue=0/8 enqueues=4 dequeues=4 selftest=1`; clean 3-cycle live netboot repeat passed |
 | Runtime V32 SMP secondary-core bring-up | ✅ | hardware run printed `runtime v32: smp secondary-core bring-up`; `bootcert ok=1 version=32 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`; `certificate ok=1 version=32 substrate=1 bootcert=1 smp=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`; `cores ok=1 version=32 capacity=4 online=4 mask=0xf primary=0 release=0xe selftest=1 core0=1 core1=1 core2=1 core3=1`; paired `cores` samples showed secondary heartbeats advancing |
+| Runtime V33 atomics, spinlocks, and per-core run queues | ✅ | hardware run printed `runtime v33: atomics spinlocks per-core run queues`; `bootcert ok=1 version=33 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`; `certificate ok=1 version=33 substrate=1 bootcert=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`; `locks ok=1 version=33 atomics=1 spinlocks=1 acquisitions=2 contentions=0 selftest=1`; `runqueues ok=1 version=33 cores=4 capacity=8 total=0 core0=0 core1=0 core2=0 core3=0 enqueues0=8 dequeues0=8 selftest=1`; clean 3-cycle live netboot repeat passed |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -475,6 +484,22 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     entries1=1 heartbeat1=395336 core2=1 entries2=1 heartbeat2=395376 core3=1
     entries3=1 heartbeat3=396081`. A clean 3-cycle live netboot repeat passed,
     and paired `cores` samples showed secondary heartbeats advancing.
+
+  - **Runtime V33 atomics, spinlocks, and per-core run queues.** ✅ hardware-verified.
+    The C substrate now owns the first bounded cross-core synchronization layer:
+    compiler atomic wrappers, spinlock selftests, and four fixed scheduler run
+    queues protected by per-core locks. Swift execution still stays on the
+    cooperative executor while the new surface is proven through shell counters.
+    Hardware proof: `net-iterate.sh` passed on real Pi 4, `bootcert` reported
+    `bootcert ok=1 version=33 atomics=1 locks=1 queues=1 smp=1 scheduler=1
+    certificate=1 agent=1 runtime=1 ... events_lost=0`, `certificate` returned
+    `certificate ok=1 version=33 substrate=1 bootcert=1 atomics=1 locks=1
+    queues=1 smp=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`, `locks`
+    returned `locks ok=1 version=33 atomics=1 spinlocks=1 acquisitions=2
+    contentions=0 selftest=1`, and `runqueues` returned `runqueues ok=1
+    version=33 cores=4 capacity=8 total=0 core0=0 core1=0 core2=0 core3=0
+    enqueues0=8 dequeues0=8 selftest=1`. A clean 3-cycle live netboot repeat
+    passed.
 
 ## Provenance
 

@@ -42,7 +42,7 @@ def test_runtime_v26_soak_loop_script_contract_exists() -> None:
         "cmd=soak",
         "cmd=events",
         "cmd=status",
-        "^bootcert ok=1 version=32 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*events_lost=0",
+        "^bootcert ok=1 version=33 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*events_lost=0",
         "^stress ok=1 .*heap_leak=0 frame_leak=0",
         "^soak ok=1 .*failures=0 .*heap_leak=0 frame_leak=0",
         "^events count=.* lost=0 .*selftest=1",

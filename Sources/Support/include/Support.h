@@ -183,12 +183,39 @@ unsigned int kernel_runtime_linked_heap_shim_count(void);
 unsigned int kernel_runtime_required_symbol_count(void);
 unsigned int kernel_runtime_audit_selftest(void);
 
-// Runtime V31 preemptive scheduler substrate. V31 keeps actual Swift job
-// execution on the existing cooperative executor, but adds a periodic CNTP IRQ
-// scheduler tick, fixed core-0 accounting, and a bounded run queue surface that
-// later SMP slices can extend without changing the proof contract.
-#define KERNEL_SCHEDULER_VERSION 31U
-#define KERNEL_SCHEDULER_CORE_CAPACITY 1U
+// Runtime V33 atomic and spinlock substrate. These are the first bounded
+// cross-core synchronization primitives Aether owns; hot paths stay in C and
+// use compiler atomics with explicit acquire/release/seq-cst ordering.
+#define KERNEL_ATOMIC_VERSION 33U
+#define KERNEL_LOCK_VERSION 33U
+
+typedef struct kernel_spinlock {
+    unsigned int state;
+    unsigned long acquisitions;
+    unsigned long contentions;
+} kernel_spinlock_t;
+
+void kernel_atomic_full_barrier(void);
+unsigned int kernel_atomic_load_u32(unsigned int *ptr);
+void kernel_atomic_store_u32(unsigned int *ptr, unsigned int value);
+unsigned int kernel_atomic_fetch_add_u32(unsigned int *ptr, unsigned int value);
+unsigned long kernel_atomic_fetch_add_u64(unsigned long *ptr, unsigned long value);
+unsigned int kernel_atomic_compare_exchange_u32(unsigned int *ptr, unsigned int expected, unsigned int desired);
+int kernel_atomic_selftest(void);
+void kernel_spinlock_init(kernel_spinlock_t *lock);
+unsigned int kernel_spinlock_try_lock(kernel_spinlock_t *lock);
+void kernel_spinlock_lock(kernel_spinlock_t *lock);
+void kernel_spinlock_unlock(kernel_spinlock_t *lock);
+unsigned long kernel_spinlock_acquisition_count(const kernel_spinlock_t *lock);
+unsigned long kernel_spinlock_contention_count(const kernel_spinlock_t *lock);
+int kernel_spinlock_selftest(void);
+
+// Runtime V33 per-core scheduler run queues. Runtime V31 preemptive scheduler substrate
+// kept actual Swift job execution on the existing cooperative executor while
+// adding a periodic CNTP IRQ scheduler tick. V33 promotes the bounded run queue
+// surface to all A72 cores and protects each queue with Aether-owned spinlocks.
+#define KERNEL_SCHEDULER_VERSION 33U
+#define KERNEL_SCHEDULER_CORE_CAPACITY 4U
 #define KERNEL_SCHEDULER_RUNQUEUE_CAPACITY 8U
 
 void kernel_scheduler_init(void);
@@ -198,6 +225,10 @@ unsigned int kernel_scheduler_active(void);
 unsigned int kernel_scheduler_core_count(void);
 unsigned int kernel_scheduler_runqueue_capacity(void);
 unsigned int kernel_scheduler_runqueue_count(unsigned int core_id);
+int kernel_scheduler_enqueue(unsigned int core_id, unsigned int token);
+int kernel_scheduler_dequeue(unsigned int core_id, unsigned int *out_token);
+unsigned int kernel_scheduler_runqueue_head(unsigned int core_id);
+unsigned int kernel_scheduler_runqueue_tail(unsigned int core_id);
 unsigned long kernel_scheduler_tick_count(unsigned int core_id);
 unsigned long kernel_scheduler_irq_tick_count(unsigned int core_id);
 unsigned long kernel_scheduler_preempt_count(unsigned int core_id);
@@ -205,6 +236,7 @@ unsigned long kernel_scheduler_enqueue_count(unsigned int core_id);
 unsigned long kernel_scheduler_dequeue_count(unsigned int core_id);
 unsigned long kernel_scheduler_interval_ticks(void);
 int kernel_scheduler_selftest(void);
+int kernel_scheduler_runqueue_selftest(void);
 
 // Runtime V32 SMP secondary-core bring-up substrate. Secondary cores enter a
 // fixed C-only accounting loop with private stacks; they do not touch Swift
