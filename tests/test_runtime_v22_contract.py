@@ -5,7 +5,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V22 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,"
-    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,"
+    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,"
     "frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,"
     "heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"
@@ -71,7 +71,7 @@ def test_runtime_v22_application_shell_and_bootcert_surface_exist() -> None:
 
     for marker in (
         "kernel_pool_init()",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 33, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 34, 0, 0)",
         "runtime v22: guarded typed pools",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))",
     ):
@@ -116,8 +116,8 @@ def test_runtime_v22_netboot_gates_and_probe_exist() -> None:
         "^poolcheck ok=1 .*bad_frees=1 .*double_frees=1",
         "probe shell: pools",
         "^pools count=.* capacity=.* selftest=1",
-        "^bootcert ok=1 version=33 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
-        "stale pre-V33 SD fallback",
+        "^bootcert ok=1 version=34 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "stale pre-V34 SD fallback",
     ):
         assert marker in net_iterate
 

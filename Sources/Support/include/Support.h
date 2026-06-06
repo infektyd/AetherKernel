@@ -210,18 +210,24 @@ unsigned long kernel_spinlock_acquisition_count(const kernel_spinlock_t *lock);
 unsigned long kernel_spinlock_contention_count(const kernel_spinlock_t *lock);
 int kernel_spinlock_selftest(void);
 
-// Runtime V33 per-core scheduler run queues. Runtime V31 preemptive scheduler substrate
-// kept actual Swift job execution on the existing cooperative executor while
-// adding a periodic CNTP IRQ scheduler tick. V33 promotes the bounded run queue
-// surface to all A72 cores and protects each queue with Aether-owned spinlocks.
-#define KERNEL_SCHEDULER_VERSION 33U
+// Runtime V34 timer-driven SMP scheduler dispatch.
+// Runtime V31 preemptive scheduler substrate remains the base timer tick surface:
+// actual Swift job
+// execution stays on the existing cooperative executor while the periodic CNTP
+// IRQ records preemption opportunities. V33 promoted the bounded run queue
+// surface to all A72 cores; V34 lets the timer tick route bounded dispatch
+// tokens through those per-core queues.
+#define KERNEL_SCHEDULER_VERSION 34U
 #define KERNEL_SCHEDULER_CORE_CAPACITY 4U
 #define KERNEL_SCHEDULER_RUNQUEUE_CAPACITY 8U
+#define KERNEL_SCHEDULER_DISPATCH_TOKEN_BASE 0x3400U
 
 void kernel_scheduler_init(void);
 void kernel_scheduler_start(unsigned long interval_ticks);
 void kernel_scheduler_on_timer_irq(void);
+void kernel_scheduler_enable_smp_dispatch(void);
 unsigned int kernel_scheduler_active(void);
+unsigned int kernel_scheduler_smp_dispatch_enabled(void);
 unsigned int kernel_scheduler_core_count(void);
 unsigned int kernel_scheduler_runqueue_capacity(void);
 unsigned int kernel_scheduler_runqueue_count(unsigned int core_id);
@@ -229,6 +235,14 @@ int kernel_scheduler_enqueue(unsigned int core_id, unsigned int token);
 int kernel_scheduler_dequeue(unsigned int core_id, unsigned int *out_token);
 unsigned int kernel_scheduler_runqueue_head(unsigned int core_id);
 unsigned int kernel_scheduler_runqueue_tail(unsigned int core_id);
+unsigned long kernel_scheduler_dispatch_count(unsigned int core_id);
+unsigned long kernel_scheduler_route_count(unsigned int core_id);
+unsigned long kernel_scheduler_total_dispatch_count(void);
+unsigned long kernel_scheduler_total_route_count(void);
+unsigned long kernel_scheduler_fairness_min(void);
+unsigned long kernel_scheduler_fairness_max(void);
+unsigned long kernel_scheduler_fairness_imbalance(void);
+unsigned int kernel_scheduler_last_dispatch_core(void);
 unsigned long kernel_scheduler_tick_count(unsigned int core_id);
 unsigned long kernel_scheduler_irq_tick_count(unsigned int core_id);
 unsigned long kernel_scheduler_preempt_count(unsigned int core_id);
@@ -237,6 +251,7 @@ unsigned long kernel_scheduler_dequeue_count(unsigned int core_id);
 unsigned long kernel_scheduler_interval_ticks(void);
 int kernel_scheduler_selftest(void);
 int kernel_scheduler_runqueue_selftest(void);
+int kernel_scheduler_smp_selftest(void);
 
 // Runtime V32 SMP secondary-core bring-up substrate. Secondary cores enter a
 // fixed C-only accounting loop with private stacks; they do not touch Swift

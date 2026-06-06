@@ -3,7 +3,7 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V33 atomics, spinlocks, and per-core run queues hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V34 timer-driven SMP scheduler dispatch hardware-verified on real Raspberry Pi 4B**
 > (2026-06-06) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
@@ -53,7 +53,16 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 > `locks ok=1 version=33 atomics=1 spinlocks=1 acquisitions=2 contentions=0
 > selftest=1`, and `runqueues ok=1 version=33 cores=4 capacity=8 total=0
 > core0=0 core1=0 core2=0 core3=0 enqueues0=8 dequeues0=8 selftest=1` across a
-> clean 3-cycle live netboot repeat.
+> clean 3-cycle live netboot repeat. Runtime V34 added timer-driven SMP
+> scheduler dispatch over those bounded per-core queues and proved `bootcert
+> ok=1 version=34 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1
+> scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`, `certificate
+> ok=1 version=34 substrate=1 bootcert=1 preemptive=1 smp_scheduler=1 atomics=1
+> locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`, and
+> `sched2 ok=1 version=34 preemptive=1 smp_scheduler=1 active=1 cores=4
+> online=4 dispatches=548 routes=548 min=137 max=137 imbalance=0 core0=137
+> core1=137 core2=137 core3=137 selftest=1`; a 3-cycle live repeat stayed
+> balanced at `186/186/186/186`, `160/160/160/160`, and `157/157/157/157`.
 
 ## What works (verified)
 
@@ -98,6 +107,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V31 preemptive scheduler substrate | ✅ | hardware run printed `runtime v31: preemptive scheduler substrate`; `bootcert ok=1 version=31 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`; `certificate ok=1 version=31 substrate=1 bootcert=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`; `sched ok=1 version=31 active=1 cores=1 core=0 interval_ticks=2700000 ticks=152 irq_ticks=152 preemptions=152 runqueue=0/8 enqueues=4 dequeues=4 selftest=1`; clean 3-cycle live netboot repeat passed |
 | Runtime V32 SMP secondary-core bring-up | ✅ | hardware run printed `runtime v32: smp secondary-core bring-up`; `bootcert ok=1 version=32 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`; `certificate ok=1 version=32 substrate=1 bootcert=1 smp=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`; `cores ok=1 version=32 capacity=4 online=4 mask=0xf primary=0 release=0xe selftest=1 core0=1 core1=1 core2=1 core3=1`; paired `cores` samples showed secondary heartbeats advancing |
 | Runtime V33 atomics, spinlocks, and per-core run queues | ✅ | hardware run printed `runtime v33: atomics spinlocks per-core run queues`; `bootcert ok=1 version=33 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`; `certificate ok=1 version=33 substrate=1 bootcert=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`; `locks ok=1 version=33 atomics=1 spinlocks=1 acquisitions=2 contentions=0 selftest=1`; `runqueues ok=1 version=33 cores=4 capacity=8 total=0 core0=0 core1=0 core2=0 core3=0 enqueues0=8 dequeues0=8 selftest=1`; clean 3-cycle live netboot repeat passed |
+| Runtime V34 timer-driven SMP scheduler dispatch | ✅ | hardware run printed `runtime v34: timer-driven smp scheduler dispatch`; `bootcert ok=1 version=34 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`; `certificate ok=1 version=34 substrate=1 bootcert=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`; `sched2 ok=1 version=34 preemptive=1 smp_scheduler=1 active=1 cores=4 online=4 dispatches=548 routes=548 min=137 max=137 imbalance=0 core0=137 core1=137 core2=137 core3=137 selftest=1`; clean 3-cycle live netboot repeat passed with balanced dispatch counters |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -500,6 +510,21 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     version=33 cores=4 capacity=8 total=0 core0=0 core1=0 core2=0 core3=0
     enqueues0=8 dequeues0=8 selftest=1`. A clean 3-cycle live netboot repeat
     passed.
+
+  - **Runtime V34 timer-driven SMP scheduler dispatch.** ✅ hardware-verified.
+    The scheduler tick now routes bounded dispatch tokens through each online
+    per-core queue and records dispatch/fairness counters without moving Swift
+    task execution off the cooperative executor. Hardware proof: `net-iterate.sh`
+    passed on real Pi 4, `bootcert` reported `bootcert ok=1 version=34
+    preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1
+    certificate=1 agent=1 runtime=1 ... events_lost=0`, `certificate` returned
+    `certificate ok=1 version=34 substrate=1 bootcert=1 preemptive=1
+    smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1
+    runtime=1 ... events_lost=0`, and `sched2` returned `sched2 ok=1 version=34
+    preemptive=1 smp_scheduler=1 active=1 cores=4 online=4 dispatches=548
+    routes=548 min=137 max=137 imbalance=0 core0=137 core1=137 core2=137
+    core3=137 selftest=1`. The 3-cycle repeat proved balanced dispatch at
+    `186/186/186/186`, `160/160/160/160`, and `157/157/157/157`.
 
 ## Provenance
 

@@ -5,7 +5,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V24 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
-    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,cores,locks,runqueues,diag,irqs,timers,"
+    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,cores,locks,runqueues,diag,irqs,timers,"
     "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,"
     "heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,"
     "canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
@@ -80,7 +80,7 @@ def test_runtime_v24_application_shell_and_bootcert_surface_exist() -> None:
     for marker in (
         "Runtime V24 adds a minimal fixed driver registry.",
         "kernel_driver_registry_init()",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 33, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 34, 0, 0)",
         "runtime v24: fixed driver registry",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))",
     ):
@@ -126,8 +126,8 @@ def test_runtime_v24_netboot_gates_and_probes_exist() -> None:
         "^drivercheck ok=1 .*uart_irq=.*timer_irq=.*watchdog_resets=",
         "probe shell: drivers",
         "^drivers count=4 capacity=4 selftest=1",
-        "^bootcert ok=1 version=33 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
-        "stale pre-V33 SD fallback",
+        "^bootcert ok=1 version=34 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "stale pre-V34 SD fallback",
     ):
         assert marker in net_iterate
 

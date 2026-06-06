@@ -1,11 +1,11 @@
 #include "Support.h"
 
 //===----------------------------------------------------------------------===//
-// Runtime V33 per-core scheduler run queues.
+// Runtime V34 timer-driven SMP scheduler dispatch.
 //
 // This is intentionally still a substrate, not cross-core Swift task dispatch.
 // It owns a periodic CNTP timer client, records IRQ preemption opportunities on
-// core 0, and exposes bounded spinlock-protected queues for all A72 cores.
+// core 0, and routes bounded dispatch tokens through each online A72 core queue.
 //===----------------------------------------------------------------------===//
 
 typedef struct scheduler_core {
@@ -13,6 +13,8 @@ typedef struct scheduler_core {
     unsigned long ticks;
     unsigned long irq_ticks;
     unsigned long preemptions;
+    unsigned long routes;
+    unsigned long dispatches;
     unsigned long enqueues;
     unsigned long dequeues;
     unsigned int queue[KERNEL_SCHEDULER_RUNQUEUE_CAPACITY];
@@ -24,6 +26,8 @@ typedef struct scheduler_core {
 static scheduler_core cores[KERNEL_SCHEDULER_CORE_CAPACITY];
 static unsigned int initialized;
 static unsigned int active;
+static unsigned int smp_dispatch_enabled;
+static unsigned int last_dispatch_core;
 static unsigned long interval_ticks_value;
 
 static int valid_core(unsigned int core_id) {
@@ -44,6 +48,8 @@ static void clear_core_unsafe(scheduler_core *core) {
     core->ticks = 0;
     core->irq_ticks = 0;
     core->preemptions = 0;
+    core->routes = 0;
+    core->dispatches = 0;
     core->enqueues = 0;
     core->dequeues = 0;
     core->head = 0;
@@ -87,6 +93,8 @@ void kernel_scheduler_init(void) {
     }
     initialized = 1;
     active = 0;
+    smp_dispatch_enabled = 0;
+    last_dispatch_core = 0;
     interval_ticks_value = 0;
     irq_restore(flags);
 }
@@ -108,6 +116,50 @@ void kernel_scheduler_start(unsigned long interval_ticks) {
                               kernel_timer_now() + interval_ticks);
 }
 
+void kernel_scheduler_enable_smp_dispatch(void) {
+    if (!initialized) {
+        kernel_scheduler_init();
+    }
+    unsigned long flags = irq_save();
+    smp_dispatch_enabled = 1;
+    irq_restore(flags);
+}
+
+static void route_dispatch_for_core(unsigned int core_id, unsigned long tick) {
+    if (!valid_core(core_id) || !kernel_smp_core_online(core_id)) {
+        return;
+    }
+
+    unsigned int token = KERNEL_SCHEDULER_DISPATCH_TOKEN_BASE |
+        ((unsigned int)(tick & 0xffU) << 8) |
+        (core_id & 0xffU);
+    if (!kernel_scheduler_enqueue(core_id, token)) {
+        return;
+    }
+
+    unsigned int dispatched = 0;
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    cores[core_id].routes++;
+    unlock_core(core_id, flags);
+
+    if (kernel_scheduler_dequeue(core_id, &dispatched) && dispatched == token) {
+        lock_core(core_id, &flags);
+        cores[core_id].dispatches++;
+        last_dispatch_core = core_id;
+        unlock_core(core_id, flags);
+    }
+}
+
+static void route_dispatch_for_online_cores(unsigned long tick) {
+    if (!smp_dispatch_enabled) {
+        return;
+    }
+    for (unsigned int core_id = 0; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+        route_dispatch_for_core(core_id, tick);
+    }
+}
+
 void kernel_scheduler_on_timer_irq(void) {
     if (!initialized || !active) {
         return;
@@ -127,14 +179,23 @@ void kernel_scheduler_on_timer_irq(void) {
     cores[0].ticks++;
     cores[0].irq_ticks++;
     cores[0].preemptions++;
+    unsigned long tick = cores[0].ticks;
     kernel_spinlock_unlock(&cores[0].lock);
 
+    route_dispatch_for_online_cores(tick);
     kernel_timer_set_deadline(KERNEL_TIMER_CLIENT_SCHEDULER, now + interval);
 }
 
 unsigned int kernel_scheduler_active(void) {
     unsigned long flags = irq_save();
     unsigned int value = active;
+    irq_restore(flags);
+    return value;
+}
+
+unsigned int kernel_scheduler_smp_dispatch_enabled(void) {
+    unsigned long flags = irq_save();
+    unsigned int value = smp_dispatch_enabled;
     irq_restore(flags);
     return value;
 }
@@ -200,6 +261,87 @@ unsigned int kernel_scheduler_runqueue_tail(unsigned int core_id) {
     unsigned int tail = cores[core_id].tail;
     unlock_core(core_id, flags);
     return tail;
+}
+
+unsigned long kernel_scheduler_dispatch_count(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned long count = cores[core_id].dispatches;
+    unlock_core(core_id, flags);
+    return count;
+}
+
+unsigned long kernel_scheduler_route_count(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned long count = cores[core_id].routes;
+    unlock_core(core_id, flags);
+    return count;
+}
+
+unsigned long kernel_scheduler_total_dispatch_count(void) {
+    unsigned long total = 0;
+    for (unsigned int i = 0; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        total += kernel_scheduler_dispatch_count(i);
+    }
+    return total;
+}
+
+unsigned long kernel_scheduler_total_route_count(void) {
+    unsigned long total = 0;
+    for (unsigned int i = 0; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        total += kernel_scheduler_route_count(i);
+    }
+    return total;
+}
+
+unsigned long kernel_scheduler_fairness_min(void) {
+    unsigned long min = 0;
+    unsigned int seen = 0;
+    for (unsigned int i = 0; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        if (!kernel_smp_core_online(i)) {
+            continue;
+        }
+        unsigned long count = kernel_scheduler_dispatch_count(i);
+        if (!seen || count < min) {
+            min = count;
+        }
+        seen = 1;
+    }
+    return seen ? min : 0;
+}
+
+unsigned long kernel_scheduler_fairness_max(void) {
+    unsigned long max = 0;
+    for (unsigned int i = 0; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        if (!kernel_smp_core_online(i)) {
+            continue;
+        }
+        unsigned long count = kernel_scheduler_dispatch_count(i);
+        if (count > max) {
+            max = count;
+        }
+    }
+    return max;
+}
+
+unsigned long kernel_scheduler_fairness_imbalance(void) {
+    unsigned long min = kernel_scheduler_fairness_min();
+    unsigned long max = kernel_scheduler_fairness_max();
+    return max >= min ? max - min : 0;
+}
+
+unsigned int kernel_scheduler_last_dispatch_core(void) {
+    unsigned long flags = irq_save();
+    unsigned int value = last_dispatch_core;
+    irq_restore(flags);
+    return value;
 }
 
 unsigned long kernel_scheduler_tick_count(unsigned int core_id) {
@@ -268,7 +410,7 @@ int kernel_scheduler_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 33U) {
+    if (KERNEL_SCHEDULER_VERSION != 34U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY) {
@@ -288,7 +430,7 @@ int kernel_scheduler_runqueue_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 33U) {
+    if (KERNEL_SCHEDULER_VERSION != 34U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != 4U) {
@@ -320,4 +462,34 @@ int kernel_scheduler_runqueue_selftest(void) {
     }
 
     return 1;
+}
+
+int kernel_scheduler_smp_selftest(void) {
+    if (!initialized) {
+        kernel_scheduler_init();
+    }
+    if (KERNEL_SCHEDULER_VERSION != 34U) {
+        return 0;
+    }
+    if (!kernel_scheduler_active() || !kernel_scheduler_smp_dispatch_enabled()) {
+        return 0;
+    }
+    if (kernel_scheduler_core_count() != 4U || kernel_smp_online_count() != 4U) {
+        return 0;
+    }
+    if (!kernel_scheduler_runqueue_selftest()) {
+        return 0;
+    }
+
+    if (kernel_scheduler_total_dispatch_count() == 0) {
+        route_dispatch_for_online_cores(0x34U);
+    }
+
+    unsigned long min = kernel_scheduler_fairness_min();
+    unsigned long max = kernel_scheduler_fairness_max();
+    return min > 0 &&
+        max >= min &&
+        kernel_scheduler_fairness_imbalance() <= 1UL &&
+        kernel_scheduler_total_route_count() >= 4UL &&
+        kernel_scheduler_total_dispatch_count() >= 4UL ? 1 : 0;
 }

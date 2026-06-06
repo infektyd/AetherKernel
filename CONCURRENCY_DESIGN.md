@@ -32,7 +32,25 @@ hardware-verified 2026-06-06. Runtime V30 Swift-native kernel substrate
 certificate was hardware-verified 2026-06-06. Runtime V31 preemptive scheduler
 substrate was hardware-verified 2026-06-06. Runtime V32 SMP secondary-core
 bring-up was hardware-verified 2026-06-06. Runtime V33 atomics, spinlocks, and
-per-core run queues were hardware-verified 2026-06-06.
+per-core run queues were hardware-verified 2026-06-06. Runtime V34 timer-driven
+SMP scheduler dispatch was hardware-verified 2026-06-06.
+
+> ## Runtime V34 timer-driven SMP scheduler dispatch ground truth (2026-06-06)
+> V34 keeps Swift task execution on the cooperative executor, but the scheduler
+> IRQ path now routes bounded dispatch tokens through each online A72 core queue
+> and records per-core dispatch/fairness counters. This proves the first
+> timer-driven SMP scheduler surface without making secondary cores enter Swift
+> runtime state. The live Pi proof passed a normal `net-iterate.sh` run and a
+> clean 3-cycle repeat. Proof lines included `runtime v34: timer-driven smp
+> scheduler dispatch`, `bootcert ok=1 version=34 preemptive=1 smp_scheduler=1
+> atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1
+> ... events_lost=0`, `certificate ok=1 version=34 substrate=1 bootcert=1
+> preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1
+> agent=1 runtime=1 ... events_lost=0`, and `sched2 ok=1 version=34
+> preemptive=1 smp_scheduler=1 active=1 cores=4 online=4 dispatches=548
+> routes=548 min=137 max=137 imbalance=0 core0=137 core1=137 core2=137
+> core3=137 selftest=1`. Repeat cycles stayed exactly balanced at
+> `186/186/186/186`, `160/160/160/160`, and `157/157/157/157`.
 
 > ## Runtime V33 atomics, spinlocks, and per-core run queues ground truth (2026-06-06)
 > V33 adds the first Aether-owned synchronization substrate needed before real
