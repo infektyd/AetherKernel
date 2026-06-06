@@ -222,6 +222,32 @@ unsigned int kernel_mailbox_name_len(unsigned int mailbox_id);
 unsigned int kernel_mailbox_name_byte(unsigned int mailbox_id, unsigned int offset);
 int kernel_mailbox_selftest(void);
 
+// Runtime V14 deterministic cooperative supervisor. The supervisor watches
+// named task IDs from the V12 task registry; policy=observe records misses,
+// policy=panic fails loudly if a supervised task misses its heartbeat.
+#define KERNEL_SUPERVISOR_POLICY_OBSERVE 1U
+#define KERNEL_SUPERVISOR_POLICY_PANIC   2U
+
+#define KERNEL_SUPERVISOR_STATE_HEALTHY  1U
+#define KERNEL_SUPERVISOR_STATE_MISSED   2U
+
+void kernel_supervisor_init(void);
+unsigned int kernel_supervisor_register_task(unsigned int task_id, unsigned int deadline_ms, unsigned int policy);
+void kernel_supervisor_heartbeat(unsigned int task_id);
+void kernel_supervisor_check(void);
+unsigned int kernel_supervisor_count(void);
+unsigned int kernel_supervisor_capacity(void);
+unsigned int kernel_supervisor_unhealthy_count(void);
+unsigned long kernel_supervisor_total_missed_count(void);
+unsigned long kernel_supervisor_now_ms(void);
+unsigned int kernel_supervisor_task_id(unsigned int index);
+unsigned int kernel_supervisor_deadline_ms(unsigned int index);
+unsigned long kernel_supervisor_last_heartbeat_ms(unsigned int index);
+unsigned long kernel_supervisor_missed_count(unsigned int index);
+unsigned int kernel_supervisor_state(unsigned int index);
+unsigned int kernel_supervisor_policy(unsigned int index);
+int kernel_supervisor_selftest(void);
+
 // Runtime V7 memory ownership. V7 keeps the existing heap fixed and introduces
 // an explicit low-memory map plus a 4 KiB physical frame allocator above it.
 #define KERNEL_PAGE_SIZE   4096UL

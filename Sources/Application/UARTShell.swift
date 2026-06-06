@@ -9,7 +9,7 @@
 // V9 adds bounded heap/frame pressure tests. V10 adds explicit guard probes.
 // V11 adds boot and soak invariant checks for host-side proof loops. V12 adds a
 // fixed kernel object table and cooperative task registry. V13 adds bounded
-// mailbox message queues.
+// mailbox message queues. V14 adds a deterministic task supervisor.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -40,11 +40,11 @@ func shellBufferEquals(_ s: StaticString) -> Bool {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printStatus() {
@@ -317,6 +317,82 @@ func printSendtest() {
   uartPutHex(UInt64(receivedValue))
   uartPuts(" selftest=")
   uartPutDec(UInt64(selftest))
+  uartPuts("\n")
+}
+
+func printSupervisorPolicy(_ policy: UInt32) {
+  if policy == KERNEL_SUPERVISOR_POLICY_PANIC {
+    uartPuts("panic")
+  } else {
+    uartPuts("observe")
+  }
+}
+
+func printSupervisorState(_ state: UInt32) {
+  if state == KERNEL_SUPERVISOR_STATE_MISSED {
+    uartPuts("missed")
+  } else {
+    uartPuts("healthy")
+  }
+}
+
+func printSupervisor() {
+  kernel_supervisor_check()
+
+  uartPuts("supervisor count=")
+  uartPutDec(UInt64(kernel_supervisor_count()))
+  uartPuts(" capacity=")
+  uartPutDec(UInt64(kernel_supervisor_capacity()))
+  uartPuts(" unhealthy=")
+  uartPutDec(UInt64(kernel_supervisor_unhealthy_count()))
+  uartPuts(" total_missed=")
+  uartPutDec(UInt64(kernel_supervisor_total_missed_count()))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(kernel_supervisor_selftest()))
+  uartPuts("\n")
+
+  var i: UInt32 = 0
+  while i < kernel_supervisor_capacity() {
+    let task = kernel_supervisor_task_id(i)
+    if task != 0 || i == TASK_FAST_ID {
+      uartPuts(" supervise index=")
+      uartPutDec(UInt64(i))
+      uartPuts(" task=")
+      uartPutDec(UInt64(task))
+      uartPuts(" name=")
+      printTaskName(task)
+      uartPuts(" policy=")
+      printSupervisorPolicy(kernel_supervisor_policy(i))
+      uartPuts(" deadline_ms=")
+      uartPutDec(UInt64(kernel_supervisor_deadline_ms(i)))
+      uartPuts(" last_ms=")
+      uartPutDec(UInt64(kernel_supervisor_last_heartbeat_ms(i)))
+      uartPuts(" missed=")
+      uartPutDec(UInt64(kernel_supervisor_missed_count(i)))
+      uartPuts(" state=")
+      printSupervisorState(kernel_supervisor_state(i))
+      uartPuts("\n")
+    }
+    i += 1
+  }
+}
+
+func printHealth() {
+  kernel_supervisor_check()
+  let unhealthy = kernel_supervisor_unhealthy_count()
+  let missed = kernel_supervisor_total_missed_count()
+  let ok = unhealthy == 0 && kernel_supervisor_selftest() != 0
+
+  uartPuts("health ok=")
+  uartPutDec(UInt64(ok ? 1 : 0))
+  uartPuts(" supervised=")
+  uartPutDec(UInt64(kernel_supervisor_count()))
+  uartPuts(" unhealthy=")
+  uartPutDec(UInt64(unhealthy))
+  uartPuts(" total_missed=")
+  uartPutDec(UInt64(missed))
+  uartPuts(" uptime_ms=")
+  uartPutDec(UInt64(kernel_supervisor_now_ms()))
   uartPuts("\n")
 }
 
@@ -788,6 +864,10 @@ func processUartShellLine() {
     printMailboxes()
   } else if shellBufferEquals("sendtest") {
     printSendtest()
+  } else if shellBufferEquals("supervisor") {
+    printSupervisor()
+  } else if shellBufferEquals("health") {
+    printHealth()
   } else if shellBufferEquals("diag") {
     printDiag()
   } else if shellBufferEquals("irqs") {
@@ -854,6 +934,7 @@ func uartShellMain() async {
     let b = await uartReadByteAsync()
     kernel_task_mark_state(TASK_SHELL_ID, KERNEL_TASK_STATE_RUNNING)
     kernel_task_record_tick(TASK_SHELL_ID)
+    kernel_supervisor_heartbeat(TASK_SHELL_ID)
     processUartShellByte(b)
   }
 }

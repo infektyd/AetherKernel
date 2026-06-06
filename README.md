@@ -3,15 +3,15 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V13 in progress; Runtime V12 hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V14 in progress; Runtime V13 hardware-verified on real Raspberry Pi 4B**
 > (2026-06-05) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
 > marker, the Runtime V6 retained-record marker, the Runtime V7 memory marker,
 > the Runtime V8 allocator-guard marker, Runtime V9-V11 self-test markers, and
-> UART shell command responses over PL011 serial @ 115200. Runtime V13 adds
-> bounded mailbox queues; mark it verified only after serial proves the V13 boot
-> marker, `rtv13 mail tx/rx`, `mailboxes`, and `sendtest`.
+> UART shell command responses over PL011 serial @ 115200. Runtime V14 adds a
+> deterministic task supervisor; mark it verified only after serial proves
+> `supervisor` and `health` with no unhealthy tasks.
 
 ## What works (verified)
 
@@ -35,7 +35,8 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V10 explicit guard probes | ✅ | hardware run printed `runtime v10: explicit guard probes`; `frameprobe` reported `ok=1 last_ok=1`; destructive `heap-invalid-free-test` wrote retained `reason=heap-invalid-free` |
 | Runtime V11 boot/soak invariants | ✅ | hardware run printed `runtime v11: boot and soak invariants`; `bootcheck` and `soak` reported `ok=1`; retained clear/readback survived after fixing 8-byte Swift heap-object dealloc |
 | Runtime V12 kernel object/task registry | ✅ | hardware run printed `runtime v12: kernel object table + task registry`; `kobjects count=7 capacity=16 active=7 selftest=1`; `tasks2 count=4 capacity=8 selftest=1 task index=0 name=fast` |
-| Runtime V13 bounded mailbox queues | 🟡 | implemented path must print `runtime v13: bounded mailbox message queues`; hardware proof requires `rtv13 mail tx/rx`, `mailboxes`, and `sendtest` |
+| Runtime V13 bounded mailbox queues | ✅ | hardware run printed `runtime v13: bounded mailbox message queues`, `rtv13 mail tx/rx`, `mailboxes count=2 capacity=4 queue_capacity=8 selftest=1`, and `sendtest ok=1` |
+| Runtime V14 deterministic task supervisor | 🟡 | implemented path must print `runtime v14: deterministic task supervisor`; hardware proof requires `supervisor unhealthy=0` and `health ok=1` |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -93,10 +94,11 @@ Sources/Application/GPIO.swift UART pin mux + historical ACT-LED helpers
 Sources/Application/Exceptions.swift  prints machine-checkable sync fault lines + ESR/ELR/FAR
 Sources/Application/TimerSleep.swift   8-slot CNTP-backed async continuation sleep
 Sources/Application/UARTRX.swift       Runtime V4 IRQ-backed UART RX async byte bridge
-Sources/Application/UARTShell.swift    Runtime V13 line command shell over UART RX
-Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V13 async cadences + shell
+Sources/Application/UARTShell.swift    Runtime V14 line command shell over UART RX
+Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V14 async cadences + shell
 Sources/Support/kernel_registry.c     Runtime V12 fixed object/task registry
 Sources/Support/kernel_mailbox.c      Runtime V13 fixed mailbox queues
+Sources/Support/kernel_supervisor.c   Runtime V14 fixed task supervisor
 Sources/Support/alloc.c               Runtime V11 fixed heap allocator + guard/pressure checks
 Sources/Support/diagnostics.c         Runtime V6 IRQ/fault/panic counters + retained reset record
 Sources/Support/memory_map.c          Runtime V11 fixed memory map + guarded 4 KiB frame allocator
@@ -194,11 +196,16 @@ macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
     registry tracks demo task state, period, object id, and tick counters. Hardware proof:
     `kobjects count=7 capacity=16 active=7 selftest=1` and
     `tasks2 count=4 capacity=8 selftest=1 task index=0 name=fast`.
-  - **Runtime V13 — bounded mailbox message queues.** 🟡 implemented, hardware proof pending.
+  - **Runtime V13 — bounded mailbox message queues.** ✅ hardware-verified.
     Fixed C-owned UInt64 mailbox queues register as kernel objects and expose queue depth, sent,
     received, drop, and error counters. Two Swift async demo tasks exchange values through the
     demo mailbox and print `rtv13 mail tx/rx`; shell commands `mailboxes` and `sendtest` provide
-    machine-checkable proof.
+    machine-checkable proof. Hardware proof: `mailboxes count=2 capacity=4 queue_capacity=8
+    selftest=1` and `sendtest ok=1 mailbox=1 sent=1 received=1`.
+  - **Runtime V14 — deterministic task supervisor.** 🟡 implemented, hardware proof pending.
+    A fixed C-owned supervisor table watches V12 task IDs, tracks heartbeat deadlines/misses, and
+    exposes observe/panic policy fields. The normal proof loop uses observe-mode records and checks
+    `supervisor` plus `health`; panic policy is available for future destructive tests.
 
 ## Provenance
 

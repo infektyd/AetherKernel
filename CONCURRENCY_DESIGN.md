@@ -9,17 +9,26 @@ Runtime V8 allocator/frame guardrails were hardware-verified 2026-06-05.
 Runtime V9 bounded pressure tests, Runtime V10 guard probes, and Runtime V11 boot/soak
 invariants were hardware-verified 2026-06-05. Runtime V12 adds a fixed C-owned
 kernel object table and cooperative task registry and was hardware-verified 2026-06-05.
-Runtime V13 adds bounded mailbox queues; hardware verification is pending until serial
-proves `rtv13 mail tx/rx`, `mailboxes`, and `sendtest`.
+Runtime V13 adds bounded mailbox queues and was hardware-verified 2026-06-05.
+Runtime V14 adds deterministic task supervision; hardware verification is pending until
+serial proves `supervisor` and `health`.
 
-> ## Runtime V13 ground truth (pending hardware proof)
+> ## Runtime V14 ground truth (pending hardware proof)
+> V14 introduces a fixed C-owned supervisor table keyed by V12 task IDs. Each record has
+> a heartbeat deadline, last heartbeat time, miss count, state, and observe/panic policy.
+> The normal proof path uses observe policy so it can report unhealthy tasks without
+> destructive resets. `fast` runs the periodic supervisor check, and the shell exposes
+> `supervisor` plus `health`. Do not mark V14 hardware-verified until `net-iterate.sh`
+> proves `supervisor count=... unhealthy=0` and `health ok=1`.
+
+> ## Runtime V13 ground truth (2026-06-05)
 > V13 introduces fixed C-owned UInt64 mailbox queues. Each mailbox registers as a
 > kernel object and tracks depth, sent, received, drop, and stable error counters.
 > The Swift demo adds producer/consumer async tasks that exchange values through
 > mailbox 0 and print `rtv13 mail tx` / `rtv13 mail rx` lines. `sendtest` uses a
 > reserved selftest mailbox so the command is deterministic even while the demo
-> mailbox is active. Do not mark V13 hardware-verified until `net-iterate.sh`
-> proves the marker, demo tx/rx lines, `mailboxes`, and `sendtest`.
+> mailbox is active. Hardware proof: `rtv13 mail tx/rx`, `mailboxes count=2
+> capacity=4 queue_capacity=8 selftest=1`, and `sendtest ok=1`.
 
 > ## Runtime V12 ground truth (2026-06-05)
 > V12 introduces bounded kernel object and task registries without allocator use in

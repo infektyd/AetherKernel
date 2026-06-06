@@ -5,9 +5,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V13 = (
     "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,"
-    "diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,"
-    "heapcheck,framecheck,stress,frameprobe,bootcheck,soak,"
-    "heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"
+    "supervisor,health,diag,irqs,timers,memcheck,faults,retained,"
+    "retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,"
+    "bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,"
+    "fault-test,reboot"
 )
 
 

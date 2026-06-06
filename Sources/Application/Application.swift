@@ -49,6 +49,8 @@ struct Application {
       kernel_task_mark_state(TASK_FAST_ID, KERNEL_TASK_STATE_RUNNING)
       runtimeFastCount = n
       kernel_task_record_tick(TASK_FAST_ID)
+      kernel_supervisor_heartbeat(TASK_FAST_ID)
+      kernel_supervisor_check()
       uartPuts("rtv2 fast ")
       uartPutHex(n)
       uartPuts("\n")
@@ -64,6 +66,7 @@ struct Application {
       kernel_task_mark_state(TASK_SLOW_ID, KERNEL_TASK_STATE_RUNNING)
       runtimeSlowCount = n
       kernel_task_record_tick(TASK_SLOW_ID)
+      kernel_supervisor_heartbeat(TASK_SLOW_ID)
       uartPuts("rtv2 slow ")
       uartPutHex(n)
       uartPuts("\n")
@@ -79,6 +82,7 @@ struct Application {
       kernel_task_mark_state(TASK_LONG_ID, KERNEL_TASK_STATE_RUNNING)
       runtimeLongCount = n
       kernel_task_record_tick(TASK_LONG_ID)
+      kernel_supervisor_heartbeat(TASK_LONG_ID)
       uartPuts("rtv2 long ")
       uartPutHex(n)
       uartPuts("\n")
@@ -102,6 +106,15 @@ struct Application {
     registerKernelMailbox(MAILBOX_SELFTEST_ID, "selftest")
   }
 
+  static func registerRuntimeSupervisor() {
+    _ = kernel_supervisor_register_task(TASK_FAST_ID, 1000, KERNEL_SUPERVISOR_POLICY_OBSERVE)
+    _ = kernel_supervisor_register_task(TASK_SLOW_ID, 3000, KERNEL_SUPERVISOR_POLICY_OBSERVE)
+    _ = kernel_supervisor_register_task(TASK_LONG_ID, 5000, KERNEL_SUPERVISOR_POLICY_OBSERVE)
+    _ = kernel_supervisor_register_task(TASK_MAIL_TX_ID, 3000, KERNEL_SUPERVISOR_POLICY_OBSERVE)
+    _ = kernel_supervisor_register_task(TASK_MAIL_RX_ID, 3000, KERNEL_SUPERVISOR_POLICY_OBSERVE)
+    _ = kernel_supervisor_register_task(TASK_SHELL_ID, 0, KERNEL_SUPERVISOR_POLICY_OBSERVE)
+  }
+
   static func mailboxProducer() async {
     var n: UInt64 = 0
     while true {
@@ -109,6 +122,7 @@ struct Application {
       if kernel_mailbox_send_u64(MAILBOX_DEMO_ID, UInt(n)) != 0 {
         runtimeMailboxSent = n
         kernel_task_record_tick(TASK_MAIL_TX_ID)
+        kernel_supervisor_heartbeat(TASK_MAIL_TX_ID)
         uartPuts("rtv13 mail tx ")
         uartPutHex(n)
         uartPuts("\n")
@@ -126,6 +140,7 @@ struct Application {
       kernel_task_mark_state(TASK_MAIL_RX_ID, KERNEL_TASK_STATE_RUNNING)
       runtimeMailboxReceived = value
       kernel_task_record_tick(TASK_MAIL_RX_ID)
+      kernel_supervisor_heartbeat(TASK_MAIL_RX_ID)
       uartPuts("rtv13 mail rx ")
       uartPutHex(value)
       uartPuts("\n")
@@ -150,13 +165,16 @@ struct Application {
     // V8 adds allocator guardrails, Runtime V9 adds bounded pressure tests,
     // Runtime V10 adds explicit guard probes, and Runtime V11 adds boot/soak
     // invariant checks. Runtime V12 adds fixed kernel object/task registries.
-    // Runtime V13 adds bounded mailbox message queues.
+    // Runtime V13 adds bounded mailbox message queues. Runtime V14 adds a
+    // deterministic cooperative task supervisor.
     kernel_memory_init()
     kernel_object_registry_init()
     kernel_task_registry_init()
+    kernel_supervisor_init()
     kernel_mailbox_registry_init()
     registerRuntimeMailboxes()
     registerRuntimeTasks()
+    registerRuntimeSupervisor()
     uart_rx_irq_init()
     gicInitRuntimeIRQs()
     uart_rx_irq_enable()
@@ -171,6 +189,7 @@ struct Application {
     uartPuts("runtime v11: boot and soak invariants\n")
     uartPuts("runtime v12: kernel object table + task registry\n")
     uartPuts("runtime v13: bounded mailbox message queues\n")
+    uartPuts("runtime v14: deterministic task supervisor\n")
     printBootcheck()
     Task { await fastHeartbeat() }
     Task { await slowHeartbeat() }
