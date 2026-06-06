@@ -38,7 +38,27 @@ secondary-owned scheduler workers were hardware-verified 2026-06-06. Runtime
 V36 timer-fed secondary scheduler workers were hardware-verified 2026-06-06.
 Runtime V37 timer-fed secondary C scheduler jobs was hardware-verified
 2026-06-06. Runtime V38 secondary scheduler wake protocol was
-hardware-verified 2026-06-06.
+hardware-verified 2026-06-06. Runtime V39 secondary scheduler handoff protocol
+was hardware-verified 2026-06-06.
+
+> ## Runtime V39 secondary scheduler handoff protocol ground truth (2026-06-06)
+> V39 keeps Swift execution on core 0 and records bounded cross-core scheduler
+> handoffs for timer-fed C-only jobs: issue counters increment when core 0
+> enqueues secondary jobs, and completion counters increment when cores 1-3
+> finish those jobs in their C-only scheduler loops. The live Pi proof used
+> `kernel8.img` sha256
+> `f24f26c85da4058853e5c7ec4af1822b7a77545259e492786c233421a45b831f`
+> and passed a normal `net-iterate.sh` run plus a clean 3-cycle repeat. Proof
+> lines included `runtime v39: secondary scheduler handoff protocol`,
+> `bootcert ok=1 version=39 handoff=1 wake=1 job_exec=1 worker_feed=1
+> secondary_workers=1 preemptive=1 smp_scheduler=1 ... events_lost=0`,
+> `certificate ok=1 version=39 substrate=1 bootcert=1 handoff=1 wake=1
+> job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`, and
+> `sched7 ok=1 version=39 handoff=1 wake=1 job_exec=1 issued=885
+> completed=885 gap=0 imbalance=0 core0_issue=0 core1_issue=295
+> core2_issue=295 core3_issue=295 core0_done=0 core1_done=295
+> core2_done=295 core3_done=295 selftest=1`. The repeat kept
+> `resp id=40 ok=1 cmd=sched7 end`, `runqueues total=0`, and `events_lost=0`.
 
 > ## Runtime V38 secondary scheduler wake protocol ground truth (2026-06-06)
 > V38 keeps Swift execution on core 0, parks the C-only secondary scheduler

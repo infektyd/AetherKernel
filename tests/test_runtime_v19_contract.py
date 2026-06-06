@@ -5,7 +5,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V19 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,"
-    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,"
+    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,"
     "bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
     "heap-double-free-test,panic-test,fault-test,reboot"
@@ -65,7 +65,7 @@ def test_runtime_v19_boot_marker_and_task_event_are_wired() -> None:
     app = read_repo("Sources/Application/Application.swift")
 
     assert "runtime v19: structured aether task spawn" in app
-    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 38, 0, 0)" in app
+    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 39, 0, 0)" in app
     assert "kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19" in app
 
 
@@ -96,7 +96,7 @@ def test_runtime_v19_bootcert_includes_task_spawn_health() -> None:
 
     assert " version=29" in shell
     assert " taskspawns=" in shell
-    assert "^bootcert ok=1 version=38 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0" in net_iterate
+    assert "^bootcert ok=1 version=39 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0" in net_iterate
 
 
 def test_runtime_v19_netboot_gates_and_shell_probe_exist() -> None:
@@ -110,6 +110,6 @@ def test_runtime_v19_netboot_gates_and_shell_probe_exist() -> None:
     for marker in (
         "probe shell: taskcheck",
         "^taskcheck ok=1 .*spawns=",
-        "stale pre-V38 SD fallback",
+        "stale pre-V39 SD fallback",
     ):
         assert marker in net_iterate

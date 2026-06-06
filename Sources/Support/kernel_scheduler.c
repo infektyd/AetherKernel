@@ -1,6 +1,7 @@
 #include "Support.h"
 
 //===----------------------------------------------------------------------===//
+// Runtime V39 secondary scheduler handoff protocol.
 // Runtime V38 secondary scheduler wake protocol.
 // Runtime V37 timer-fed secondary C scheduler jobs.
 // Runtime V36 timer-fed secondary scheduler workers.
@@ -13,6 +14,8 @@
 // lets C-only secondary workers drain V35/V36/V37 worker/job tokens from their
 // own queues. V38 wakes those parked secondary workers with SEV when timer-fed
 // work is available, while the workers park with WFE between scheduler ticks.
+// V39 records bounded issue/completion handoff acknowledgements for those
+// C-only secondary jobs.
 //===----------------------------------------------------------------------===//
 
 typedef struct scheduler_core {
@@ -30,6 +33,8 @@ typedef struct scheduler_core {
     unsigned long job_completions;
     unsigned long job_noops;
     unsigned long job_checksum;
+    unsigned long handoff_issues;
+    unsigned long handoff_completions;
     unsigned long enqueues;
     unsigned long dequeues;
     unsigned int queue[KERNEL_SCHEDULER_RUNQUEUE_CAPACITY];
@@ -46,6 +51,7 @@ static unsigned int secondary_workers_enabled;
 static unsigned int timer_worker_feed_enabled;
 static unsigned int secondary_job_execution_enabled;
 static unsigned int secondary_wake_signals_enabled;
+static unsigned int secondary_handoffs_enabled;
 static unsigned int last_dispatch_core;
 static unsigned long interval_ticks_value;
 
@@ -77,6 +83,8 @@ static void clear_core_unsafe(scheduler_core *core) {
     core->job_completions = 0;
     core->job_noops = 0;
     core->job_checksum = 0;
+    core->handoff_issues = 0;
+    core->handoff_completions = 0;
     core->enqueues = 0;
     core->dequeues = 0;
     core->head = 0;
@@ -125,6 +133,7 @@ void kernel_scheduler_init(void) {
     timer_worker_feed_enabled = 0;
     secondary_job_execution_enabled = 0;
     secondary_wake_signals_enabled = 0;
+    secondary_handoffs_enabled = 0;
     last_dispatch_core = 0;
     interval_ticks_value = 0;
     irq_restore(flags);
@@ -192,6 +201,15 @@ void kernel_scheduler_enable_secondary_wake_signals(void) {
     irq_restore(flags);
 }
 
+void kernel_scheduler_enable_secondary_handoffs(void) {
+    if (!initialized) {
+        kernel_scheduler_init();
+    }
+    unsigned long flags = irq_save();
+    secondary_handoffs_enabled = 1;
+    irq_restore(flags);
+}
+
 static unsigned int scheduler_job_token_for_core(unsigned int core_id) {
     return KERNEL_SCHEDULER_JOB_TOKEN_BASE |
         (KERNEL_SCHEDULER_JOB_OP_CHECKSUM << 4) |
@@ -219,6 +237,26 @@ static void signal_secondary_work_for_core(unsigned int core_id) {
         return;
     }
     kernel_smp_signal_scheduler_work(1U << core_id);
+}
+
+static void record_secondary_handoff_issue(unsigned int core_id, unsigned int token) {
+    if (!secondary_handoffs_enabled ||
+        !valid_core(core_id) ||
+        core_id == 0 ||
+        !is_scheduler_job_token(token)) {
+        return;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    cores[core_id].handoff_issues++;
+    unlock_core(core_id, flags);
+}
+
+static void record_secondary_handoff_completion(unsigned int core_id) {
+    if (!secondary_handoffs_enabled || !valid_core(core_id) || core_id == 0) {
+        return;
+    }
+    cores[core_id].handoff_completions++;
 }
 
 static void execute_scheduler_job_for_core(unsigned int core_id, unsigned int token) {
@@ -253,6 +291,7 @@ static void execute_scheduler_job_for_core(unsigned int core_id, unsigned int to
         cores[core_id].job_checksum = mix | 1UL;
     }
     cores[core_id].job_completions++;
+    record_secondary_handoff_completion(core_id);
     unlock_core(core_id, flags);
 }
 
@@ -263,8 +302,10 @@ static int enqueue_worker_probe_for_core(unsigned int core_id) {
     if (kernel_scheduler_runqueue_count(core_id) != 0) {
         return 0;
     }
-    int ok = kernel_scheduler_enqueue(core_id, worker_token_for_core(core_id));
+    unsigned int token = worker_token_for_core(core_id);
+    int ok = kernel_scheduler_enqueue(core_id, token);
     if (ok) {
+        record_secondary_handoff_issue(core_id, token);
         signal_secondary_work_for_core(core_id);
     }
     return ok;
@@ -350,10 +391,12 @@ static int route_worker_feed_for_core(unsigned int core_id) {
     }
     unlock_core(core_id, flags);
 
-    if (kernel_scheduler_enqueue(core_id, worker_token_for_core(core_id))) {
+    unsigned int token = worker_token_for_core(core_id);
+    if (kernel_scheduler_enqueue(core_id, token)) {
         lock_core(core_id, &flags);
         cores[core_id].worker_feeds++;
         unlock_core(core_id, flags);
+        record_secondary_handoff_issue(core_id, token);
         signal_secondary_work_for_core(core_id);
         return 1;
     }
@@ -438,6 +481,13 @@ unsigned int kernel_scheduler_secondary_job_execution_enabled(void) {
 unsigned int kernel_scheduler_secondary_wake_signals_enabled(void) {
     unsigned long flags = irq_save();
     unsigned int value = secondary_wake_signals_enabled;
+    irq_restore(flags);
+    return value;
+}
+
+unsigned int kernel_scheduler_secondary_handoffs_enabled(void) {
+    unsigned long flags = irq_save();
+    unsigned int value = secondary_handoffs_enabled;
     irq_restore(flags);
     return value;
 }
@@ -929,6 +979,70 @@ unsigned long kernel_scheduler_secondary_wake_imbalance(void) {
     return seen && max >= min ? max - min : 0;
 }
 
+unsigned long kernel_scheduler_secondary_handoff_issue_count(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned long count = cores[core_id].handoff_issues;
+    unlock_core(core_id, flags);
+    return count;
+}
+
+unsigned long kernel_scheduler_secondary_handoff_completion_count(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned long count = cores[core_id].handoff_completions;
+    unlock_core(core_id, flags);
+    return count;
+}
+
+unsigned long kernel_scheduler_secondary_handoff_issue_total(void) {
+    unsigned long total = 0;
+    for (unsigned int i = 1; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        total += kernel_scheduler_secondary_handoff_issue_count(i);
+    }
+    return total;
+}
+
+unsigned long kernel_scheduler_secondary_handoff_completion_total(void) {
+    unsigned long total = 0;
+    for (unsigned int i = 1; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        total += kernel_scheduler_secondary_handoff_completion_count(i);
+    }
+    return total;
+}
+
+unsigned long kernel_scheduler_secondary_handoff_gap(void) {
+    unsigned long issued = kernel_scheduler_secondary_handoff_issue_total();
+    unsigned long completed = kernel_scheduler_secondary_handoff_completion_total();
+    return issued >= completed ? issued - completed : 0;
+}
+
+unsigned long kernel_scheduler_secondary_handoff_imbalance(void) {
+    unsigned long min = 0;
+    unsigned long max = 0;
+    unsigned int seen = 0;
+    for (unsigned int i = 1; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        if (!kernel_smp_core_online(i)) {
+            continue;
+        }
+        unsigned long count = kernel_scheduler_secondary_handoff_completion_count(i);
+        if (!seen || count < min) {
+            min = count;
+        }
+        if (count > max) {
+            max = count;
+        }
+        seen = 1;
+    }
+    return seen && max >= min ? max - min : 0;
+}
+
 unsigned long kernel_scheduler_fairness_min(void) {
     unsigned long min = 0;
     unsigned int seen = 0;
@@ -1038,7 +1152,7 @@ int kernel_scheduler_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 38U) {
+    if (KERNEL_SCHEDULER_VERSION != 39U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY) {
@@ -1058,7 +1172,7 @@ int kernel_scheduler_runqueue_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 38U) {
+    if (KERNEL_SCHEDULER_VERSION != 39U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != 4U) {
@@ -1109,7 +1223,7 @@ int kernel_scheduler_smp_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 38U) {
+    if (KERNEL_SCHEDULER_VERSION != 39U) {
         return 0;
     }
     if (!kernel_scheduler_active() || !kernel_scheduler_smp_dispatch_enabled()) {
@@ -1139,7 +1253,7 @@ int kernel_scheduler_secondary_worker_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 38U) {
+    if (KERNEL_SCHEDULER_VERSION != 39U) {
         return 0;
     }
     if (!kernel_scheduler_active() || !kernel_scheduler_secondary_workers_enabled()) {
@@ -1189,7 +1303,7 @@ int kernel_scheduler_timer_worker_feed_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 38U) {
+    if (KERNEL_SCHEDULER_VERSION != 39U) {
         return 0;
     }
     if (!kernel_scheduler_active() ||
@@ -1243,7 +1357,7 @@ int kernel_scheduler_secondary_job_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 38U) {
+    if (KERNEL_SCHEDULER_VERSION != 39U) {
         return 0;
     }
     if (!kernel_scheduler_active() ||
@@ -1294,7 +1408,7 @@ int kernel_scheduler_secondary_wake_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 38U) {
+    if (KERNEL_SCHEDULER_VERSION != 39U) {
         return 0;
     }
     if (!kernel_scheduler_active() ||
@@ -1346,4 +1460,55 @@ int kernel_scheduler_secondary_wake_selftest(void) {
         kernel_scheduler_secondary_wake_wait_total() >= 3UL &&
         kernel_scheduler_secondary_wake_ack_total() >= 3UL &&
         kernel_scheduler_secondary_wake_gap() <= KERNEL_SCHEDULER_CORE_CAPACITY ? 1 : 0;
+}
+
+int kernel_scheduler_secondary_handoff_selftest(void) {
+    if (!initialized) {
+        kernel_scheduler_init();
+    }
+    if (KERNEL_SCHEDULER_VERSION != 39U) {
+        return 0;
+    }
+    if (!kernel_scheduler_active() ||
+        !kernel_scheduler_secondary_workers_enabled() ||
+        !kernel_scheduler_timer_worker_feed_enabled() ||
+        !kernel_scheduler_secondary_job_execution_enabled() ||
+        !kernel_scheduler_secondary_wake_signals_enabled() ||
+        !kernel_scheduler_secondary_handoffs_enabled()) {
+        return 0;
+    }
+    if (kernel_smp_online_count() != 4U || kernel_smp_online_mask() != 0xfU) {
+        return 0;
+    }
+
+    for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+        if (kernel_scheduler_secondary_handoff_issue_count(core_id) == 0 ||
+            kernel_scheduler_secondary_handoff_completion_count(core_id) == 0) {
+            (void)route_worker_feed_for_core(core_id);
+        }
+    }
+
+    for (unsigned int spin = 0; spin < 200000U; spin++) {
+        if (kernel_scheduler_secondary_handoff_issue_count(1) > 0 &&
+            kernel_scheduler_secondary_handoff_issue_count(2) > 0 &&
+            kernel_scheduler_secondary_handoff_issue_count(3) > 0 &&
+            kernel_scheduler_secondary_handoff_completion_count(1) > 0 &&
+            kernel_scheduler_secondary_handoff_completion_count(2) > 0 &&
+            kernel_scheduler_secondary_handoff_completion_count(3) > 0) {
+            break;
+        }
+        if ((spin & 0xffU) == 0U) {
+            route_worker_feed_for_online_secondary_cores();
+        }
+        __asm__ volatile("nop" ::: "memory");
+    }
+
+    return kernel_scheduler_secondary_wake_selftest() != 0 &&
+        kernel_scheduler_secondary_job_selftest() != 0 &&
+        kernel_scheduler_secondary_handoff_issue_count(0) == 0 &&
+        kernel_scheduler_secondary_handoff_completion_count(0) == 0 &&
+        kernel_scheduler_secondary_handoff_issue_total() >= 3UL &&
+        kernel_scheduler_secondary_handoff_completion_total() >= 3UL &&
+        kernel_scheduler_secondary_handoff_gap() <= KERNEL_SCHEDULER_CORE_CAPACITY &&
+        kernel_scheduler_secondary_handoff_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY ? 1 : 0;
 }

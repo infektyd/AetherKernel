@@ -210,6 +210,7 @@ unsigned long kernel_spinlock_acquisition_count(const kernel_spinlock_t *lock);
 unsigned long kernel_spinlock_contention_count(const kernel_spinlock_t *lock);
 int kernel_spinlock_selftest(void);
 
+// Runtime V39 secondary scheduler handoff protocol.
 // Runtime V38 secondary scheduler wake protocol.
 // Runtime V37 timer-fed secondary C scheduler jobs.
 // Runtime V36 timer-fed secondary scheduler workers.
@@ -228,7 +229,9 @@ int kernel_spinlock_selftest(void);
 // accounting, still without letting secondary cores enter Swift runtime state.
 // V38 parks secondary scheduler loops with WFE and wakes them with bounded SEV
 // signals when timer-fed secondary work is enqueued.
-#define KERNEL_SCHEDULER_VERSION 38U
+// V39 records cross-core scheduler handoff issues and completion
+// acknowledgements for those C-only secondary jobs.
+#define KERNEL_SCHEDULER_VERSION 39U
 #define KERNEL_SCHEDULER_CORE_CAPACITY 4U
 #define KERNEL_SCHEDULER_RUNQUEUE_CAPACITY 8U
 #define KERNEL_SCHEDULER_DISPATCH_TOKEN_BASE 0x3400U
@@ -244,12 +247,14 @@ void kernel_scheduler_enable_secondary_workers(void);
 void kernel_scheduler_enable_timer_worker_feed(void);
 void kernel_scheduler_enable_secondary_job_execution(void);
 void kernel_scheduler_enable_secondary_wake_signals(void);
+void kernel_scheduler_enable_secondary_handoffs(void);
 unsigned int kernel_scheduler_active(void);
 unsigned int kernel_scheduler_smp_dispatch_enabled(void);
 unsigned int kernel_scheduler_secondary_workers_enabled(void);
 unsigned int kernel_scheduler_timer_worker_feed_enabled(void);
 unsigned int kernel_scheduler_secondary_job_execution_enabled(void);
 unsigned int kernel_scheduler_secondary_wake_signals_enabled(void);
+unsigned int kernel_scheduler_secondary_handoffs_enabled(void);
 unsigned int kernel_scheduler_core_count(void);
 unsigned int kernel_scheduler_runqueue_capacity(void);
 unsigned int kernel_scheduler_runqueue_count(unsigned int core_id);
@@ -300,6 +305,12 @@ unsigned long kernel_scheduler_secondary_wake_wait_total(void);
 unsigned long kernel_scheduler_secondary_wake_ack_total(void);
 unsigned long kernel_scheduler_secondary_wake_gap(void);
 unsigned long kernel_scheduler_secondary_wake_imbalance(void);
+unsigned long kernel_scheduler_secondary_handoff_issue_count(unsigned int core_id);
+unsigned long kernel_scheduler_secondary_handoff_completion_count(unsigned int core_id);
+unsigned long kernel_scheduler_secondary_handoff_issue_total(void);
+unsigned long kernel_scheduler_secondary_handoff_completion_total(void);
+unsigned long kernel_scheduler_secondary_handoff_gap(void);
+unsigned long kernel_scheduler_secondary_handoff_imbalance(void);
 unsigned long kernel_scheduler_fairness_min(void);
 unsigned long kernel_scheduler_fairness_max(void);
 unsigned long kernel_scheduler_fairness_imbalance(void);
@@ -317,6 +328,7 @@ int kernel_scheduler_secondary_worker_selftest(void);
 int kernel_scheduler_timer_worker_feed_selftest(void);
 int kernel_scheduler_secondary_job_selftest(void);
 int kernel_scheduler_secondary_wake_selftest(void);
+int kernel_scheduler_secondary_handoff_selftest(void);
 
 // Runtime V32 SMP secondary-core bring-up substrate. Secondary cores enter a
 // fixed C-only accounting loop with private stacks; they do not touch Swift

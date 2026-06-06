@@ -3,7 +3,7 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V38 secondary scheduler wake protocol hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V39 secondary scheduler handoff protocol hardware-verified on real Raspberry Pi 4B**
 > (2026-06-06) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
@@ -115,6 +115,21 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 > and `events_lost=0`. WFE wait/wake imbalance is telemetry, not a pass/fail
 > gate; the A72 can resume WFE for architectural events beyond this scheduler
 > SEV path.
+> Runtime V39 added the secondary scheduler handoff protocol: core 0 records
+> timer-fed secondary C job issues, while cores 1-3 record matching completion
+> acknowledgements in their C-only scheduler loops. Live proof used image
+> `kernel8.img` sha256
+> `f24f26c85da4058853e5c7ec4af1822b7a77545259e492786c233421a45b831f`
+> and passed a normal `net-iterate.sh` run plus a clean 3-cycle repeat. Proof
+> lines included `bootcert ok=1 version=39 handoff=1 wake=1 job_exec=1
+> worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 ... events_lost=0`,
+> `certificate ok=1 version=39 substrate=1 bootcert=1 handoff=1 wake=1
+> job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`, and
+> `sched7 ok=1 version=39 handoff=1 wake=1 job_exec=1 issued=885
+> completed=885 gap=0 imbalance=0 core0_issue=0 core1_issue=295 core2_issue=295
+> core3_issue=295 core0_done=0 core1_done=295 core2_done=295 core3_done=295
+> selftest=1`. The repeat kept `runqueues total=0`, `resp id=40 ok=1
+> cmd=sched7 end`, and `events_lost=0`.
 
 ## What works (verified)
 
@@ -164,6 +179,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V36 timer-fed secondary scheduler workers | ✅ | hardware run printed `runtime v36: timer-fed secondary scheduler workers`; `bootcert ok=1 version=36 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`; `certificate ok=1 version=36 substrate=1 bootcert=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`; `sched4 ok=1 version=36 worker_feed=1 secondary_workers=1 feeds=708 drains=711 drops=0 gap=0 feed_imbalance=0 drain_imbalance=0 core0_feed=0 core1_feed=236 core2_feed=236 core3_feed=236 core0_drain=0 core1_drain=237 core2_drain=237 core3_drain=237 selftest=1`; clean 3-cycle live netboot repeat passed with `drops=0 gap=0` |
 | Runtime V37 timer-fed secondary C scheduler jobs | ✅ | hardware run printed `runtime v37: timer-fed secondary C scheduler jobs`; `bootcert ok=1 version=37 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`; `certificate ok=1 version=37 substrate=1 bootcert=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 ... events_lost=0`; `sched5 ok=1 version=37 job_exec=1 worker_feed=1 secondary_workers=1 executions=756 completions=756 noops=0 checksum=698517273110 gap=0 imbalance=0 core0_exec=0 core1_exec=252 core2_exec=252 core3_exec=252 core0_done=0 core1_done=252 core2_done=252 core3_done=252 selftest=1`; clean 3-cycle live netboot repeat passed with `noops=0 gap=0 imbalance=0` |
 | Runtime V38 secondary scheduler wake protocol | ✅ | hardware run printed `runtime v38: secondary scheduler wake protocol`; `bootcert ok=1 version=38 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`; `certificate ok=1 version=38 substrate=1 bootcert=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 ... events_lost=0`; `sched6 ok=1 version=38 wake=1 job_exec=1 worker_feed=1 signals=825 mask=0xe targets=825 waits=84020214 wakes=84028069 gap=1 imbalance=6818555 core0_wait=0 core1_wait=30418819 core2_wait=23601879 core3_wait=30047539 core0_wake=0 core1_wake=30432773 core2_wake=23612725 core3_wake=30060963 selftest=1`; clean 3-cycle live netboot repeat passed with `wake=1`, positive core1-3 wait/wake counts, `runqueues total=0`, and `events_lost=0` |
+| Runtime V39 secondary scheduler handoff protocol | ✅ | hardware run printed `runtime v39: secondary scheduler handoff protocol`; `bootcert ok=1 version=39 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=39 substrate=1 bootcert=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched7 ok=1 version=39 handoff=1 wake=1 job_exec=1 issued=885 completed=885 gap=0 imbalance=0 core0_issue=0 core1_issue=295 core2_issue=295 core3_issue=295 core0_done=0 core1_done=295 core2_done=295 core3_done=295 selftest=1`; clean 3-cycle live netboot repeat passed |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -650,6 +666,22 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     telemetry because WFE can resume for architectural events beyond scheduler
     SEV; the correctness gate is positive core1-3 acknowledgement plus bounded
     gaps.
+
+  - **Runtime V39 secondary scheduler handoff protocol.** ✅ hardware proof
+    accepted 2026-06-06. V39 records bounded cross-core scheduler handoff
+    issue/completion counters for timer-fed C-only jobs from core 0 to cores
+    1-3. The accepted image hash was
+    `f24f26c85da4058853e5c7ec4af1822b7a77545259e492786c233421a45b831f`.
+    Proof lines included `bootcert ok=1 version=39 handoff=1 wake=1
+    job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1
+    smp_scheduler=1 ... events_lost=0`, `certificate ok=1 version=39
+    substrate=1 bootcert=1 handoff=1 wake=1 job_exec=1 worker_feed=1
+    secondary_workers=1 ... events_lost=0`, and `sched7 ok=1 version=39
+    handoff=1 wake=1 job_exec=1 issued=885 completed=885 gap=0 imbalance=0
+    core0_issue=0 core1_issue=295 core2_issue=295 core3_issue=295
+    core0_done=0 core1_done=295 core2_done=295 core3_done=295 selftest=1`.
+    The 3-cycle repeat kept `resp id=40 ok=1 cmd=sched7 end`,
+    `runqueues total=0`, and `events_lost=0`.
 
 ## Provenance
 
