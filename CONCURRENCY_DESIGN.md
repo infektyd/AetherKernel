@@ -34,7 +34,25 @@ substrate was hardware-verified 2026-06-06. Runtime V32 SMP secondary-core
 bring-up was hardware-verified 2026-06-06. Runtime V33 atomics, spinlocks, and
 per-core run queues were hardware-verified 2026-06-06. Runtime V34 timer-driven
 SMP scheduler dispatch was hardware-verified 2026-06-06. Runtime V35
-secondary-owned scheduler workers were hardware-verified 2026-06-06.
+secondary-owned scheduler workers were hardware-verified 2026-06-06. Runtime
+V36 timer-fed secondary scheduler workers were hardware-verified 2026-06-06.
+
+> ## Runtime V36 timer-fed secondary scheduler workers ground truth (2026-06-06)
+> V36 keeps Swift task execution on core 0, but lets the scheduler timer feed
+> bounded worker tokens to secondary per-core queues. Cores 1-3 drain those
+> tokens in their C-only SMP loops, and the proof surface must show feed counts,
+> drain counts, drops, and bounded gap/imbalance. The live Pi proof passed a
+> normal `net-iterate.sh` run and a clean 3-cycle repeat. Proof lines included
+> `runtime v36: timer-fed secondary scheduler workers`, `bootcert ok=1 version=36
+> worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 ... events_lost=0`,
+> `certificate ok=1 version=36 substrate=1 bootcert=1 worker_feed=1
+> secondary_workers=1 preemptive=1 smp_scheduler=1 ... events_lost=0`, and
+> `sched4 ok=1 version=36 worker_feed=1 secondary_workers=1 feeds=708
+> drains=711 drops=0 gap=0 feed_imbalance=0 drain_imbalance=0 core0_feed=0
+> core1_feed=236 core2_feed=236 core3_feed=236 core0_drain=0 core1_drain=237
+> core2_drain=237 core3_drain=237 selftest=1`. Repeat cycles stayed at
+> `693/696`, `684/687`, and `684/687` feeds/drains with `drops=0 gap=0`;
+> V33 `runqueues` stayed `total=0`.
 
 > ## Runtime V35 secondary-owned scheduler workers ground truth (2026-06-06)
 > V35 keeps secondary cores out of Swift runtime state, but gives their C-only

@@ -121,7 +121,7 @@ dns_start="$(file_size "$DNSMASQ_LOG")"
 
 echo
 echo "ACTION: reset or power-cycle the Pi once now."
-echo "I am watching for: TFTP sends $PREFIX/kernel8.img + serial prints fresh Runtime V35 shell markers."
+echo "I am watching for: TFTP sends $PREFIX/kernel8.img + serial prints fresh Runtime V36 shell markers."
 echo "Timeout: ${TIMEOUT_S}s"
 
 deadline=$((SECONDS + TIMEOUT_S))
@@ -162,8 +162,9 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "runtime v33: atomics spinlocks per-core run queues" \
       && printf '%s' "$serial_delta" | grep -q "runtime v34: timer-driven smp scheduler dispatch" \
       && printf '%s' "$serial_delta" | grep -q "runtime v35: secondary-owned scheduler workers" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v36: timer-fed secondary scheduler workers" \
     && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
-    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
+    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
     echo "netboot bring-up verified"
     echo "--- TFTP delta ---"
     printf '%s\n' "$dns_delta" | tail -n 80
