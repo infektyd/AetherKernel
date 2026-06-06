@@ -117,10 +117,10 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V15 marker, `rtv2 fast/slow/long` zero-lines,
+AetherKernel banner plus Runtime V16 marker, `rtv2 fast/slow/long` zero-lines,
 the expanded `shell ready` command list, and shell probes for `status`,
 `bootcheck`, `stress`, `soak`, `kobjects`, `tasks2`, `mailboxes`, `sendtest`,
-`supervisor`, `health`, and `capcheck`.
+`supervisor`, `health`, `capcheck`, and `events`.
 
 The first reset after adding this workflow is still physical if the currently
 running SD image predates the serial reset hook. For that first proof, use the
@@ -155,8 +155,9 @@ runtime v12: kernel object table + task registry
 runtime v13: bounded mailbox message queues
 runtime v14: deterministic task supervisor
 runtime v15: capability-tagged kernel handles
+runtime v16: kernel event log ring
 handlecheck ok=1 handle_selftest=1 cap_selftest=1
-shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
+shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
 ```
 
 The current kernel image services UART RX through PL011 receive interrupts into
@@ -176,6 +177,7 @@ commands can be sent from the Mac:
 ./serial-command.sh supervisor
 ./serial-command.sh health
 ./serial-command.sh capcheck
+./serial-command.sh events
 ./serial-command.sh diag
 ./serial-command.sh irqs
 ./serial-command.sh timers
@@ -251,6 +253,15 @@ kobjects count=... capacity=16 active=... selftest=1 handle_selftest=1 cap_selft
 capcheck ok=1 inspect=1 denied=1 stale=1 last_error=2
 ```
 
+Runtime V16 adds a fixed kernel event log ring:
+
+```text
+events count=11 capacity=64 lost=0 sequence=11 selftest=1
+ event index=0 seq=1 kind=boot ticks=... a0=0x10 a1=0x0 a2=0x0
+ event index=4 seq=5 kind=timer ticks=... a0=0x0 a1=0x337f980 a2=0x0
+ event index=8 seq=9 kind=mailbox ticks=... a0=0x0 a1=0x0 a2=0x2
+```
+
 `serial-probe.sh` sends one command and waits for a matching response line:
 
 ```bash
@@ -263,6 +274,7 @@ capcheck ok=1 inspect=1 denied=1 stale=1 last_error=2
 ./serial-probe.sh supervisor '^supervisor count=.* unhealthy=0'
 ./serial-probe.sh health '^health ok=1 .*supervised='
 ./serial-probe.sh capcheck '^capcheck ok=1 .*denied=1 .*stale=1'
+./serial-probe.sh events '^events count=.* lost=0 .*selftest=1'
 ```
 
 `panic-test` and `fault-test` are intentionally destructive: each writes a

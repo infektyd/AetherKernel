@@ -10,7 +10,7 @@
 // V11 adds boot and soak invariant checks for host-side proof loops. V12 adds a
 // fixed kernel object table and cooperative task registry. V13 adds bounded
 // mailbox message queues. V14 adds a deterministic task supervisor. V15 adds
-// capability-tagged kernel object handles.
+// capability-tagged kernel object handles. V16 adds a fixed event log ring.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -41,11 +41,11 @@ func shellBufferEquals(_ s: StaticString) -> Bool {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printStatus() {
@@ -245,6 +245,66 @@ func printCapcheck() {
   uartPuts(" last_error=")
   uartPutDec(UInt64(kernel_object_handle_last_error()))
   uartPuts("\n")
+}
+
+func printEventKind(_ kind: UInt32) {
+  if kind == KERNEL_EVENT_KIND_BOOT {
+    uartPuts("boot")
+  } else if kind == KERNEL_EVENT_KIND_TASK {
+    uartPuts("task")
+  } else if kind == KERNEL_EVENT_KIND_TIMER {
+    uartPuts("timer")
+  } else if kind == KERNEL_EVENT_KIND_MAILBOX {
+    uartPuts("mailbox")
+  } else if kind == KERNEL_EVENT_KIND_SUPERVISOR {
+    uartPuts("supervisor")
+  } else if kind == KERNEL_EVENT_KIND_SHELL {
+    uartPuts("shell")
+  } else if kind == KERNEL_EVENT_KIND_HANDLE {
+    uartPuts("handle")
+  } else if kind == KERNEL_EVENT_KIND_SELFTEST {
+    uartPuts("selftest")
+  } else {
+    uartPuts("unknown")
+  }
+}
+
+func printEvents() {
+  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 16, UInt(kernel_event_count()), 0)
+  let selftest = kernel_event_log_selftest()
+  let count = kernel_event_count()
+
+  uartPuts("events count=")
+  uartPutDec(UInt64(count))
+  uartPuts(" capacity=")
+  uartPutDec(UInt64(kernel_event_capacity()))
+  uartPuts(" lost=")
+  uartPutDec(UInt64(kernel_event_lost_count()))
+  uartPuts(" sequence=")
+  uartPutDec(UInt64(kernel_event_sequence()))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(selftest))
+  uartPuts("\n")
+
+  var i: UInt32 = 0
+  while i < count {
+    uartPuts(" event index=")
+    uartPutDec(UInt64(i))
+    uartPuts(" seq=")
+    uartPutDec(UInt64(kernel_event_seq(i)))
+    uartPuts(" kind=")
+    printEventKind(kernel_event_kind(i))
+    uartPuts(" ticks=")
+    uartPutDec(UInt64(kernel_event_ticks(i)))
+    uartPuts(" a0=")
+    uartPutHexCompact(UInt64(kernel_event_arg0(i)))
+    uartPuts(" a1=")
+    uartPutHexCompact(UInt64(kernel_event_arg1(i)))
+    uartPuts(" a2=")
+    uartPutHexCompact(UInt64(kernel_event_arg2(i)))
+    uartPuts("\n")
+    i += 1
+  }
 }
 
 func printTasks2() {
@@ -910,6 +970,8 @@ func processUartShellLine() {
     printHealth()
   } else if shellBufferEquals("capcheck") {
     printCapcheck()
+  } else if shellBufferEquals("events") {
+    printEvents()
   } else if shellBufferEquals("diag") {
     printDiag()
   } else if shellBufferEquals("irqs") {

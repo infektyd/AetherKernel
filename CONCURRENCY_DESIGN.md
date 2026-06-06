@@ -12,7 +12,18 @@ kernel object table and cooperative task registry and was hardware-verified 2026
 Runtime V13 adds bounded mailbox queues and was hardware-verified 2026-06-05.
 Runtime V14 adds deterministic task supervision and was hardware-verified 2026-06-05.
 Runtime V15 adds capability-tagged kernel object handles and was hardware-verified
+2026-06-05. Runtime V16 adds a fixed event log ring and was hardware-verified
 2026-06-05.
+
+> ## Runtime V16 ground truth (2026-06-05)
+> V16 adds a 64-record C-owned event ring for machine-checkable kernel/agent
+> observability. Records store sequence, CNTP ticks, stable event kind, and three
+> raw args. The ring keeps newest records on overflow and increments `lost`.
+> Emission is deliberately coarse: boot, supervisor registration, handle selftest,
+> first task/timer ticks, first mailbox tx/rx, shell events command, and selftest.
+> Hardware proof: `events count=11 capacity=64 lost=0 sequence=11 selftest=1`,
+> with event kinds `boot`, `supervisor`, `handle`, `task`, `timer`, `mailbox`,
+> `shell`, and `selftest`.
 
 > ## Runtime V15 ground truth (2026-06-05)
 > V15 keeps kernel object lifetime in the fixed C registry and exposes raw 64-bit

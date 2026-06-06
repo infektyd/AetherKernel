@@ -207,6 +207,32 @@ int kernel_object_registry_selftest(void);
 int kernel_object_handle_selftest(void);
 int kernel_object_capcheck_selftest(void);
 
+// Runtime V16 fixed kernel event log. The log is a bounded ring of recent
+// machine-checkable events for humans and host agents; overflow keeps the newest
+// records and increments lost_count.
+#define KERNEL_EVENT_KIND_BOOT       1U
+#define KERNEL_EVENT_KIND_TASK       2U
+#define KERNEL_EVENT_KIND_TIMER      3U
+#define KERNEL_EVENT_KIND_MAILBOX    4U
+#define KERNEL_EVENT_KIND_SUPERVISOR 5U
+#define KERNEL_EVENT_KIND_SHELL      6U
+#define KERNEL_EVENT_KIND_HANDLE     7U
+#define KERNEL_EVENT_KIND_SELFTEST   8U
+
+void kernel_event_log_init(void);
+void kernel_event_emit(unsigned int kind, unsigned long arg0, unsigned long arg1, unsigned long arg2);
+unsigned int kernel_event_capacity(void);
+unsigned int kernel_event_count(void);
+unsigned long kernel_event_lost_count(void);
+unsigned long kernel_event_sequence(void);
+unsigned int kernel_event_kind(unsigned int index);
+unsigned long kernel_event_ticks(unsigned int index);
+unsigned long kernel_event_seq(unsigned int index);
+unsigned long kernel_event_arg0(unsigned int index);
+unsigned long kernel_event_arg1(unsigned int index);
+unsigned long kernel_event_arg2(unsigned int index);
+int kernel_event_log_selftest(void);
+
 void kernel_task_registry_init(void);
 unsigned int kernel_task_register(unsigned int task_id, const unsigned char *name, unsigned int name_len, unsigned int period_ms);
 void kernel_task_mark_state(unsigned int task_id, unsigned int state);
