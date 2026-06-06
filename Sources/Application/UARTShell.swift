@@ -12,7 +12,8 @@
 // mailbox message queues. V14 adds a deterministic task supervisor. V15 adds
 // capability-tagged kernel object handles. V16 adds a fixed event log ring. V17
 // adds a one-line boot certificate for host proof loops. V18 adds cooperative
-// cancellation token selftests. V19 adds structured task spawn metadata.
+// cancellation token selftests. V19 adds structured task spawn metadata. V20
+// adds Swift-facing async channels over the fixed mailbox queues.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -43,11 +44,11 @@ func shellBufferEquals(_ s: StaticString) -> Bool {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printStatus() {
@@ -425,6 +426,33 @@ func printSendtest() {
   uartPutDec(UInt64(received))
   uartPuts(" value=")
   uartPutHex(UInt64(receivedValue))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(selftest))
+  uartPuts("\n")
+}
+
+func printChanneltest() {
+  let channel = AetherChannelU64(mailboxID: MAILBOX_SELFTEST_ID)
+  let testValue: UInt64 = 0x0000_0000_0000_c020
+
+  kernel_mailbox_clear(MAILBOX_SELFTEST_ID)
+  let sent = channel.send(testValue) ? 1 : 0
+  let received = channel.tryReceive()
+  let selftest = aetherChannelSelftest()
+  let ok = sent != 0 && received.0 && received.1 == testValue && selftest != 0
+
+  uartPuts("channeltest ok=")
+  uartPutDec(UInt64(ok ? 1 : 0))
+  uartPuts(" mailbox=")
+  uartPutDec(UInt64(MAILBOX_SELFTEST_ID))
+  uartPuts(" sent=")
+  uartPutDec(UInt64(sent))
+  uartPuts(" received=")
+  uartPutDec(UInt64(received.0 ? 1 : 0))
+  uartPuts(" value=")
+  uartPutHex(received.1)
+  uartPuts(" depth=")
+  uartPutDec(UInt64(channel.depth()))
   uartPuts(" selftest=")
   uartPutDec(UInt64(selftest))
   uartPuts("\n")
@@ -845,22 +873,25 @@ func printBootcert() {
   let kobjects = kernel_object_registry_selftest()
   let tasks = kernel_task_registry_selftest()
   let mailboxes = kernel_mailbox_selftest()
+  let channels = aetherChannelSelftest()
   let supervisor = kernel_supervisor_selftest()
   let events = kernel_event_log_selftest()
   let eventsLost = kernel_event_lost_count()
   let ok = memmap != 0 && heap != 0 && frames != 0 && taskspawns != 0 &&
     cancellations != 0 && kobjects != 0 && tasks != 0 && mailboxes != 0 &&
-    supervisor != 0 && events != 0 && eventsLost == 0
+    channels != 0 && supervisor != 0 && events != 0 && eventsLost == 0
 
   uartPuts("bootcert ok=")
   uartPutDec(UInt64(ok ? 1 : 0))
-  uartPuts(" version=19")
+  uartPuts(" version=20")
   uartPuts(" memmap=")
   uartPutDec(UInt64(memmap))
   uartPuts(" heap=")
   uartPutDec(UInt64(heap))
   uartPuts(" frames=")
   uartPutDec(UInt64(frames))
+  uartPuts(" channels=")
+  uartPutDec(UInt64(channels))
   uartPuts(" taskspawns=")
   uartPutDec(UInt64(taskspawns))
   uartPuts(" cancellations=")
@@ -1129,6 +1160,8 @@ func processUartShellLine() {
     printCanceltest()
   } else if shellBufferEquals("taskcheck") {
     printTaskcheck()
+  } else if shellBufferEquals("channeltest") {
+    printChanneltest()
   } else if shellBufferEquals("bootcheck") {
     printBootcheck()
   } else if shellBufferEquals("soak") {

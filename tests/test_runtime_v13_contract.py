@@ -7,7 +7,7 @@ COMMANDS_V13 = (
     "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,"
     "supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,"
-    "bootcert,canceltest,taskcheck,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,"
+    "bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,"
     "fault-test,reboot"
 )
 
@@ -71,9 +71,9 @@ def test_runtime_v13_demo_mailbox_tasks_exist() -> None:
         "runtimeMailboxReceived",
         "mailboxProducer",
         "mailboxConsumer",
-        "mailboxReceiveU64",
-        "kernel_mailbox_send_u64(MAILBOX_DEMO_ID",
-        "await mailboxReceiveU64(MAILBOX_DEMO_ID)",
+        "AetherChannelU64(mailboxID: MAILBOX_DEMO_ID)",
+        "channel.send(n)",
+        "await channel.receive()",
         "rtv13 mail tx ",
         "rtv13 mail rx ",
         "spawnAetherTask(TASK_MAIL_TX_ID",

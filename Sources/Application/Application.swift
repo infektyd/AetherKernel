@@ -34,14 +34,6 @@ func registerKernelMailbox(_ mailboxID: UInt32, _ name: StaticString) {
   _ = kernel_mailbox_register(mailboxID, name.utf8Start, UInt32(name.utf8CodeUnitCount))
 }
 
-func mailboxReceiveU64(_ mailboxID: UInt32) async -> UInt64 {
-  var value: UInt = 0
-  while kernel_mailbox_recv_u64(mailboxID, &value) == 0 {
-    await timerSleepMillis(25)
-  }
-  return UInt64(value)
-}
-
 @main
 struct Application {
   static func fastHeartbeat() async {
@@ -124,9 +116,10 @@ struct Application {
 
   static func mailboxProducer() async {
     var n: UInt64 = 0
+    let channel = AetherChannelU64(mailboxID: MAILBOX_DEMO_ID)
     while true {
       kernel_task_mark_state(TASK_MAIL_TX_ID, KERNEL_TASK_STATE_RUNNING)
-      if kernel_mailbox_send_u64(MAILBOX_DEMO_ID, UInt(n)) != 0 {
+      if channel.send(n) {
         runtimeMailboxSent = n
         kernel_task_record_tick(TASK_MAIL_TX_ID)
         kernel_supervisor_heartbeat(TASK_MAIL_TX_ID)
@@ -144,9 +137,10 @@ struct Application {
   }
 
   static func mailboxConsumer() async {
+    let channel = AetherChannelU64(mailboxID: MAILBOX_DEMO_ID)
     while true {
       kernel_task_mark_state(TASK_MAIL_RX_ID, KERNEL_TASK_STATE_WAITING)
-      let value = await mailboxReceiveU64(MAILBOX_DEMO_ID)
+      let value = await channel.receive()
       kernel_task_mark_state(TASK_MAIL_RX_ID, KERNEL_TASK_STATE_RUNNING)
       runtimeMailboxReceived = value
       kernel_task_record_tick(TASK_MAIL_RX_ID)
@@ -184,10 +178,11 @@ struct Application {
     // log for kernel/agent observability. Runtime V17 adds a deterministic boot
     // certificate for host proof loops. Runtime V18 adds fixed cooperative
     // cancellation tokens. Runtime V19 adds the Aether-owned task spawn wrapper.
+    // Runtime V20 adds Swift-facing async channels over fixed mailboxes.
     kernel_memory_init()
     kernel_cancel_init()
     kernel_event_log_init()
-    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 19, 0, 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 20, 0, 0)
     kernel_object_registry_init()
     kernel_task_registry_init()
     kernel_supervisor_init()
@@ -215,8 +210,10 @@ struct Application {
     uartPuts("runtime v17: deterministic boot certificate\n")
     uartPuts("runtime v18: cooperative cancellation tokens\n")
     uartPuts("runtime v19: structured aether task spawn\n")
+    uartPuts("runtime v20: bounded async channels\n")
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(kernel_cancel_selftest()), 0)
     kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19, UInt(aetherTaskSpawnSelftest()), UInt(kernel_task_count()))
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20, UInt(aetherChannelSelftest()), UInt(kernel_mailbox_count()))
     let handleSelftest = kernel_object_handle_selftest()
     let capSelftest = kernel_object_capcheck_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_HANDLE, UInt(handleSelftest), UInt(capSelftest), 0)

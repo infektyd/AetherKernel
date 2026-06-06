@@ -112,7 +112,7 @@ dns_start="$(file_size "$DNSMASQ_LOG")"
 
 echo
 echo "ACTION: reset or power-cycle the Pi once now."
-echo "I am watching for: dnsmasq sends $PREFIX/kernel8.img + serial prints fresh Runtime V19 shell markers."
+echo "I am watching for: dnsmasq sends $PREFIX/kernel8.img + serial prints fresh Runtime V20 shell markers."
 echo "Timeout: ${TIMEOUT_S}s"
 
 deadline=$((SECONDS + TIMEOUT_S))
@@ -138,8 +138,9 @@ while [ "$SECONDS" -lt "$deadline" ]; do
     && printf '%s' "$serial_delta" | grep -q "runtime v17: deterministic boot certificate" \
     && printf '%s' "$serial_delta" | grep -q "runtime v18: cooperative cancellation tokens" \
     && printf '%s' "$serial_delta" | grep -q "runtime v19: structured aether task spawn" \
+    && printf '%s' "$serial_delta" | grep -q "runtime v20: bounded async channels" \
     && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
-    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
+    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
     echo "netboot bring-up verified"
     echo "--- dnsmasq delta ---"
     printf '%s\n' "$dns_delta" | tail -n 80

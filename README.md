@@ -3,16 +3,16 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V19 hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V20 hardware-verified on real Raspberry Pi 4B**
 > (2026-06-05) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
 > marker, the Runtime V6 retained-record marker, the Runtime V7 memory marker,
-> the Runtime V8 allocator-guard marker, Runtime V9-V19 self-test markers, and
-> UART shell command responses over PL011 serial @ 115200. Runtime V19 adds
-> an Aether-owned task spawn wrapper plus parent/spawn/completion metadata;
-> hardware proved `bootcert ok=1 version=19 ... taskspawns=1 ... events_lost=0`
-> plus `taskcheck ok=1 ... spawns=6 completions=0` across a 3-cycle netboot loop.
+> the Runtime V8 allocator-guard marker, Runtime V9-V20 self-test markers, and
+> UART shell command responses over PL011 serial @ 115200. Runtime V20 adds
+> a Swift-facing async channel wrapper over the fixed mailbox queues; hardware
+> proved `bootcert ok=1 version=20 ... channels=1 ... events_lost=0` plus
+> `channeltest ok=1 ... received=1` across a 3-cycle netboot loop.
 
 ## What works (verified)
 
@@ -43,6 +43,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V17 deterministic boot certificate | ✅ | hardware run printed `runtime v17: deterministic boot certificate`; `bootcert ok=1 version=17 memmap=1 heap=1 frames=1 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0`; 3-cycle netboot loop passed |
 | Runtime V18 cooperative cancellation tokens | ✅ | hardware run printed `runtime v18: cooperative cancellation tokens`; `bootcert ok=1 version=18 ... cancellations=1 ... events_lost=0`; `canceltest ok=1 capacity=16 active=0 requested=1 completed=1`; 3-cycle netboot loop passed |
 | Runtime V19 structured Aether task spawn | ✅ | hardware run printed `runtime v19: structured aether task spawn`; `bootcert ok=1 version=19 ... taskspawns=1 cancellations=1 ... events_lost=0`; `taskcheck ok=1 count=7 capacity=8 spawns=6 completions=0`; 3-cycle netboot loop passed |
+| Runtime V20 bounded async channels | ✅ | hardware run printed `runtime v20: bounded async channels`; `bootcert ok=1 version=20 ... channels=1 taskspawns=1 cancellations=1 ... events_lost=0`; `channeltest ok=1 mailbox=1 sent=1 received=1 value=0x000000000000c020`; 3-cycle netboot loop passed |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -101,8 +102,9 @@ Sources/Application/Exceptions.swift  prints machine-checkable sync fault lines 
 Sources/Application/TimerSleep.swift   8-slot CNTP-backed async continuation sleep
 Sources/Application/UARTRX.swift       Runtime V4 IRQ-backed UART RX async byte bridge
 Sources/Application/AetherTask.swift   Runtime V19 structured task registration/spawn helper
-Sources/Application/UARTShell.swift    Runtime V19 line command shell over UART RX
-Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V19 async cadences + shell
+Sources/Application/AetherChannel.swift Runtime V20 Swift async channel wrapper over mailboxes
+Sources/Application/UARTShell.swift    Runtime V20 line command shell over UART RX
+Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V20 async cadences + shell
 Sources/Support/kernel_registry.c     Runtime V12 fixed object/task registry
 Sources/Support/kernel_mailbox.c      Runtime V13 fixed mailbox queues
 Sources/Support/kernel_supervisor.c   Runtime V14 fixed task supervisor
@@ -259,6 +261,18 @@ macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
     capacity=8 spawns=6 completions=0`, `events count=16 capacity=64 lost=0
     sequence=16 selftest=1`, and a 3-cycle `net-iterate.sh` loop passed
     (cycle 1 attempt 2 after stale SD fallback, cycles 2 and 3 attempt 1).
+  - **Runtime V20 — bounded async channels.** ✅ hardware-verified.
+    `AetherChannel.swift` wraps the fixed C-owned mailbox queues in a small
+    Swift `AetherChannelU64` API with nonblocking send/tryReceive and an async
+    receive loop. The demo mail producer/consumer now use the wrapper instead
+    of direct mailbox calls, and the shell adds `channeltest` plus bootcert
+    `channels=1`. Hardware proof: single `net-iterate.sh` passed attempt 1,
+    then a 3-cycle loop passed attempt 1 for all cycles. Proof lines included
+    `runtime v20: bounded async channels`, `bootcert ok=1 version=20 ...
+    channels=1 taskspawns=1 cancellations=1 ... events_lost=0`,
+    `channeltest ok=1 mailbox=1 sent=1 received=1 value=0x000000000000c020`,
+    `kobjects count=12 capacity=16 active=12`, and `events count=17 capacity=64
+    lost=0 sequence=17 selftest=1`.
 
 ## Provenance
 

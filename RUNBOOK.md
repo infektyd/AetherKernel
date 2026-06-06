@@ -117,10 +117,11 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V19 marker, `rtv2 fast/slow/long` zero-lines,
+AetherKernel banner plus Runtime V20 marker, `rtv2 fast/slow/long` zero-lines,
 the expanded `shell ready` command list, and shell probes for `status`,
-`bootcert`, `canceltest`, `taskcheck`, `bootcheck`, `stress`, `soak`, `kobjects`,
-`tasks2`, `mailboxes`, `sendtest`, `supervisor`, `health`, `capcheck`, and `events`.
+`bootcert`, `canceltest`, `taskcheck`, `channeltest`, `bootcheck`, `stress`,
+`soak`, `kobjects`, `tasks2`, `mailboxes`, `sendtest`, `supervisor`, `health`,
+`capcheck`, and `events`.
 
 The first reset after adding this workflow is still physical if the currently
 running SD image predates the serial reset hook. For that first proof, use the
@@ -141,7 +142,7 @@ reset step is handled by:
 
 The expected serial flow is bootloader `TFTP_GET` lines, then the AetherKernel
 banner, padded `CurrentEL`, repeating `rtv2 fast/slow/long` cadences, the
-Runtime V5 through V19 markers, and:
+Runtime V5 through V20 markers, and:
 
 ```text
 runtime v5: diagnostics shell
@@ -159,8 +160,9 @@ runtime v16: kernel event log ring
 runtime v17: deterministic boot certificate
 runtime v18: cooperative cancellation tokens
 runtime v19: structured aether task spawn
+runtime v20: bounded async channels
 handlecheck ok=1 handle_selftest=1 cap_selftest=1
-shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
+shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
 ```
 
 The current kernel image services UART RX through PL011 receive interrupts into
@@ -292,13 +294,23 @@ tasks2 count=7 capacity=8 selftest=1 task index=0 name=fast
 events count=16 capacity=64 lost=0 sequence=16 selftest=1
 ```
 
+Runtime V20 adds a Swift-facing async channel wrapper over the fixed mailbox queues:
+
+```text
+bootcert ok=1 version=20 memmap=1 heap=1 frames=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+channeltest ok=1 mailbox=1 sent=1 received=1 value=0x000000000000c020 depth=0 selftest=1
+kobjects count=12 capacity=16 active=12 selftest=1 handle_selftest=1 cap_selftest=1
+events count=17 capacity=64 lost=0 sequence=17 selftest=1
+```
+
 `serial-probe.sh` sends one command and waits for a matching response line:
 
 ```bash
 ./serial-probe.sh status '^status uptime_ms=.*timer_mask='
-./serial-probe.sh bootcert '^bootcert ok=1 version=19 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
+./serial-probe.sh bootcert '^bootcert ok=1 version=20 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
 ./serial-probe.sh canceltest '^canceltest ok=1 .*completed=1'
 ./serial-probe.sh taskcheck '^taskcheck ok=1 .*spawns='
+./serial-probe.sh channeltest '^channeltest ok=1 .*received=1'
 ./serial-probe.sh bootcheck '^bootcheck ok=1 .*frame_free='
 ./serial-probe.sh kobjects '^kobjects count=.* active=.* handle_selftest=1 .*cap_selftest=1'
 ./serial-probe.sh tasks2 '^tasks2 count=.* task index=.*fast'
@@ -334,8 +346,8 @@ Open a terminal on macOS to monitor the serial output:
 ## 5. Boot & Expected Output
 1. Insert the SD card back into the Raspberry Pi 4B.
 2. Connect the Raspberry Pi's USB-C power supply.
-3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, Runtime V4 through V19 markers, repeating `rtv2 fast/slow/long` lines, `bootcheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, and `shell ready`.
-4. **Liveness Check:** Current liveness is the serial Runtime V19 cadence output plus UART shell diagnostic responses, especially `bootcert ok=1 version=19`, `canceltest ok=1`, and `taskcheck ok=1`. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
+3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, Runtime V4 through V20 markers, repeating `rtv2 fast/slow/long` lines, `bootcheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, and `shell ready`.
+4. **Liveness Check:** Current liveness is the serial Runtime V20 cadence output plus UART shell diagnostic responses, especially `bootcert ok=1 version=20`, `canceltest ok=1`, `taskcheck ok=1`, and `channeltest ok=1`. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
 
 ## 6. Troubleshooting
 * **No output:**

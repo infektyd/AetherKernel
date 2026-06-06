@@ -7,7 +7,7 @@ COMMANDS_V17 = (
     "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,"
     "supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,"
-    "bootcert,canceltest,taskcheck,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,"
+    "bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,"
     "panic-test,fault-test,reboot"
 )
 
@@ -20,7 +20,7 @@ def test_runtime_v17_boot_marker_exists() -> None:
     app = read_repo("Sources/Application/Application.swift")
 
     assert "runtime v17: deterministic boot certificate" in app
-    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 19, 0, 0)" in app
+    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 20, 0, 0)" in app
 
 
 def test_uart_shell_v17_bootcert_command_and_fields_exist() -> None:
@@ -30,7 +30,7 @@ def test_uart_shell_v17_bootcert_command_and_fields_exist() -> None:
         COMMANDS_V17,
         "func printBootcert()",
         "bootcert ok=",
-        " version=19",
+        " version=20",
         " memmap=",
         " heap=",
         " frames=",
@@ -80,7 +80,7 @@ def test_runtime_v17_netboot_gates_and_shell_probe_exist() -> None:
 
     for marker in (
         "probe shell: bootcert",
-        "^bootcert ok=1 version=19 .*taskspawns=1 .*cancellations=1 .*events_lost=0",
-        "stale pre-V19 SD fallback",
+        "^bootcert ok=1 version=20 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0",
+        "stale pre-V20 SD fallback",
     ):
         assert marker in net_iterate

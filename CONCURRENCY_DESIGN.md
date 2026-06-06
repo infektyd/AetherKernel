@@ -16,7 +16,23 @@ Runtime V15 adds capability-tagged kernel object handles and was hardware-verifi
 2026-06-05. Runtime V17 adds a deterministic boot certificate and was
 hardware-verified 2026-06-05. Runtime V18 adds cooperative cancellation tokens
 and was hardware-verified 2026-06-05. Runtime V19 adds structured Aether task
-spawn metadata and was hardware-verified 2026-06-05.
+spawn metadata and was hardware-verified 2026-06-05. Runtime V20 adds bounded
+Swift-facing async channels over fixed mailbox queues and was hardware-verified
+2026-06-05.
+
+> ## Runtime V20 ground truth (2026-06-05)
+> V20 adds `AetherChannel.swift`, a small Swift wrapper over the fixed C-owned
+> mailbox queues. The wrapper exposes nonblocking `send` and `tryReceive` plus
+> an async `receive` loop backed by `timerSleepMillis(25)`, while the bounded
+> storage and counters stay in `kernel_mailbox.c`. The demo mail producer and
+> consumer now use `AetherChannelU64`, the shell adds `channeltest`, and
+> `bootcert` reports `channels=1`. Hardware proof: a single net-iterate run
+> passed attempt 1, followed by a 3-cycle `net-iterate.sh` loop with all cycles
+> passing attempt 1. Proof lines included `runtime v20: bounded async channels`,
+> `bootcert ok=1 version=20 ... channels=1 taskspawns=1 cancellations=1 ...
+> events_lost=0`, `channeltest ok=1 mailbox=1 sent=1 received=1
+> value=0x000000000000c020`, `kobjects count=12 capacity=16 active=12`, and
+> `events count=17 capacity=64 lost=0 sequence=17 selftest=1`.
 
 > ## Runtime V19 ground truth (2026-06-05)
 > V19 adds `AetherTask.swift`, a small Swift-owned registration/spawn boundary

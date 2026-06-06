@@ -7,7 +7,7 @@ COMMANDS_V15 = (
     "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,"
     "supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,"
-    "bootcert,canceltest,taskcheck,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,"
+    "bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,"
     "fault-test,reboot"
 )
 
@@ -103,6 +103,6 @@ def test_runtime_v15_netboot_gates_and_shell_probe_exist() -> None:
         "probe shell: capcheck",
         "^capcheck ok=1 .*denied=1 .*stale=1",
         "^kobjects count=.* active=.* handle_selftest=1 .*cap_selftest=1",
-        "stale pre-V19 SD fallback",
+        "stale pre-V20 SD fallback",
     ):
         assert marker in net_iterate
