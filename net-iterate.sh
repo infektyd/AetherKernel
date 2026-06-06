@@ -6,7 +6,7 @@
 #
 # Builds and stages kernel8.img/config.txt, sends the serial reset command, and
 # watches dnsmasq + serial logs for proof that the Pi fetched over TFTP,
-# booted the staged image, brought up the Runtime V16 shell, and proves a small
+# booted the staged image, brought up the Runtime V17 shell, and proves a small
 # command set through ./serial-probe.sh.
 #===----------------------------------------------------------------------===#
 set -euo pipefail
@@ -95,7 +95,7 @@ if [ "${AETHER_NETITERATE_DRY_RUN:-0}" = "1" ]; then
   echo "expect TFTP prefix: $PREFIX/"
   echo "attempts: $RETRIES"
   echo "timeout per attempt: ${TIMEOUT_S}s"
-  echo "shell probes: ./serial-probe.sh status bootcheck stress soak kobjects tasks2 mailboxes sendtest supervisor health capcheck events"
+  echo "shell probes: ./serial-probe.sh status bootcert bootcheck stress soak kobjects tasks2 mailboxes sendtest supervisor health capcheck events"
   exit 0
 fi
 
@@ -149,14 +149,17 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -q "runtime v14: deterministic task supervisor" \
       && printf '%s' "$serial_delta" | grep -q "runtime v15: capability-tagged kernel handles" \
       && printf '%s' "$serial_delta" | grep -q "runtime v16: kernel event log ring" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v17: deterministic boot certificate" \
       && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail tx 0x0000000000000000" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail rx 0x0000000000000000" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
       echo "netboot iteration verified on attempt ${attempt}/${RETRIES}"
       if [ "${AETHER_NETITERATE_SKIP_SHELL_PROBES:-0}" != "1" ]; then
         # probe shell: status
         probe_shell "status" "^status uptime_ms=.*timer_mask="
+        # probe shell: bootcert
+        probe_shell "bootcert" "^bootcert ok=1 version=17 .*events_lost=0"
         # probe shell: bootcheck
         probe_shell "bootcheck" "^bootcheck ok=1 .*frame_free="
         # probe shell: stress
@@ -188,8 +191,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
     fi
 
     if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v16: kernel event log ring"; then
-      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V16 SD fallback image detected"
+      && ! printf '%s' "$serial_delta" | grep -q "runtime v17: deterministic boot certificate"; then
+      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V17 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
       last_dns_delta="$dns_delta"
@@ -208,7 +211,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
 
   if [ "$attempt" -lt "$RETRIES" ]; then
     if [ "$sd_fallback_seen" = "1" ]; then
-      echo "retrying after stale pre-V16 SD fallback..."
+      echo "retrying after stale pre-V17 SD fallback..."
     fi
     echo "--- dnsmasq delta from failed attempt ---"
     printf '%s\n' "$last_dns_delta" | tail -n 40
@@ -224,8 +227,8 @@ done
 echo "netboot iteration did not verify after ${RETRIES} attempt(s)"
 print_tftp_diagnostics "$last_dns_delta"
 if printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v16: kernel event log ring"; then
-  echo "final result: stale pre-V16 SD fallback image booted, but staged network image is not proven."
+  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v17: deterministic boot certificate"; then
+  echo "final result: stale pre-V17 SD fallback image booted, but staged network image is not proven."
   final_exit=3
 else
   final_exit=1

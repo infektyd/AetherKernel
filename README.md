@@ -3,15 +3,16 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V16 hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V17 hardware-verified on real Raspberry Pi 4B**
 > (2026-06-05) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
 > marker, the Runtime V6 retained-record marker, the Runtime V7 memory marker,
-> the Runtime V8 allocator-guard marker, Runtime V9-V16 self-test markers, and
-> UART shell command responses over PL011 serial @ 115200. Runtime V16 adds
-> a fixed kernel event log ring; hardware proved `events lost=0` with boot,
-> supervisor, handle, task, timer, mailbox, shell, and selftest events.
+> the Runtime V8 allocator-guard marker, Runtime V9-V17 self-test markers, and
+> UART shell command responses over PL011 serial @ 115200. Runtime V17 adds
+> a single machine-checkable `bootcert` certificate over the memory, heap, frame,
+> registry, mailbox, supervisor, and event-log invariants; hardware proved
+> `bootcert ok=1 version=17 ... events_lost=0` across a 3-cycle netboot loop.
 
 ## What works (verified)
 
@@ -39,6 +40,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V14 deterministic task supervisor | ✅ | hardware run printed `runtime v14: deterministic task supervisor`; `supervisor count=6 capacity=8 unhealthy=0 total_missed=0 selftest=1`; `health ok=1 supervised=6 unhealthy=0` |
 | Runtime V15 capability-tagged kernel handles | ✅ | hardware run printed `runtime v15: capability-tagged kernel handles`; `handlecheck ok=1`; `kobjects count=11 capacity=16 active=11 selftest=1 handle_selftest=1 cap_selftest=1`; `capcheck ok=1 inspect=1 denied=1 stale=1` |
 | Runtime V16 fixed event log ring | ✅ | hardware run printed `runtime v16: kernel event log ring`; `events count=11 capacity=64 lost=0 sequence=11 selftest=1`; event kinds included boot, supervisor, handle, task, timer, mailbox, shell, and selftest |
+| Runtime V17 deterministic boot certificate | ✅ | hardware run printed `runtime v17: deterministic boot certificate`; `bootcert ok=1 version=17 memmap=1 heap=1 frames=1 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0`; 3-cycle netboot loop passed |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -96,8 +98,8 @@ Sources/Application/GPIO.swift UART pin mux + historical ACT-LED helpers
 Sources/Application/Exceptions.swift  prints machine-checkable sync fault lines + ESR/ELR/FAR
 Sources/Application/TimerSleep.swift   8-slot CNTP-backed async continuation sleep
 Sources/Application/UARTRX.swift       Runtime V4 IRQ-backed UART RX async byte bridge
-Sources/Application/UARTShell.swift    Runtime V16 line command shell over UART RX
-Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V16 async cadences + shell
+Sources/Application/UARTShell.swift    Runtime V17 line command shell over UART RX
+Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V17 async cadences + shell
 Sources/Support/kernel_registry.c     Runtime V12 fixed object/task registry
 Sources/Support/kernel_mailbox.c      Runtime V13 fixed mailbox queues
 Sources/Support/kernel_supervisor.c   Runtime V14 fixed task supervisor
@@ -225,6 +227,15 @@ macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
     The shell `events` command exposes recent boot, supervisor, handle, task, timer,
     mailbox, shell, and selftest events. Hardware proof: `events count=11 capacity=64
     lost=0 sequence=11 selftest=1`.
+  - **Runtime V17 — deterministic boot certificate.** ✅ hardware-verified.
+    The shell `bootcert` command aggregates the live memory-map, heap guard, frame
+    allocator, object/task registry, mailbox, supervisor, and event-log selftests
+    into one machine-checkable line. Retained-record validity is reported but does
+    not fail the certificate, because destructive retained diagnostics are allowed
+    to leave a prior reset record. Hardware proof: `bootcert ok=1 version=17
+    memmap=1 heap=1 frames=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1
+    supervisor=1 events=1 events_lost=0`, and a 3-cycle `net-iterate.sh` loop
+    passed with events still reporting `lost=0`.
 
 ## Provenance
 

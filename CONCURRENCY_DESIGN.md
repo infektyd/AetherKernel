@@ -13,7 +13,21 @@ Runtime V13 adds bounded mailbox queues and was hardware-verified 2026-06-05.
 Runtime V14 adds deterministic task supervision and was hardware-verified 2026-06-05.
 Runtime V15 adds capability-tagged kernel object handles and was hardware-verified
 2026-06-05. Runtime V16 adds a fixed event log ring and was hardware-verified
-2026-06-05.
+2026-06-05. Runtime V17 adds a deterministic boot certificate and was
+hardware-verified 2026-06-05.
+
+> ## Runtime V17 ground truth (2026-06-05)
+> V17 adds `bootcert`, a single UART shell certificate that aggregates the
+> currently load-bearing invariants: memory map, heap guard, frame allocator,
+> retained-record visibility, object registry, task registry, mailboxes,
+> supervisor, and event log. `retained_valid` is reported but intentionally does
+> not fail the certificate, because destructive diagnostics are allowed to leave
+> a previous retained record. `events_lost=0` is load-bearing. Hardware proof:
+> a fresh 3-cycle `net-iterate.sh` loop passed; the certificate lines included
+> `bootcert ok=1 version=17 memmap=1 heap=1 frames=1 retained_valid=0 kobjects=1
+> tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0`, and `events` still
+> reported `count=13 capacity=64 lost=0 sequence=13 selftest=1` with boot event
+> `a0=0x11`.
 
 > ## Runtime V16 ground truth (2026-06-05)
 > V16 adds a 64-record C-owned event ring for machine-checkable kernel/agent

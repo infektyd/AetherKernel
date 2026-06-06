@@ -7,7 +7,7 @@ COMMANDS_V16 = (
     "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,"
     "supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,"
-    "bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,"
+    "bootcert,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,"
     "fault-test,reboot"
 )
 
@@ -109,6 +109,6 @@ def test_runtime_v16_netboot_gates_and_shell_probe_exist() -> None:
     for marker in (
         "probe shell: events",
         "^events count=.* lost=0 .*selftest=1",
-        "stale pre-V16 SD fallback",
+        "stale pre-V17 SD fallback",
     ):
         assert marker in net_iterate

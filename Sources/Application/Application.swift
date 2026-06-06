@@ -185,10 +185,11 @@ struct Application {
     // Runtime V13 adds bounded mailbox message queues. Runtime V14 adds a
     // deterministic cooperative task supervisor. Runtime V15 adds
     // capability-tagged kernel object handles. Runtime V16 adds a fixed event
-    // log for kernel/agent observability.
+    // log for kernel/agent observability. Runtime V17 adds a deterministic boot
+    // certificate for host proof loops.
     kernel_memory_init()
     kernel_event_log_init()
-    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 16, 0, 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 17, 0, 0)
     kernel_object_registry_init()
     kernel_task_registry_init()
     kernel_supervisor_init()
@@ -213,6 +214,7 @@ struct Application {
     uartPuts("runtime v14: deterministic task supervisor\n")
     uartPuts("runtime v15: capability-tagged kernel handles\n")
     uartPuts("runtime v16: kernel event log ring\n")
+    uartPuts("runtime v17: deterministic boot certificate\n")
     let handleSelftest = kernel_object_handle_selftest()
     let capSelftest = kernel_object_capcheck_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_HANDLE, UInt(handleSelftest), UInt(capSelftest), 0)
