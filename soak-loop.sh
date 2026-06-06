@@ -107,7 +107,7 @@ run_cycle_probes() {
   id=$((base + 1))
   probe_request "$cycle" "$id" "status" "^status uptime_ms=.*timer_mask="
   id=$((base + 2))
-  probe_request "$cycle" "$id" "bootcert" "^bootcert ok=1 version=34 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*events_lost=0"
+  probe_request "$cycle" "$id" "bootcert" "^bootcert ok=1 version=35 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*events_lost=0"
   id=$((base + 3))
   probe_request "$cycle" "$id" "stress" "^stress ok=1 .*heap_leak=0 frame_leak=0"
   id=$((base + 4))

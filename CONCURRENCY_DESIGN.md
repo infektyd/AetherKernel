@@ -33,7 +33,25 @@ certificate was hardware-verified 2026-06-06. Runtime V31 preemptive scheduler
 substrate was hardware-verified 2026-06-06. Runtime V32 SMP secondary-core
 bring-up was hardware-verified 2026-06-06. Runtime V33 atomics, spinlocks, and
 per-core run queues were hardware-verified 2026-06-06. Runtime V34 timer-driven
-SMP scheduler dispatch was hardware-verified 2026-06-06.
+SMP scheduler dispatch was hardware-verified 2026-06-06. Runtime V35
+secondary-owned scheduler workers were hardware-verified 2026-06-06.
+
+> ## Runtime V35 secondary-owned scheduler workers ground truth (2026-06-06)
+> V35 keeps secondary cores out of Swift runtime state, but gives their C-only
+> SMP loop a scheduler worker hook. The proof path injects bounded V35 worker
+> tokens into cores 1-3 queues; each secondary core drains only its own worker
+> token while core 0 remains at zero worker drains. The live Pi proof passed a
+> normal `net-iterate.sh` run and a clean 3-cycle repeat. Proof lines included
+> `runtime v35: secondary-owned scheduler workers`, `bootcert ok=1 version=35
+> secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1
+> smp=1 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`,
+> `certificate ok=1 version=35 substrate=1 bootcert=1 secondary_workers=1
+> preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1
+> agent=1 runtime=1 ... events_lost=0`, and `sched3 ok=1 version=35
+> secondary_workers=1 active=1 cores=4 online=4 worker_drains=3
+> worker_idles=1396994 min=1 max=1 imbalance=0 core0=0 core1=1 core2=1
+> core3=1 selftest=1`. Repeat cycles kept `core0=0`, cores 1-3 at `1/1/1`,
+> and V34 `sched2` dispatch counters balanced.
 
 > ## Runtime V34 timer-driven SMP scheduler dispatch ground truth (2026-06-06)
 > V34 keeps Swift task execution on the cooperative executor, but the scheduler

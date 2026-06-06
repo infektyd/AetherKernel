@@ -2,6 +2,7 @@
 
 //===----------------------------------------------------------------------===//
 // Runtime V32 SMP secondary-core bring-up substrate.
+// Runtime V35 secondary scheduler worker loop.
 //
 // Secondary cores deliberately stay in this C-only accounting loop for V32. The
 // goal is hardware proof that the other Cortex-A72 cores reached EL1 with
@@ -79,6 +80,7 @@ void kernel_smp_secondary_entry(unsigned int core_id, unsigned long mpidr) {
     memory_barrier();
 
     for (;;) {
+        kernel_scheduler_secondary_worker_tick(core_id);
         cores[core_id].heartbeat++;
         for (volatile unsigned int spin = 0; spin < 4096U; spin++) {
             __asm__ volatile("nop");

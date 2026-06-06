@@ -1,11 +1,13 @@
 #include "Support.h"
 
 //===----------------------------------------------------------------------===//
+// Runtime V35 secondary-owned scheduler workers.
 // Runtime V34 timer-driven SMP scheduler dispatch.
 //
 // This is intentionally still a substrate, not cross-core Swift task dispatch.
 // It owns a periodic CNTP timer client, records IRQ preemption opportunities on
-// core 0, and routes bounded dispatch tokens through each online A72 core queue.
+// core 0, routes bounded dispatch tokens through each online A72 core queue, and
+// lets C-only secondary workers drain V35 worker tokens from their own queues.
 //===----------------------------------------------------------------------===//
 
 typedef struct scheduler_core {
@@ -15,6 +17,8 @@ typedef struct scheduler_core {
     unsigned long preemptions;
     unsigned long routes;
     unsigned long dispatches;
+    unsigned long worker_drains;
+    unsigned long worker_idles;
     unsigned long enqueues;
     unsigned long dequeues;
     unsigned int queue[KERNEL_SCHEDULER_RUNQUEUE_CAPACITY];
@@ -27,6 +31,7 @@ static scheduler_core cores[KERNEL_SCHEDULER_CORE_CAPACITY];
 static unsigned int initialized;
 static unsigned int active;
 static unsigned int smp_dispatch_enabled;
+static unsigned int secondary_workers_enabled;
 static unsigned int last_dispatch_core;
 static unsigned long interval_ticks_value;
 
@@ -50,6 +55,8 @@ static void clear_core_unsafe(scheduler_core *core) {
     core->preemptions = 0;
     core->routes = 0;
     core->dispatches = 0;
+    core->worker_drains = 0;
+    core->worker_idles = 0;
     core->enqueues = 0;
     core->dequeues = 0;
     core->head = 0;
@@ -94,6 +101,7 @@ void kernel_scheduler_init(void) {
     initialized = 1;
     active = 0;
     smp_dispatch_enabled = 0;
+    secondary_workers_enabled = 0;
     last_dispatch_core = 0;
     interval_ticks_value = 0;
     irq_restore(flags);
@@ -123,6 +131,33 @@ void kernel_scheduler_enable_smp_dispatch(void) {
     unsigned long flags = irq_save();
     smp_dispatch_enabled = 1;
     irq_restore(flags);
+}
+
+void kernel_scheduler_enable_secondary_workers(void) {
+    if (!initialized) {
+        kernel_scheduler_init();
+    }
+    unsigned long flags = irq_save();
+    secondary_workers_enabled = 1;
+    irq_restore(flags);
+}
+
+static unsigned int worker_token_for_core(unsigned int core_id) {
+    return KERNEL_SCHEDULER_WORKER_TOKEN_BASE | (core_id & 0x0fU);
+}
+
+static int is_worker_token(unsigned int token) {
+    return (token & 0xfff0U) == KERNEL_SCHEDULER_WORKER_TOKEN_BASE;
+}
+
+static int enqueue_worker_probe_for_core(unsigned int core_id) {
+    if (!valid_core(core_id) || core_id == 0 || !kernel_smp_core_online(core_id)) {
+        return 0;
+    }
+    if (kernel_scheduler_runqueue_count(core_id) != 0) {
+        return 0;
+    }
+    return kernel_scheduler_enqueue(core_id, worker_token_for_core(core_id));
 }
 
 static void route_dispatch_for_core(unsigned int core_id, unsigned long tick) {
@@ -200,6 +235,13 @@ unsigned int kernel_scheduler_smp_dispatch_enabled(void) {
     return value;
 }
 
+unsigned int kernel_scheduler_secondary_workers_enabled(void) {
+    unsigned long flags = irq_save();
+    unsigned int value = secondary_workers_enabled;
+    irq_restore(flags);
+    return value;
+}
+
 unsigned int kernel_scheduler_core_count(void) {
     return KERNEL_SCHEDULER_CORE_CAPACITY;
 }
@@ -263,6 +305,39 @@ unsigned int kernel_scheduler_runqueue_tail(unsigned int core_id) {
     return tail;
 }
 
+void kernel_scheduler_secondary_worker_tick(unsigned int core_id) {
+    if (!secondary_workers_enabled || !valid_core(core_id) || core_id == 0) {
+        return;
+    }
+
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    if (cores[core_id].count == 0) {
+        cores[core_id].worker_idles++;
+        unlock_core(core_id, flags);
+        return;
+    }
+
+    unsigned int expected = cores[core_id].queue[cores[core_id].head];
+    if (!is_worker_token(expected)) {
+        cores[core_id].worker_idles++;
+        unlock_core(core_id, flags);
+        return;
+    }
+    unlock_core(core_id, flags);
+
+    unsigned int token = 0;
+    if (kernel_scheduler_dequeue(core_id, &token) && token == expected) {
+        lock_core(core_id, &flags);
+        cores[core_id].worker_drains++;
+        unlock_core(core_id, flags);
+    } else {
+        lock_core(core_id, &flags);
+        cores[core_id].worker_idles++;
+        unlock_core(core_id, flags);
+    }
+}
+
 unsigned long kernel_scheduler_dispatch_count(unsigned int core_id) {
     if (!valid_core(core_id)) {
         return 0;
@@ -285,6 +360,28 @@ unsigned long kernel_scheduler_route_count(unsigned int core_id) {
     return count;
 }
 
+unsigned long kernel_scheduler_worker_drain_count(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned long count = cores[core_id].worker_drains;
+    unlock_core(core_id, flags);
+    return count;
+}
+
+unsigned long kernel_scheduler_worker_idle_count(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned long count = cores[core_id].worker_idles;
+    unlock_core(core_id, flags);
+    return count;
+}
+
 unsigned long kernel_scheduler_total_dispatch_count(void) {
     unsigned long total = 0;
     for (unsigned int i = 0; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
@@ -299,6 +396,66 @@ unsigned long kernel_scheduler_total_route_count(void) {
         total += kernel_scheduler_route_count(i);
     }
     return total;
+}
+
+unsigned long kernel_scheduler_total_worker_drain_count(void) {
+    unsigned long total = 0;
+    for (unsigned int i = 0; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        total += kernel_scheduler_worker_drain_count(i);
+    }
+    return total;
+}
+
+unsigned long kernel_scheduler_total_worker_idle_count(void) {
+    unsigned long total = 0;
+    for (unsigned int i = 0; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        total += kernel_scheduler_worker_idle_count(i);
+    }
+    return total;
+}
+
+unsigned long kernel_scheduler_secondary_worker_total(void) {
+    unsigned long total = 0;
+    for (unsigned int i = 1; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        total += kernel_scheduler_worker_drain_count(i);
+    }
+    return total;
+}
+
+unsigned long kernel_scheduler_secondary_worker_min(void) {
+    unsigned long min = 0;
+    unsigned int seen = 0;
+    for (unsigned int i = 1; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        if (!kernel_smp_core_online(i)) {
+            continue;
+        }
+        unsigned long count = kernel_scheduler_worker_drain_count(i);
+        if (!seen || count < min) {
+            min = count;
+        }
+        seen = 1;
+    }
+    return seen ? min : 0;
+}
+
+unsigned long kernel_scheduler_secondary_worker_max(void) {
+    unsigned long max = 0;
+    for (unsigned int i = 1; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        if (!kernel_smp_core_online(i)) {
+            continue;
+        }
+        unsigned long count = kernel_scheduler_worker_drain_count(i);
+        if (count > max) {
+            max = count;
+        }
+    }
+    return max;
+}
+
+unsigned long kernel_scheduler_secondary_worker_imbalance(void) {
+    unsigned long min = kernel_scheduler_secondary_worker_min();
+    unsigned long max = kernel_scheduler_secondary_worker_max();
+    return max >= min ? max - min : 0;
 }
 
 unsigned long kernel_scheduler_fairness_min(void) {
@@ -410,7 +567,7 @@ int kernel_scheduler_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 34U) {
+    if (KERNEL_SCHEDULER_VERSION != 35U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY) {
@@ -430,7 +587,7 @@ int kernel_scheduler_runqueue_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 34U) {
+    if (KERNEL_SCHEDULER_VERSION != 35U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != 4U) {
@@ -468,7 +625,7 @@ int kernel_scheduler_smp_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 34U) {
+    if (KERNEL_SCHEDULER_VERSION != 35U) {
         return 0;
     }
     if (!kernel_scheduler_active() || !kernel_scheduler_smp_dispatch_enabled()) {
@@ -492,4 +649,44 @@ int kernel_scheduler_smp_selftest(void) {
         kernel_scheduler_fairness_imbalance() <= 1UL &&
         kernel_scheduler_total_route_count() >= 4UL &&
         kernel_scheduler_total_dispatch_count() >= 4UL ? 1 : 0;
+}
+
+int kernel_scheduler_secondary_worker_selftest(void) {
+    if (!initialized) {
+        kernel_scheduler_init();
+    }
+    if (KERNEL_SCHEDULER_VERSION != 35U) {
+        return 0;
+    }
+    if (!kernel_scheduler_active() || !kernel_scheduler_secondary_workers_enabled()) {
+        return 0;
+    }
+    if (kernel_smp_online_count() != 4U || kernel_smp_online_mask() != 0xfU) {
+        return 0;
+    }
+
+    for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+        if (kernel_scheduler_worker_drain_count(core_id) == 0) {
+            (void)enqueue_worker_probe_for_core(core_id);
+        }
+    }
+
+    for (unsigned int spin = 0; spin < 200000U; spin++) {
+        if (kernel_scheduler_worker_drain_count(1) > 0 &&
+            kernel_scheduler_worker_drain_count(2) > 0 &&
+            kernel_scheduler_worker_drain_count(3) > 0) {
+            break;
+        }
+        __asm__ volatile("nop" ::: "memory");
+    }
+
+    unsigned long min = kernel_scheduler_secondary_worker_min();
+    unsigned long max = kernel_scheduler_secondary_worker_max();
+    return min > 0 &&
+        max >= min &&
+        kernel_scheduler_secondary_worker_imbalance() <= 1UL &&
+        kernel_scheduler_secondary_worker_total() >= 3UL &&
+        kernel_scheduler_runqueue_count(1) == 0 &&
+        kernel_scheduler_runqueue_count(2) == 0 &&
+        kernel_scheduler_runqueue_count(3) == 0 ? 1 : 0;
 }

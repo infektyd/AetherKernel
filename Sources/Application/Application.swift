@@ -191,12 +191,13 @@ struct Application {
     // Runtime V32 adds SMP secondary-core bring-up accounting.
     // Runtime V33 adds atomics, spinlocks, and per-core run queues.
     // Runtime V34 adds timer-driven SMP scheduler dispatch accounting.
+    // Runtime V35 adds C-only secondary scheduler workers.
     kernel_memory_init()
     kernel_pool_init()
     kernel_cancel_init()
     kernel_event_log_init()
     kernel_scheduler_init()
-    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 34, 0, 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 35, 0, 0)
     kernel_object_registry_init()
     kernel_driver_registry_init()
     kernel_task_registry_init()
@@ -209,6 +210,7 @@ struct Application {
     gicInitRuntimeIRQs()
     kernel_scheduler_start(timerFrequency() / 20)
     kernel_scheduler_enable_smp_dispatch()
+    kernel_scheduler_enable_secondary_workers()
     uart_rx_irq_enable()
     uartPuts("runtime v2: shared CNTP timer arbiter, multi-task async sleep\n")
     uartPuts("runtime v4: irq-backed uart shell\n")
@@ -241,6 +243,7 @@ struct Application {
     uartPuts("runtime v32: smp secondary-core bring-up\n")
     uartPuts("runtime v33: atomics spinlocks per-core run queues\n")
     uartPuts("runtime v34: timer-driven smp scheduler dispatch\n")
+    uartPuts("runtime v35: secondary-owned scheduler workers\n")
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(kernel_cancel_selftest()), 0)
     kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19, UInt(aetherTaskSpawnSelftest()), UInt(kernel_task_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20, UInt(aetherChannelSelftest()), UInt(kernel_mailbox_count()))
@@ -259,6 +262,8 @@ struct Application {
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 33, UInt(runtimeV33), UInt(kernel_scheduler_core_count()))
     let runtimeV34 = kernel_scheduler_smp_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 34, UInt(runtimeV34), UInt(kernel_scheduler_total_dispatch_count()))
+    let runtimeV35 = kernel_scheduler_secondary_worker_selftest()
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 35, UInt(runtimeV35), UInt(kernel_scheduler_secondary_worker_total()))
     let handleSelftest = kernel_object_handle_selftest()
     let capSelftest = kernel_object_capcheck_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_HANDLE, UInt(handleSelftest), UInt(capSelftest), 0)
