@@ -11,7 +11,8 @@
 // fixed kernel object table and cooperative task registry. V13 adds bounded
 // mailbox message queues. V14 adds a deterministic task supervisor. V15 adds
 // capability-tagged kernel object handles. V16 adds a fixed event log ring. V17
-// adds a one-line boot certificate for host proof loops.
+// adds a one-line boot certificate for host proof loops. V18 adds cooperative
+// cancellation token selftests.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -42,11 +43,11 @@ func shellBufferEquals(_ s: StaticString) -> Bool {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printStatus() {
@@ -271,7 +272,7 @@ func printEventKind(_ kind: UInt32) {
 }
 
 func printEvents() {
-  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 16, UInt(kernel_event_count()), 0)
+  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 18, UInt(kernel_event_count()), 0)
   let selftest = kernel_event_log_selftest()
   let count = kernel_event_count()
 
@@ -825,11 +826,12 @@ func printBootcheck() {
 
 func printBootcert() {
   kernel_supervisor_check()
-  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 17, UInt(kernel_event_count()), 0)
+  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 18, UInt(kernel_event_count()), 0)
 
   let memmap = kernel_memory_map_valid()
   let heap = heap_guard_selftest()
   let frames = kernel_frame_allocator_selftest()
+  let cancellations = kernel_cancel_selftest()
   let retainedValid = kernel_retained_valid()
   let kobjects = kernel_object_registry_selftest()
   let tasks = kernel_task_registry_selftest()
@@ -837,19 +839,21 @@ func printBootcert() {
   let supervisor = kernel_supervisor_selftest()
   let events = kernel_event_log_selftest()
   let eventsLost = kernel_event_lost_count()
-  let ok = memmap != 0 && heap != 0 && frames != 0 && kobjects != 0 &&
-    tasks != 0 && mailboxes != 0 && supervisor != 0 && events != 0 &&
+  let ok = memmap != 0 && heap != 0 && frames != 0 && cancellations != 0 &&
+    kobjects != 0 && tasks != 0 && mailboxes != 0 && supervisor != 0 && events != 0 &&
     eventsLost == 0
 
   uartPuts("bootcert ok=")
   uartPutDec(UInt64(ok ? 1 : 0))
-  uartPuts(" version=17")
+  uartPuts(" version=18")
   uartPuts(" memmap=")
   uartPutDec(UInt64(memmap))
   uartPuts(" heap=")
   uartPutDec(UInt64(heap))
   uartPuts(" frames=")
   uartPutDec(UInt64(frames))
+  uartPuts(" cancellations=")
+  uartPutDec(UInt64(cancellations))
   uartPuts(" retained_valid=")
   uartPutDec(UInt64(retainedValid))
   uartPuts(" kobjects=")
@@ -870,6 +874,35 @@ func printBootcert() {
   uartPutDec(UInt64(kernel_frame_free_count()))
   uartPuts(" uptime_ms=")
   uartPutDec(UInt64(kernel_supervisor_now_ms()))
+  uartPuts("\n")
+}
+
+func printCanceltest() {
+  kernel_task_mark_state(TASK_CANCEL_ID, KERNEL_TASK_STATE_RUNNING)
+  let selftest = kernel_cancel_selftest()
+  kernel_task_record_tick(TASK_CANCEL_ID)
+  kernel_supervisor_heartbeat(TASK_CANCEL_ID)
+  kernel_task_mark_state(TASK_CANCEL_ID, KERNEL_TASK_STATE_IDLE)
+  kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(selftest), UInt(kernel_cancel_completed_count()))
+
+  uartPuts("canceltest ok=")
+  uartPutDec(UInt64(selftest))
+  uartPuts(" capacity=")
+  uartPutDec(UInt64(kernel_cancel_token_capacity()))
+  uartPuts(" active=")
+  uartPutDec(UInt64(kernel_cancel_token_count()))
+  uartPuts(" requested=")
+  uartPutDec(UInt64(kernel_cancel_requested_count()))
+  uartPuts(" completed=")
+  uartPutDec(UInt64(kernel_cancel_completed_count()))
+  uartPuts(" last_error=")
+  uartPutDec(UInt64(kernel_cancel_last_error()))
+  uartPuts(" fast=")
+  uartPutDec(runtimeFastCount)
+  uartPuts(" slow=")
+  uartPutDec(runtimeSlowCount)
+  uartPuts(" long=")
+  uartPutDec(runtimeLongCount)
   uartPuts("\n")
 }
 
@@ -1051,6 +1084,8 @@ func processUartShellLine() {
     printFrameprobe()
   } else if shellBufferEquals("bootcert") {
     printBootcert()
+  } else if shellBufferEquals("canceltest") {
+    printCanceltest()
   } else if shellBufferEquals("bootcheck") {
     printBootcheck()
   } else if shellBufferEquals("soak") {

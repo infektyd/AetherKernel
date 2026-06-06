@@ -14,7 +14,22 @@ Runtime V14 adds deterministic task supervision and was hardware-verified 2026-0
 Runtime V15 adds capability-tagged kernel object handles and was hardware-verified
 2026-06-05. Runtime V16 adds a fixed event log ring and was hardware-verified
 2026-06-05. Runtime V17 adds a deterministic boot certificate and was
-hardware-verified 2026-06-05.
+hardware-verified 2026-06-05. Runtime V18 adds cooperative cancellation tokens
+and was hardware-verified 2026-06-05.
+
+> ## Runtime V18 ground truth (2026-06-05)
+> V18 adds a fixed 16-slot C-owned cooperative cancellation token table. Tokens
+> are generation-tagged raw IDs with active, cancelled, and completed states;
+> create/request/complete/state queries do not allocate and report stable
+> capacity/bad-token errors. Swift registers a logical `cancel` task so the
+> task/supervisor surfaces account for the subsystem, and the UART shell adds
+> `canceltest`. Hardware proof: a 3-cycle `net-iterate.sh` loop passed. Cycle 1
+> passed on attempt 1; cycles 2 and 3 passed on attempt 2 after stale/partial
+> pre-V18 fallback attempts. The proof lines included `bootcert ok=1 version=18
+> ... cancellations=1 ... events_lost=0`, `canceltest ok=1 capacity=16 active=0
+> requested=1 completed=1 last_error=0`, `supervisor count=7 capacity=8
+> unhealthy=0 total_missed=0 selftest=1`, and `events count=15 capacity=64
+> lost=0 sequence=15 selftest=1`.
 
 > ## Runtime V17 ground truth (2026-06-05)
 > V17 adds `bootcert`, a single UART shell certificate that aggregates the

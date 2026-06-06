@@ -298,6 +298,33 @@ unsigned int kernel_supervisor_state(unsigned int index);
 unsigned int kernel_supervisor_policy(unsigned int index);
 int kernel_supervisor_selftest(void);
 
+// Runtime V18 cooperative cancellation tokens. Tokens are fixed C records with
+// generation-tagged IDs; Swift tasks poll/request/complete cooperatively.
+#define KERNEL_CANCEL_TOKEN_CAPACITY 16U
+
+#define KERNEL_CANCEL_STATE_FREE      0U
+#define KERNEL_CANCEL_STATE_ACTIVE    1U
+#define KERNEL_CANCEL_STATE_CANCELLED 2U
+#define KERNEL_CANCEL_STATE_COMPLETED 3U
+
+#define KERNEL_CANCEL_ERROR_NONE      0U
+#define KERNEL_CANCEL_ERROR_CAPACITY  1U
+#define KERNEL_CANCEL_ERROR_BAD_TOKEN 2U
+
+void kernel_cancel_init(void);
+unsigned int kernel_cancel_token_capacity(void);
+unsigned int kernel_cancel_token_count(void);
+unsigned long kernel_cancel_requested_count(void);
+unsigned long kernel_cancel_completed_count(void);
+unsigned int kernel_cancel_last_error(void);
+unsigned int kernel_cancel_create(unsigned int owner_task_id, unsigned int *token_out);
+unsigned int kernel_cancel_request(unsigned int token);
+unsigned int kernel_cancel_is_requested(unsigned int token);
+unsigned int kernel_cancel_complete(unsigned int token);
+unsigned int kernel_cancel_state(unsigned int token);
+unsigned int kernel_cancel_owner_task(unsigned int token);
+int kernel_cancel_selftest(void);
+
 // Runtime V7 memory ownership. V7 keeps the existing heap fixed and introduces
 // an explicit low-memory map plus a 4 KiB physical frame allocator above it.
 #define KERNEL_PAGE_SIZE   4096UL

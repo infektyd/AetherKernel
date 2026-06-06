@@ -3,16 +3,17 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V17 hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V18 hardware-verified on real Raspberry Pi 4B**
 > (2026-06-05) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
 > marker, the Runtime V6 retained-record marker, the Runtime V7 memory marker,
-> the Runtime V8 allocator-guard marker, Runtime V9-V17 self-test markers, and
-> UART shell command responses over PL011 serial @ 115200. Runtime V17 adds
-> a single machine-checkable `bootcert` certificate over the memory, heap, frame,
-> registry, mailbox, supervisor, and event-log invariants; hardware proved
-> `bootcert ok=1 version=17 ... events_lost=0` across a 3-cycle netboot loop.
+> the Runtime V8 allocator-guard marker, Runtime V9-V18 self-test markers, and
+> UART shell command responses over PL011 serial @ 115200. Runtime V18 adds
+> fixed cooperative cancellation tokens and folds them into the `bootcert`
+> certificate; hardware proved `bootcert ok=1 version=18 ... cancellations=1
+> ... events_lost=0` plus `canceltest ok=1 ... completed=1` across a 3-cycle
+> netboot loop.
 
 ## What works (verified)
 
@@ -41,6 +42,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V15 capability-tagged kernel handles | ✅ | hardware run printed `runtime v15: capability-tagged kernel handles`; `handlecheck ok=1`; `kobjects count=11 capacity=16 active=11 selftest=1 handle_selftest=1 cap_selftest=1`; `capcheck ok=1 inspect=1 denied=1 stale=1` |
 | Runtime V16 fixed event log ring | ✅ | hardware run printed `runtime v16: kernel event log ring`; `events count=11 capacity=64 lost=0 sequence=11 selftest=1`; event kinds included boot, supervisor, handle, task, timer, mailbox, shell, and selftest |
 | Runtime V17 deterministic boot certificate | ✅ | hardware run printed `runtime v17: deterministic boot certificate`; `bootcert ok=1 version=17 memmap=1 heap=1 frames=1 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0`; 3-cycle netboot loop passed |
+| Runtime V18 cooperative cancellation tokens | ✅ | hardware run printed `runtime v18: cooperative cancellation tokens`; `bootcert ok=1 version=18 ... cancellations=1 ... events_lost=0`; `canceltest ok=1 capacity=16 active=0 requested=1 completed=1`; 3-cycle netboot loop passed |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -98,12 +100,13 @@ Sources/Application/GPIO.swift UART pin mux + historical ACT-LED helpers
 Sources/Application/Exceptions.swift  prints machine-checkable sync fault lines + ESR/ELR/FAR
 Sources/Application/TimerSleep.swift   8-slot CNTP-backed async continuation sleep
 Sources/Application/UARTRX.swift       Runtime V4 IRQ-backed UART RX async byte bridge
-Sources/Application/UARTShell.swift    Runtime V17 line command shell over UART RX
-Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V17 async cadences + shell
+Sources/Application/UARTShell.swift    Runtime V18 line command shell over UART RX
+Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V18 async cadences + shell
 Sources/Support/kernel_registry.c     Runtime V12 fixed object/task registry
 Sources/Support/kernel_mailbox.c      Runtime V13 fixed mailbox queues
 Sources/Support/kernel_supervisor.c   Runtime V14 fixed task supervisor
 Sources/Support/kernel_event_log.c    Runtime V16 fixed event log ring
+Sources/Support/kernel_cancel.c       Runtime V18 fixed cancellation token table
 Sources/Support/alloc.c               Runtime V11 fixed heap allocator + guard/pressure checks
 Sources/Support/diagnostics.c         Runtime V6 IRQ/fault/panic counters + retained reset record
 Sources/Support/memory_map.c          Runtime V11 fixed memory map + guarded 4 KiB frame allocator
@@ -236,6 +239,15 @@ macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
     memmap=1 heap=1 frames=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1
     supervisor=1 events=1 events_lost=0`, and a 3-cycle `net-iterate.sh` loop
     passed with events still reporting `lost=0`.
+  - **Runtime V18 — cooperative cancellation tokens.** ✅ hardware-verified.
+    A fixed 16-record C-owned token table exposes generation-tagged cancellation
+    tokens with active, cancelled, and completed states. The normal proof path
+    runs a deterministic `canceltest` selftest without heap allocation, registers
+    the cancellation subsystem in the task/supervisor surfaces, and extends
+    `bootcert` with `cancellations=1`. Hardware proof: `bootcert ok=1 version=18
+    ... cancellations=1 ... events_lost=0`, `canceltest ok=1 capacity=16 active=0
+    requested=1 completed=1`, supervisor count `7`, `events count=15 capacity=64
+    lost=0 sequence=15 selftest=1`, and a 3-cycle `net-iterate.sh` loop passed.
 
 ## Provenance
 
