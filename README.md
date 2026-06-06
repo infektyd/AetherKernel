@@ -3,15 +3,15 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V14 in progress; Runtime V13 hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V15 hardware-verified on real Raspberry Pi 4B**
 > (2026-06-05) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
 > marker, the Runtime V6 retained-record marker, the Runtime V7 memory marker,
-> the Runtime V8 allocator-guard marker, Runtime V9-V11 self-test markers, and
-> UART shell command responses over PL011 serial @ 115200. Runtime V14 adds a
-> deterministic task supervisor; mark it verified only after serial proves
-> `supervisor` and `health` with no unhealthy tasks.
+> the Runtime V8 allocator-guard marker, Runtime V9-V15 self-test markers, and
+> UART shell command responses over PL011 serial @ 115200. Runtime V15 adds
+> capability-tagged kernel object handles; hardware proved `handlecheck`,
+> `kobjects`, and `capcheck`.
 
 ## What works (verified)
 
@@ -36,7 +36,8 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V11 boot/soak invariants | ✅ | hardware run printed `runtime v11: boot and soak invariants`; `bootcheck` and `soak` reported `ok=1`; retained clear/readback survived after fixing 8-byte Swift heap-object dealloc |
 | Runtime V12 kernel object/task registry | ✅ | hardware run printed `runtime v12: kernel object table + task registry`; `kobjects count=7 capacity=16 active=7 selftest=1`; `tasks2 count=4 capacity=8 selftest=1 task index=0 name=fast` |
 | Runtime V13 bounded mailbox queues | ✅ | hardware run printed `runtime v13: bounded mailbox message queues`, `rtv13 mail tx/rx`, `mailboxes count=2 capacity=4 queue_capacity=8 selftest=1`, and `sendtest ok=1` |
-| Runtime V14 deterministic task supervisor | 🟡 | implemented path must print `runtime v14: deterministic task supervisor`; hardware proof requires `supervisor unhealthy=0` and `health ok=1` |
+| Runtime V14 deterministic task supervisor | ✅ | hardware run printed `runtime v14: deterministic task supervisor`; `supervisor count=6 capacity=8 unhealthy=0 total_missed=0 selftest=1`; `health ok=1 supervised=6 unhealthy=0` |
+| Runtime V15 capability-tagged kernel handles | ✅ | hardware run printed `runtime v15: capability-tagged kernel handles`; `handlecheck ok=1`; `kobjects count=11 capacity=16 active=11 selftest=1 handle_selftest=1 cap_selftest=1`; `capcheck ok=1 inspect=1 denied=1 stale=1` |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -94,8 +95,8 @@ Sources/Application/GPIO.swift UART pin mux + historical ACT-LED helpers
 Sources/Application/Exceptions.swift  prints machine-checkable sync fault lines + ESR/ELR/FAR
 Sources/Application/TimerSleep.swift   8-slot CNTP-backed async continuation sleep
 Sources/Application/UARTRX.swift       Runtime V4 IRQ-backed UART RX async byte bridge
-Sources/Application/UARTShell.swift    Runtime V14 line command shell over UART RX
-Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V14 async cadences + shell
+Sources/Application/UARTShell.swift    Runtime V15 line command shell over UART RX
+Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V15 async cadences + shell
 Sources/Support/kernel_registry.c     Runtime V12 fixed object/task registry
 Sources/Support/kernel_mailbox.c      Runtime V13 fixed mailbox queues
 Sources/Support/kernel_supervisor.c   Runtime V14 fixed task supervisor
@@ -202,10 +203,20 @@ macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
     demo mailbox and print `rtv13 mail tx/rx`; shell commands `mailboxes` and `sendtest` provide
     machine-checkable proof. Hardware proof: `mailboxes count=2 capacity=4 queue_capacity=8
     selftest=1` and `sendtest ok=1 mailbox=1 sent=1 received=1`.
-  - **Runtime V14 — deterministic task supervisor.** 🟡 implemented, hardware proof pending.
+  - **Runtime V14 — deterministic task supervisor.** ✅ hardware-verified.
     A fixed C-owned supervisor table watches V12 task IDs, tracks heartbeat deadlines/misses, and
     exposes observe/panic policy fields. The normal proof loop uses observe-mode records and checks
-    `supervisor` plus `health`; panic policy is available for future destructive tests.
+    `supervisor` plus `health`; panic policy is available for future destructive tests. Hardware
+    proof: `supervisor count=6 capacity=8 unhealthy=0 total_missed=0 selftest=1` and
+    `health ok=1 supervised=6 unhealthy=0 total_missed=0`.
+  - **Runtime V15 — capability-tagged kernel handles.** ✅ hardware-verified.
+    Kernel objects now expose raw 64-bit handles encoding slot, generation, kind, and granted
+    capability mask. Lookups reject stale generations and denied capabilities with stable error
+    codes; `kobjects` prints handles/generations/cap masks and `capcheck` proves inspect,
+    denied-control, and stale-handle paths. Hardware proof: `handlecheck ok=1`,
+    `kobjects count=11 capacity=16 active=11 selftest=1 handle_selftest=1 cap_selftest=1`,
+    `object index=0 ... handle=0x0000000103000101 generation=1`, and
+    `capcheck ok=1 inspect=1 denied=1 stale=1 last_error=2`.
 
 ## Provenance
 

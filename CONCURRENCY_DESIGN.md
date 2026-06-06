@@ -10,16 +10,28 @@ Runtime V9 bounded pressure tests, Runtime V10 guard probes, and Runtime V11 boo
 invariants were hardware-verified 2026-06-05. Runtime V12 adds a fixed C-owned
 kernel object table and cooperative task registry and was hardware-verified 2026-06-05.
 Runtime V13 adds bounded mailbox queues and was hardware-verified 2026-06-05.
-Runtime V14 adds deterministic task supervision; hardware verification is pending until
-serial proves `supervisor` and `health`.
+Runtime V14 adds deterministic task supervision and was hardware-verified 2026-06-05.
+Runtime V15 adds capability-tagged kernel object handles and was hardware-verified
+2026-06-05.
 
-> ## Runtime V14 ground truth (pending hardware proof)
+> ## Runtime V15 ground truth (2026-06-05)
+> V15 keeps kernel object lifetime in the fixed C registry and exposes raw 64-bit
+> handles to Swift/serial only. Handles encode slot, generation, kind, and granted
+> capability mask. Lookup rejects stale generations and insufficient capabilities
+> with stable `KERNEL_OBJECT_LOOKUP_*` reason codes. `kobjects` prints handle,
+> generation, and caps fields; `capcheck` proves inspect success, denied control,
+> and stale-handle rejection. Hardware proof: `handlecheck ok=1 handle_selftest=1
+> cap_selftest=1`, `kobjects count=11 capacity=16 active=11 selftest=1
+> handle_selftest=1 cap_selftest=1`, `object index=0 ... handle=0x0000000103000101
+> generation=1`, and `capcheck ok=1 inspect=1 denied=1 stale=1 last_error=2`.
+
+> ## Runtime V14 ground truth (2026-06-05)
 > V14 introduces a fixed C-owned supervisor table keyed by V12 task IDs. Each record has
 > a heartbeat deadline, last heartbeat time, miss count, state, and observe/panic policy.
 > The normal proof path uses observe policy so it can report unhealthy tasks without
 > destructive resets. `fast` runs the periodic supervisor check, and the shell exposes
-> `supervisor` plus `health`. Do not mark V14 hardware-verified until `net-iterate.sh`
-> proves `supervisor count=... unhealthy=0` and `health ok=1`.
+> `supervisor` plus `health`. Hardware proof: `supervisor count=6 capacity=8
+> unhealthy=0 total_missed=0 selftest=1` and `health ok=1 supervised=6 unhealthy=0`.
 
 > ## Runtime V13 ground truth (2026-06-05)
 > V13 introduces fixed C-owned UInt64 mailbox queues. Each mailbox registers as a

@@ -117,9 +117,10 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V14 marker, `rtv2 fast/slow/long` zero-lines,
+AetherKernel banner plus Runtime V15 marker, `rtv2 fast/slow/long` zero-lines,
 the expanded `shell ready` command list, and shell probes for `status`,
-`bootcheck`, `stress`, `soak`, `kobjects`, and `tasks2`.
+`bootcheck`, `stress`, `soak`, `kobjects`, `tasks2`, `mailboxes`, `sendtest`,
+`supervisor`, `health`, and `capcheck`.
 
 The first reset after adding this workflow is still physical if the currently
 running SD image predates the serial reset hook. For that first proof, use the
@@ -140,7 +141,7 @@ reset step is handled by:
 
 The expected serial flow is bootloader `TFTP_GET` lines, then the AetherKernel
 banner, padded `CurrentEL`, repeating `rtv2 fast/slow/long` cadences, the
-Runtime V5 through V14 markers, and:
+Runtime V5 through V15 markers, and:
 
 ```text
 runtime v5: diagnostics shell
@@ -153,7 +154,9 @@ runtime v11: boot and soak invariants
 runtime v12: kernel object table + task registry
 runtime v13: bounded mailbox message queues
 runtime v14: deterministic task supervisor
-shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
+runtime v15: capability-tagged kernel handles
+handlecheck ok=1 handle_selftest=1 cap_selftest=1
+shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
 ```
 
 The current kernel image services UART RX through PL011 receive interrupts into
@@ -168,6 +171,11 @@ commands can be sent from the Mac:
 ./serial-command.sh tasks
 ./serial-command.sh tasks2
 ./serial-command.sh kobjects
+./serial-command.sh mailboxes
+./serial-command.sh sendtest
+./serial-command.sh supervisor
+./serial-command.sh health
+./serial-command.sh capcheck
 ./serial-command.sh diag
 ./serial-command.sh irqs
 ./serial-command.sh timers
@@ -234,17 +242,27 @@ supervisor count=6 capacity=8 unhealthy=0 total_missed=0 selftest=1
 health ok=1 supervised=6 unhealthy=0 total_missed=0 uptime_ms=...
 ```
 
+Runtime V15 adds capability-tagged kernel object handles:
+
+```text
+handlecheck ok=1 handle_selftest=1 cap_selftest=1
+kobjects count=... capacity=16 active=... selftest=1 handle_selftest=1 cap_selftest=1
+ object index=0 id=1 handle=0x... generation=1 kind=runtime flags=0x1 caps=0x1 name=runtime
+capcheck ok=1 inspect=1 denied=1 stale=1 last_error=2
+```
+
 `serial-probe.sh` sends one command and waits for a matching response line:
 
 ```bash
 ./serial-probe.sh status '^status uptime_ms=.*timer_mask='
 ./serial-probe.sh bootcheck '^bootcheck ok=1 .*frame_free='
-./serial-probe.sh kobjects '^kobjects count=.* active='
+./serial-probe.sh kobjects '^kobjects count=.* active=.* handle_selftest=1 .*cap_selftest=1'
 ./serial-probe.sh tasks2 '^tasks2 count=.* task index=.*fast'
 ./serial-probe.sh mailboxes '^mailboxes count=.* queue_capacity='
 ./serial-probe.sh sendtest '^sendtest ok=1 .*received=1'
 ./serial-probe.sh supervisor '^supervisor count=.* unhealthy=0'
 ./serial-probe.sh health '^health ok=1 .*supervised='
+./serial-probe.sh capcheck '^capcheck ok=1 .*denied=1 .*stale=1'
 ```
 
 `panic-test` and `fault-test` are intentionally destructive: each writes a

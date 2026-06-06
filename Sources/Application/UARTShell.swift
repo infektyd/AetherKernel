@@ -9,7 +9,8 @@
 // V9 adds bounded heap/frame pressure tests. V10 adds explicit guard probes.
 // V11 adds boot and soak invariant checks for host-side proof loops. V12 adds a
 // fixed kernel object table and cooperative task registry. V13 adds bounded
-// mailbox message queues. V14 adds a deterministic task supervisor.
+// mailbox message queues. V14 adds a deterministic task supervisor. V15 adds
+// capability-tagged kernel object handles.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -40,11 +41,11 @@ func shellBufferEquals(_ s: StaticString) -> Bool {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printStatus() {
@@ -179,6 +180,8 @@ func printTaskName(_ task: UInt32) {
 
 func printKobjects() {
   let count = kernel_object_count()
+  let handleSelftest = kernel_object_handle_selftest()
+  let capSelftest = kernel_object_capcheck_selftest()
 
   uartPuts("kobjects count=")
   uartPutDec(UInt64(count))
@@ -188,23 +191,60 @@ func printKobjects() {
   uartPutDec(UInt64(kernel_object_active_count()))
   uartPuts(" selftest=")
   uartPutDec(UInt64(kernel_object_registry_selftest()))
+  uartPuts(" handle_selftest=")
+  uartPutDec(UInt64(handleSelftest))
+  uartPuts(" cap_selftest=")
+  uartPutDec(UInt64(capSelftest))
   uartPuts("\n")
 
   var i: UInt32 = 0
-  while i < count {
-    uartPuts(" object index=")
-    uartPutDec(UInt64(i))
-    uartPuts(" id=")
-    uartPutDec(UInt64(kernel_object_id(i)))
-    uartPuts(" kind=")
-    printKernelObjectKind(kernel_object_kind(i))
-    uartPuts(" flags=")
-    uartPutHexCompact(UInt64(kernel_object_flags(i)))
-    uartPuts(" name=")
-    printKernelObjectName(i)
-    uartPuts("\n")
+  while i < kernel_object_capacity() {
+    let id = kernel_object_id(i)
+    if id != 0 {
+      let caps = kernel_object_caps(i)
+      let handle = kernel_object_make_handle(i, caps)
+      uartPuts(" object index=")
+      uartPutDec(UInt64(i))
+      uartPuts(" id=")
+      uartPutDec(UInt64(id))
+      uartPuts(" handle=")
+      uartPutHex(UInt64(handle))
+      uartPuts(" generation=")
+      uartPutDec(UInt64(kernel_object_generation(i)))
+      uartPuts(" kind=")
+      printKernelObjectKind(kernel_object_kind(i))
+      uartPuts(" flags=")
+      uartPutHexCompact(UInt64(kernel_object_flags(i)))
+      uartPuts(" caps=")
+      uartPutHexCompact(UInt64(caps))
+      uartPuts(" name=")
+      printKernelObjectName(i)
+      uartPuts("\n")
+    }
     i += 1
   }
+}
+
+func printCapcheck() {
+  let inspectHandle = kernel_object_make_handle(0, KERNEL_OBJECT_CAP_INSPECT)
+  let inspect = inspectHandle != KERNEL_OBJECT_HANDLE_INVALID &&
+    kernel_object_lookup_id(inspectHandle, KERNEL_OBJECT_CAP_INSPECT) != 0 &&
+    kernel_object_handle_last_error() == KERNEL_OBJECT_LOOKUP_OK
+  let denied = kernel_object_capcheck_selftest() != 0
+  let stale = kernel_object_handle_selftest() != 0
+  let ok = inspect && denied && stale
+
+  uartPuts("capcheck ok=")
+  uartPutDec(UInt64(ok ? 1 : 0))
+  uartPuts(" inspect=")
+  uartPutDec(UInt64(inspect ? 1 : 0))
+  uartPuts(" denied=")
+  uartPutDec(UInt64(denied ? 1 : 0))
+  uartPuts(" stale=")
+  uartPutDec(UInt64(stale ? 1 : 0))
+  uartPuts(" last_error=")
+  uartPutDec(UInt64(kernel_object_handle_last_error()))
+  uartPuts("\n")
 }
 
 func printTasks2() {
@@ -868,6 +908,8 @@ func processUartShellLine() {
     printSupervisor()
   } else if shellBufferEquals("health") {
     printHealth()
+  } else if shellBufferEquals("capcheck") {
+    printCapcheck()
   } else if shellBufferEquals("diag") {
     printDiag()
   } else if shellBufferEquals("irqs") {

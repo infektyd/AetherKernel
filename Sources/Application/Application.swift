@@ -166,7 +166,8 @@ struct Application {
     // Runtime V10 adds explicit guard probes, and Runtime V11 adds boot/soak
     // invariant checks. Runtime V12 adds fixed kernel object/task registries.
     // Runtime V13 adds bounded mailbox message queues. Runtime V14 adds a
-    // deterministic cooperative task supervisor.
+    // deterministic cooperative task supervisor. Runtime V15 adds
+    // capability-tagged kernel object handles.
     kernel_memory_init()
     kernel_object_registry_init()
     kernel_task_registry_init()
@@ -190,6 +191,16 @@ struct Application {
     uartPuts("runtime v12: kernel object table + task registry\n")
     uartPuts("runtime v13: bounded mailbox message queues\n")
     uartPuts("runtime v14: deterministic task supervisor\n")
+    uartPuts("runtime v15: capability-tagged kernel handles\n")
+    let handleSelftest = kernel_object_handle_selftest()
+    let capSelftest = kernel_object_capcheck_selftest()
+    uartPuts("handlecheck ok=")
+    uartPutDec(UInt64(handleSelftest != 0 && capSelftest != 0 ? 1 : 0))
+    uartPuts(" handle_selftest=")
+    uartPutDec(UInt64(handleSelftest))
+    uartPuts(" cap_selftest=")
+    uartPutDec(UInt64(capSelftest))
+    uartPuts("\n")
     printBootcheck()
     Task { await fastHeartbeat() }
     Task { await slowHeartbeat() }

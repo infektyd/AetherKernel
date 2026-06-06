@@ -16,6 +16,8 @@ typedef struct kernel_object_record {
     unsigned int id;
     unsigned int kind;
     unsigned int flags;
+    unsigned int caps;
+    unsigned int generation;
     const unsigned char *name;
     unsigned int name_len;
 } kernel_object_record;
@@ -36,6 +38,14 @@ static unsigned int object_initialized;
 static unsigned int task_initialized;
 static unsigned int object_count_value;
 static unsigned int task_count_value;
+static unsigned int object_handle_last_error_value;
+
+#define OBJECT_HANDLE_SLOT_MASK 0xffUL
+#define OBJECT_HANDLE_GENERATION_SHIFT 8U
+#define OBJECT_HANDLE_GENERATION_MASK 0xffffUL
+#define OBJECT_HANDLE_KIND_SHIFT 24U
+#define OBJECT_HANDLE_KIND_MASK 0xffUL
+#define OBJECT_HANDLE_CAP_SHIFT 32U
 
 static unsigned int cstr_len(const char *name) {
     unsigned int n = 0;
@@ -51,10 +61,13 @@ static void clear_objects_unsafe(void) {
         objects[i].id = i + 1U;
         objects[i].kind = 0;
         objects[i].flags = 0;
+        objects[i].caps = 0;
+        objects[i].generation = 1;
         objects[i].name = 0;
         objects[i].name_len = 0;
     }
     object_count_value = 0;
+    object_handle_last_error_value = KERNEL_OBJECT_LOOKUP_OK;
 }
 
 static void clear_tasks_unsafe(void) {
@@ -90,6 +103,53 @@ void kernel_object_registry_init(void) {
                                  cstr_len("cntp"));
 }
 
+static unsigned int next_generation(unsigned int generation) {
+    unsigned int next = (generation + 1U) & (unsigned int)OBJECT_HANDLE_GENERATION_MASK;
+    return next == 0 ? 1U : next;
+}
+
+static unsigned int object_default_caps(unsigned int kind) {
+    if (kind == KERNEL_OBJECT_KIND_DRIVER) {
+        return KERNEL_OBJECT_CAP_INSPECT | KERNEL_OBJECT_CAP_CONTROL;
+    }
+    if (kind == KERNEL_OBJECT_KIND_TASK) {
+        return KERNEL_OBJECT_CAP_INSPECT | KERNEL_OBJECT_CAP_SUPERVISE;
+    }
+    if (kind == KERNEL_OBJECT_KIND_MAILBOX) {
+        return KERNEL_OBJECT_CAP_INSPECT | KERNEL_OBJECT_CAP_SEND | KERNEL_OBJECT_CAP_RECEIVE;
+    }
+    return KERNEL_OBJECT_CAP_INSPECT;
+}
+
+static int caps_include(unsigned int available, unsigned int required) {
+    return (required & ~available) == 0;
+}
+
+static unsigned long encode_object_handle(unsigned int index, unsigned int generation,
+                                          unsigned int kind, unsigned int caps) {
+    return ((unsigned long)(index + 1U) & OBJECT_HANDLE_SLOT_MASK) |
+           (((unsigned long)generation & OBJECT_HANDLE_GENERATION_MASK) << OBJECT_HANDLE_GENERATION_SHIFT) |
+           (((unsigned long)kind & OBJECT_HANDLE_KIND_MASK) << OBJECT_HANDLE_KIND_SHIFT) |
+           ((unsigned long)caps << OBJECT_HANDLE_CAP_SHIFT);
+}
+
+static unsigned int decode_object_handle_slot(unsigned long handle) {
+    unsigned int slot = (unsigned int)(handle & OBJECT_HANDLE_SLOT_MASK);
+    if (slot == 0 || slot > KERNEL_OBJECT_CAPACITY) {
+        return KERNEL_OBJECT_CAPACITY;
+    }
+    return slot - 1U;
+}
+
+static unsigned int decode_object_handle_generation(unsigned long handle) {
+    return (unsigned int)((handle >> OBJECT_HANDLE_GENERATION_SHIFT) &
+                          OBJECT_HANDLE_GENERATION_MASK);
+}
+
+static unsigned int decode_object_handle_kind(unsigned long handle) {
+    return (unsigned int)((handle >> OBJECT_HANDLE_KIND_SHIFT) & OBJECT_HANDLE_KIND_MASK);
+}
+
 unsigned int kernel_object_register(unsigned int kind,
                                     unsigned int flags,
                                     const unsigned char *name,
@@ -105,6 +165,7 @@ unsigned int kernel_object_register(unsigned int kind,
             objects[i].active = 1;
             objects[i].kind = kind;
             objects[i].flags = flags | KERNEL_OBJECT_FLAG_ACTIVE;
+            objects[i].caps = object_default_caps(kind);
             objects[i].name = name;
             objects[i].name_len = name_len;
             object_count_value++;
@@ -165,6 +226,22 @@ unsigned int kernel_object_id(unsigned int index) {
     return value;
 }
 
+unsigned int kernel_object_caps(unsigned int index) {
+    unsigned long flags = irq_save();
+    kernel_object_record *record = object_at(index);
+    unsigned int value = record ? record->caps : 0;
+    irq_restore(flags);
+    return value;
+}
+
+unsigned int kernel_object_generation(unsigned int index) {
+    unsigned long flags = irq_save();
+    kernel_object_record *record = object_at(index);
+    unsigned int value = record ? record->generation : 0;
+    irq_restore(flags);
+    return value;
+}
+
 unsigned int kernel_object_name_len(unsigned int index) {
     unsigned long flags = irq_save();
     kernel_object_record *record = object_at(index);
@@ -184,6 +261,116 @@ unsigned int kernel_object_name_byte(unsigned int index, unsigned int offset) {
     return value;
 }
 
+unsigned long kernel_object_make_handle(unsigned int index, unsigned int caps) {
+    unsigned long flags = irq_save();
+    kernel_object_record *record = object_at(index);
+    if (!record) {
+        object_handle_last_error_value = KERNEL_OBJECT_LOOKUP_BAD_HANDLE;
+        irq_restore(flags);
+        return KERNEL_OBJECT_HANDLE_INVALID;
+    }
+
+    unsigned int requested_caps = caps == 0 ? record->caps : caps;
+    if (!caps_include(record->caps, requested_caps)) {
+        object_handle_last_error_value = KERNEL_OBJECT_LOOKUP_CAP_DENIED;
+        irq_restore(flags);
+        return KERNEL_OBJECT_HANDLE_INVALID;
+    }
+
+    unsigned long handle = encode_object_handle(index,
+                                                record->generation,
+                                                record->kind,
+                                                requested_caps);
+    object_handle_last_error_value = KERNEL_OBJECT_LOOKUP_OK;
+    irq_restore(flags);
+    return handle;
+}
+
+unsigned int kernel_object_handle_index(unsigned long handle) {
+    unsigned int index = decode_object_handle_slot(handle);
+    return index >= KERNEL_OBJECT_CAPACITY ? KERNEL_OBJECT_CAPACITY : index;
+}
+
+unsigned int kernel_object_handle_generation(unsigned long handle) {
+    return decode_object_handle_generation(handle);
+}
+
+unsigned int kernel_object_handle_caps(unsigned long handle) {
+    return (unsigned int)(handle >> OBJECT_HANDLE_CAP_SHIFT);
+}
+
+unsigned int kernel_object_lookup_id(unsigned long handle, unsigned int required_caps) {
+    unsigned long flags = irq_save();
+    unsigned int index = decode_object_handle_slot(handle);
+    if (handle == KERNEL_OBJECT_HANDLE_INVALID || index >= KERNEL_OBJECT_CAPACITY) {
+        object_handle_last_error_value = KERNEL_OBJECT_LOOKUP_BAD_HANDLE;
+        irq_restore(flags);
+        return 0;
+    }
+
+    kernel_object_record *record = &objects[index];
+    unsigned int handle_generation = decode_object_handle_generation(handle);
+    if (record->generation != handle_generation) {
+        object_handle_last_error_value = KERNEL_OBJECT_LOOKUP_STALE;
+        irq_restore(flags);
+        return 0;
+    }
+    if (!record->active || record->kind != decode_object_handle_kind(handle)) {
+        object_handle_last_error_value = KERNEL_OBJECT_LOOKUP_BAD_HANDLE;
+        irq_restore(flags);
+        return 0;
+    }
+
+    unsigned int handle_caps = kernel_object_handle_caps(handle);
+    if (!caps_include(handle_caps, required_caps) ||
+        !caps_include(record->caps, required_caps)) {
+        object_handle_last_error_value = KERNEL_OBJECT_LOOKUP_CAP_DENIED;
+        irq_restore(flags);
+        return 0;
+    }
+
+    object_handle_last_error_value = KERNEL_OBJECT_LOOKUP_OK;
+    unsigned int id = record->id;
+    irq_restore(flags);
+    return id;
+}
+
+unsigned int kernel_object_unregister_handle(unsigned long handle) {
+    unsigned int id = kernel_object_lookup_id(handle, KERNEL_OBJECT_CAP_CONTROL);
+    if (id == 0) {
+        return 0;
+    }
+
+    unsigned long flags = irq_save();
+    unsigned int index = decode_object_handle_slot(handle);
+    if (index >= KERNEL_OBJECT_CAPACITY || !objects[index].active) {
+        object_handle_last_error_value = KERNEL_OBJECT_LOOKUP_BAD_HANDLE;
+        irq_restore(flags);
+        return 0;
+    }
+
+    objects[index].active = 0;
+    objects[index].kind = 0;
+    objects[index].flags = 0;
+    objects[index].caps = 0;
+    objects[index].generation = next_generation(objects[index].generation);
+    objects[index].name = 0;
+    objects[index].name_len = 0;
+    if (object_count_value > 0) {
+        object_count_value--;
+    }
+    object_handle_last_error_value = KERNEL_OBJECT_LOOKUP_OK;
+    irq_restore(flags);
+    return 1;
+}
+
+unsigned int kernel_object_handle_last_error(void) {
+    unsigned long flags = irq_save();
+    unsigned int value = object_handle_last_error_value;
+    irq_restore(flags);
+    return value;
+}
+
 int kernel_object_registry_selftest(void) {
     if (!object_initialized) {
         kernel_object_registry_init();
@@ -194,10 +381,69 @@ int kernel_object_registry_selftest(void) {
     if (kernel_object_count() < 3U) {
         return 0;
     }
-    for (unsigned int i = 0; i < kernel_object_count(); i++) {
-        if (kernel_object_id(i) == 0 || kernel_object_name_len(i) == 0) {
+    for (unsigned int i = 0; i < kernel_object_capacity(); i++) {
+        if (objects[i].active &&
+            (kernel_object_id(i) == 0 ||
+             kernel_object_name_len(i) == 0 ||
+             kernel_object_caps(i) == 0 ||
+             kernel_object_generation(i) == 0)) {
             return 0;
         }
+    }
+    return 1;
+}
+
+int kernel_object_handle_selftest(void) {
+    if (!object_initialized) {
+        kernel_object_registry_init();
+    }
+    if (kernel_object_count() >= KERNEL_OBJECT_CAPACITY) {
+        return 0;
+    }
+
+    unsigned int id = kernel_object_register(KERNEL_OBJECT_KIND_DRIVER,
+                                            KERNEL_OBJECT_FLAG_ACTIVE,
+                                            (const unsigned char *)"handle-selftest",
+                                            cstr_len("handle-selftest"));
+    if (id == 0) {
+        return 0;
+    }
+    unsigned int index = id - 1U;
+    unsigned long handle = kernel_object_make_handle(index,
+                                                     KERNEL_OBJECT_CAP_INSPECT |
+                                                     KERNEL_OBJECT_CAP_CONTROL);
+    if (handle == KERNEL_OBJECT_HANDLE_INVALID) {
+        return 0;
+    }
+    if (kernel_object_lookup_id(handle, KERNEL_OBJECT_CAP_INSPECT) != id ||
+        kernel_object_handle_last_error() != KERNEL_OBJECT_LOOKUP_OK) {
+        return 0;
+    }
+    if (!kernel_object_unregister_handle(handle)) {
+        return 0;
+    }
+    if (kernel_object_lookup_id(handle, KERNEL_OBJECT_CAP_INSPECT) != 0 ||
+        kernel_object_handle_last_error() != KERNEL_OBJECT_LOOKUP_STALE) {
+        return 0;
+    }
+    return 1;
+}
+
+int kernel_object_capcheck_selftest(void) {
+    if (!object_initialized) {
+        kernel_object_registry_init();
+    }
+    unsigned long handle = kernel_object_make_handle(0, KERNEL_OBJECT_CAP_INSPECT);
+    if (handle == KERNEL_OBJECT_HANDLE_INVALID) {
+        return 0;
+    }
+    if (kernel_object_lookup_id(handle, KERNEL_OBJECT_CAP_INSPECT) == 0 ||
+        kernel_object_handle_last_error() != KERNEL_OBJECT_LOOKUP_OK) {
+        return 0;
+    }
+    if (kernel_object_lookup_id(handle, KERNEL_OBJECT_CAP_CONTROL) != 0 ||
+        kernel_object_handle_last_error() != KERNEL_OBJECT_LOOKUP_CAP_DENIED) {
+        return 0;
     }
     return 1;
 }

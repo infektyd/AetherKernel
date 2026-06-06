@@ -167,6 +167,19 @@ unsigned int executor_delayed_capacity(void);
 
 #define KERNEL_OBJECT_FLAG_ACTIVE  1U
 
+#define KERNEL_OBJECT_CAP_INSPECT   1U
+#define KERNEL_OBJECT_CAP_CONTROL   2U
+#define KERNEL_OBJECT_CAP_SEND      4U
+#define KERNEL_OBJECT_CAP_RECEIVE   8U
+#define KERNEL_OBJECT_CAP_SUPERVISE 16U
+
+#define KERNEL_OBJECT_LOOKUP_OK         0U
+#define KERNEL_OBJECT_LOOKUP_BAD_HANDLE 1U
+#define KERNEL_OBJECT_LOOKUP_STALE      2U
+#define KERNEL_OBJECT_LOOKUP_CAP_DENIED 3U
+
+#define KERNEL_OBJECT_HANDLE_INVALID 0UL
+
 #define KERNEL_TASK_STATE_IDLE     0U
 #define KERNEL_TASK_STATE_RUNNING  1U
 #define KERNEL_TASK_STATE_WAITING  2U
@@ -179,9 +192,20 @@ unsigned int kernel_object_active_count(void);
 unsigned int kernel_object_kind(unsigned int index);
 unsigned int kernel_object_flags(unsigned int index);
 unsigned int kernel_object_id(unsigned int index);
+unsigned int kernel_object_caps(unsigned int index);
+unsigned int kernel_object_generation(unsigned int index);
 unsigned int kernel_object_name_len(unsigned int index);
 unsigned int kernel_object_name_byte(unsigned int index, unsigned int offset);
+unsigned long kernel_object_make_handle(unsigned int index, unsigned int caps);
+unsigned int kernel_object_handle_index(unsigned long handle);
+unsigned int kernel_object_handle_generation(unsigned long handle);
+unsigned int kernel_object_handle_caps(unsigned long handle);
+unsigned int kernel_object_lookup_id(unsigned long handle, unsigned int required_caps);
+unsigned int kernel_object_unregister_handle(unsigned long handle);
+unsigned int kernel_object_handle_last_error(void);
 int kernel_object_registry_selftest(void);
+int kernel_object_handle_selftest(void);
+int kernel_object_capcheck_selftest(void);
 
 void kernel_task_registry_init(void);
 unsigned int kernel_task_register(unsigned int task_id, const unsigned char *name, unsigned int name_len, unsigned int period_ms);
