@@ -70,11 +70,7 @@ minimum `5000` is too tight for reliable firmware fetches on this bench.
    ifconfig en0
    ```
    `ifconfig en0` should show `status: active` and `inet 10.42.0.1`.
-2. **Install the TFTP host dependency once:**
-   ```bash
-   brew install dnsmasq
-   ```
-3. **Seed the TFTP tree.** If the SD boot partition is mounted on the Mac, copy
+2. **Seed the TFTP tree.** If the SD boot partition is mounted on the Mac, copy
    firmware from that known-working source:
    ```bash
    ./prepare-tftp.sh /Volumes/bootfs
@@ -88,19 +84,17 @@ minimum `5000` is too tight for reliable firmware fetches on this bench.
    with this repo's current file. The staged tree intentionally uses Pi 4
    `start4.elf`/`fixup4.dat` only. Generic `start.elf`/`fixup.dat` fallback is
    pruned because this bench can hang after loading that fallback path.
-4. **Serve TFTP in the foreground:**
+3. **Serve TFTP in the foreground:**
    ```bash
    ./serve-netboot.sh en0
    ```
-   The script runs `dnsmasq` in TFTP-only mode. It does not advertise DHCP; the
-   EEPROM static-IP config supplies the Pi's IP and server IP. UDP port 69
-   requires root; if sudo credentials are not cached, macOS will reject startup
-   until you run it from an admin-authenticated terminal. Leave dnsmasq blocksize
-   negotiation enabled by default. If bootloader logs repeatedly show
-   `failed sending .../start4.elf`, `timeout sending .../start4.elf`, or
-   `Read aether/start4.elf failed`, restart `serve-netboot.sh` with
-   `AETHER_TFTP_NO_BLOCKSIZE=1` for a clean A/B test before suspecting the
-   kernel image.
+   The script defaults to the repo-owned `aether_tftp.py` in TFTP-only mode.
+   It does not advertise DHCP; the EEPROM static-IP config supplies the Pi's IP
+   and server IP. UDP port 69 requires root; if sudo credentials are not cached,
+   macOS will reject startup until you run it from an admin-authenticated
+   terminal. The proven bench defaults are 1468-byte blocks plus single-port
+   duplicate-RRQ handling. Homebrew `dnsmasq` remains an explicit fallback:
+   `AETHER_TFTP_PROVIDER=dnsmasq ./serve-netboot.sh en0`.
 
 If the EEPROM is already network-booting but still has a bad timeout, stage a
 TFTP self-update by placing `pieeprom.sig` and `pieeprom.upd` in
@@ -117,11 +111,11 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V20 marker, `rtv2 fast/slow/long` zero-lines,
+AetherKernel banner plus Runtime V21 marker, `rtv2 fast/slow/long` zero-lines,
 the expanded `shell ready` command list, and shell probes for `status`,
-`bootcert`, `canceltest`, `taskcheck`, `channeltest`, `bootcheck`, `stress`,
-`soak`, `kobjects`, `tasks2`, `mailboxes`, `sendtest`, `supervisor`, `health`,
-`capcheck`, and `events`.
+`bootcert`, `canceltest`, `taskcheck`, `channeltest`, `mmu`, `bootcheck`,
+`stress`, `soak`, `kobjects`, `tasks2`, `mailboxes`, `sendtest`,
+`supervisor`, `health`, `capcheck`, and `events`.
 
 The first reset after adding this workflow is still physical if the currently
 running SD image predates the serial reset hook. For that first proof, use the
@@ -131,7 +125,7 @@ guided harness:
 ./netboot-doctor.sh
 ```
 
-It checks the Mac Ethernet address, confirms `dnsmasq` is serving the TFTP root,
+It checks the Mac Ethernet address, confirms a TFTP provider is serving the root,
 stages the latest image, proves local TFTP access, then tells you exactly when
 to reset or power-cycle the Pi. After the staged image has booted once, the
 reset step is handled by:
@@ -142,7 +136,7 @@ reset step is handled by:
 
 The expected serial flow is bootloader `TFTP_GET` lines, then the AetherKernel
 banner, padded `CurrentEL`, repeating `rtv2 fast/slow/long` cadences, the
-Runtime V5 through V20 markers, and:
+Runtime V5 through V21 markers, and:
 
 ```text
 runtime v5: diagnostics shell
@@ -161,8 +155,9 @@ runtime v17: deterministic boot certificate
 runtime v18: cooperative cancellation tokens
 runtime v19: structured aether task spawn
 runtime v20: bounded async channels
+runtime v21: mmu ownership boundary
 handlecheck ok=1 handle_selftest=1 cap_selftest=1
-shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
+shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
 ```
 
 The current kernel image services UART RX through PL011 receive interrupts into
@@ -190,6 +185,7 @@ commands can be sent from the Mac:
 ./serial-command.sh faults
 ./serial-command.sh retained
 ./serial-command.sh memmap
+./serial-command.sh mmu
 ./serial-command.sh frames
 ./serial-command.sh heapcheck
 ./serial-command.sh framecheck
@@ -303,14 +299,22 @@ kobjects count=12 capacity=16 active=12 selftest=1 handle_selftest=1 cap_selftes
 events count=17 capacity=64 lost=0 sequence=17 selftest=1
 ```
 
+Runtime V21 adds read-only MMU ownership introspection:
+
+```text
+bootcert ok=1 version=21 memmap=1 heap=1 frames=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+mmu ok=1 regions=4 entries=512 block_size=0x40000000 tcr=0x0000000000803519 mair=0x00000000000000ff selftest=1
+```
+
 `serial-probe.sh` sends one command and waits for a matching response line:
 
 ```bash
 ./serial-probe.sh status '^status uptime_ms=.*timer_mask='
-./serial-probe.sh bootcert '^bootcert ok=1 version=20 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
+./serial-probe.sh bootcert '^bootcert ok=1 version=21 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
 ./serial-probe.sh canceltest '^canceltest ok=1 .*completed=1'
 ./serial-probe.sh taskcheck '^taskcheck ok=1 .*spawns='
 ./serial-probe.sh channeltest '^channeltest ok=1 .*received=1'
+./serial-probe.sh mmu '^mmu ok=1 .*regions=4 .*block_size=0x40000000'
 ./serial-probe.sh bootcheck '^bootcheck ok=1 .*frame_free='
 ./serial-probe.sh kobjects '^kobjects count=.* active=.* handle_selftest=1 .*cap_selftest=1'
 ./serial-probe.sh tasks2 '^tasks2 count=.* task index=.*fast'
@@ -346,8 +350,8 @@ Open a terminal on macOS to monitor the serial output:
 ## 5. Boot & Expected Output
 1. Insert the SD card back into the Raspberry Pi 4B.
 2. Connect the Raspberry Pi's USB-C power supply.
-3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, Runtime V4 through V20 markers, repeating `rtv2 fast/slow/long` lines, `bootcheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, and `shell ready`.
-4. **Liveness Check:** Current liveness is the serial Runtime V20 cadence output plus UART shell diagnostic responses, especially `bootcert ok=1 version=20`, `canceltest ok=1`, `taskcheck ok=1`, and `channeltest ok=1`. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
+3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, Runtime V4 through V21 markers, repeating `rtv2 fast/slow/long` lines, `bootcheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, and `shell ready`.
+4. **Liveness Check:** Current liveness is the serial Runtime V21 cadence output plus UART shell diagnostic responses, especially `bootcert ok=1 version=21`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, and `mmu ok=1`. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
 
 ## 6. Troubleshooting
 * **No output:**

@@ -169,6 +169,7 @@ def test_serve_netboot_dry_run_is_tftp_only_and_bound_to_interface(tmp_path: pat
         env={
             "AETHER_TFTP_PREFIX": "aether-test",
             "AETHER_NETBOOT_DRY_RUN": "1",
+            "AETHER_TFTP_PROVIDER": "dnsmasq",
             "DNSMASQ": "/usr/local/sbin/dnsmasq",
         },
     )
@@ -192,12 +193,102 @@ def test_serve_netboot_can_disable_blocksize_as_diagnostic(tmp_path: pathlib.Pat
         env={
             "AETHER_TFTP_PREFIX": "aether-test",
             "AETHER_NETBOOT_DRY_RUN": "1",
+            "AETHER_TFTP_PROVIDER": "dnsmasq",
             "AETHER_TFTP_NO_BLOCKSIZE": "1",
             "DNSMASQ": "/usr/local/sbin/dnsmasq",
         },
     )
 
     assert "--tftp-no-blocksize" in result.stdout
+
+
+def test_serve_netboot_can_replace_existing_bench_tftp_server(tmp_path: pathlib.Path) -> None:
+    root = tmp_path / "tftp"
+    (root / "aether-test").mkdir(parents=True)
+
+    result = run_script(
+        "serve-netboot.sh",
+        "en-test0",
+        str(root),
+        env={
+            "AETHER_TFTP_PREFIX": "aether-test",
+            "AETHER_NETBOOT_DRY_RUN": "1",
+            "AETHER_NETBOOT_REPLACE": "1",
+            "AETHER_TFTP_PROVIDER": "dnsmasq",
+            "DNSMASQ": "/usr/local/sbin/dnsmasq",
+        },
+    )
+
+    assert "replace existing AetherKernel TFTP providers: yes" in result.stdout
+    assert "pkill -f" in read_repo("serve-netboot.sh")
+    assert "dnsmasq.*--tftp-root=${TFTP_ROOT}" in read_repo("serve-netboot.sh")
+    assert "tftp-now.*serve.*${TFTP_ROOT}" in read_repo("serve-netboot.sh")
+
+
+def test_serve_netboot_exposes_single_port_and_mtu_diagnostics(tmp_path: pathlib.Path) -> None:
+    root = tmp_path / "tftp"
+    (root / "aether-test").mkdir(parents=True)
+
+    result = run_script(
+        "serve-netboot.sh",
+        "en-test0",
+        str(root),
+        env={
+            "AETHER_TFTP_PREFIX": "aether-test",
+            "AETHER_NETBOOT_DRY_RUN": "1",
+            "AETHER_TFTP_PROVIDER": "dnsmasq",
+            "AETHER_TFTP_SINGLE_PORT": "1",
+            "AETHER_TFTP_MTU": "512",
+            "DNSMASQ": "/usr/local/sbin/dnsmasq",
+        },
+    )
+
+    assert "--tftp-single-port" in result.stdout
+    assert "--tftp-mtu=512" in result.stdout
+
+
+def test_serve_netboot_can_use_repo_owned_tftp_provider(tmp_path: pathlib.Path) -> None:
+    root = tmp_path / "tftp"
+    (root / "aether-test").mkdir(parents=True)
+
+    result = run_script(
+        "serve-netboot.sh",
+        "en-test0",
+        str(root),
+        env={
+            "AETHER_TFTP_PREFIX": "aether-test",
+            "AETHER_NETBOOT_DRY_RUN": "1",
+            "AETHER_TFTP_PROVIDER": "aether",
+        },
+    )
+
+    assert "TFTP provider: aether" in result.stdout
+    assert "aether_tftp.py" in result.stdout
+    assert f"--root={root}" in result.stdout
+    assert "--block-size=1468" in result.stdout
+    assert "--single-port" in result.stdout
+
+
+def test_serve_netboot_defaults_to_repo_owned_tftp_provider(tmp_path: pathlib.Path) -> None:
+    root = tmp_path / "tftp"
+    (root / "aether-test").mkdir(parents=True)
+
+    result = run_script(
+        "serve-netboot.sh",
+        "en-test0",
+        str(root),
+        env={
+            "AETHER_TFTP_PREFIX": "aether-test",
+            "AETHER_NETBOOT_DRY_RUN": "1",
+        },
+    )
+
+    assert "TFTP provider: aether" in result.stdout
+    assert "aether_tftp.py" in result.stdout
+    assert f"--root={root}" in result.stdout
+    assert "--block-size=1468" in result.stdout
+    assert "--single-port" in result.stdout
+    assert "dnsmasq" not in result.stdout
 
 
 def test_serial_reset_dry_run_targets_default_usb_ttl_port() -> None:
@@ -223,6 +314,7 @@ def test_net_iterate_dry_run_describes_stage_reset_watch_loop() -> None:
     assert "./serial-reset.sh /dev/cu.test" in result.stdout
     assert "/tmp/aether-serial.log" in result.stdout
     assert "/tmp/aether-dnsmasq.log" in result.stdout
+    assert "watch TFTP log: /tmp/aether-dnsmasq.log" in result.stdout
     assert "aether-test/" in result.stdout
     assert "attempts: 3" in result.stdout
     assert "timeout per attempt: 150s" in result.stdout
@@ -238,10 +330,11 @@ def test_net_iterate_detects_stale_sd_fallback_image() -> None:
 def test_net_iterate_reports_stale_pre_v11_sd_fallback_without_claiming_netboot() -> None:
     net_iterate = read_repo("net-iterate.sh")
 
-    assert "stale pre-V20 SD fallback image detected" in net_iterate
+    assert "stale pre-V21 SD fallback image detected" in net_iterate
     assert "TFTP kernel fetch was not verified" in net_iterate
+    assert 'grep -q "shell ready commands="' in net_iterate
     assert "sd_fallback_seen=1" in net_iterate
-    assert "retrying after stale pre-V20 SD fallback" in net_iterate
+    assert "retrying after stale pre-V21 SD fallback" in net_iterate
     assert "final_exit=3" in net_iterate
     assert 'exit "$final_exit"' in net_iterate
 
@@ -253,6 +346,17 @@ def test_net_iterate_classifies_start4_tftp_failures_as_bootloader_transfer() ->
     assert "timeout sending .*/start4\\\\.elf" in net_iterate
     assert "kernel was not reached" in net_iterate
     assert "AETHER_TFTP_NO_BLOCKSIZE=1" in net_iterate
+
+
+def test_net_iterate_accepts_dnsmasq_or_tftp_now_server() -> None:
+    net_iterate = read_repo("net-iterate.sh")
+
+    assert "tftp_server_running()" in net_iterate
+    assert 'pgrep -f "dnsmasq.*${escaped_root}"' in net_iterate
+    assert 'pgrep -f "tftp-now.*serve.*${escaped_root}"' in net_iterate
+    assert 'pgrep -f "tftpd.*${escaped_root}"' in net_iterate
+    assert 'pgrep -f "aether_tftp.py.*${escaped_root}"' in net_iterate
+    assert "TFTP server does not appear to be serving" in net_iterate
 
 
 def test_netboot_doctor_dry_run_shows_human_reset_gate() -> None:
@@ -272,6 +376,8 @@ def test_netboot_doctor_dry_run_shows_human_reset_gate() -> None:
     assert "ACTION: reset or power-cycle the Pi once" in result.stdout
     assert "watch TFTP prefix: aether-test/" in result.stdout
     assert "/tmp/aether-serial.log" in result.stdout
+    assert "check TFTP root: /tmp/aether-root" in result.stdout
+    assert "watch TFTP log:" in result.stdout
 
 
 def test_netboot_doctor_verifies_runtime_v11_markers() -> None:
@@ -285,8 +391,17 @@ def test_netboot_doctor_verifies_runtime_v11_markers() -> None:
     assert "runtime v9: bounded memory pressure self-tests" in doctor
     assert "runtime v10: explicit guard probes" in doctor
     assert "runtime v11: boot and soak invariants" in doctor
-    assert "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot" in doctor
+    assert "runtime v21: mmu ownership boundary" in doctor
+    assert "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot" in doctor
     assert "async tick 0x0000000000000000" not in doctor
+
+
+def test_netboot_doctor_accepts_repo_owned_tftp_provider() -> None:
+    doctor = read_repo("netboot-doctor.sh")
+
+    assert "tftp_server_running()" in doctor
+    assert 'pgrep -f "aether_tftp.py.*${escaped_root}"' in doctor
+    assert "TFTP provider does not appear to be serving" in doctor
 
 
 def test_netboot_doctor_classifies_start4_tftp_failures_as_bootloader_transfer() -> None:

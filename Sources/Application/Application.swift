@@ -178,11 +178,12 @@ struct Application {
     // log for kernel/agent observability. Runtime V17 adds a deterministic boot
     // certificate for host proof loops. Runtime V18 adds fixed cooperative
     // cancellation tokens. Runtime V19 adds the Aether-owned task spawn wrapper.
-    // Runtime V20 adds Swift-facing async channels over fixed mailboxes.
+    // Runtime V20 adds Swift-facing async channels over fixed mailboxes. Runtime
+    // V21 exposes the current MMU ownership boundary without dynamic remaps.
     kernel_memory_init()
     kernel_cancel_init()
     kernel_event_log_init()
-    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 20, 0, 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 21, 0, 0)
     kernel_object_registry_init()
     kernel_task_registry_init()
     kernel_supervisor_init()
@@ -211,9 +212,11 @@ struct Application {
     uartPuts("runtime v18: cooperative cancellation tokens\n")
     uartPuts("runtime v19: structured aether task spawn\n")
     uartPuts("runtime v20: bounded async channels\n")
+    uartPuts("runtime v21: mmu ownership boundary\n")
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(kernel_cancel_selftest()), 0)
     kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19, UInt(aetherTaskSpawnSelftest()), UInt(kernel_task_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20, UInt(aetherChannelSelftest()), UInt(kernel_mailbox_count()))
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 21, UInt(kernel_mmu_selftest()), 0)
     let handleSelftest = kernel_object_handle_selftest()
     let capSelftest = kernel_object_capcheck_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_HANDLE, UInt(handleSelftest), UInt(capSelftest), 0)

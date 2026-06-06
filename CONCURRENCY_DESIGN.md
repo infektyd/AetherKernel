@@ -18,7 +18,22 @@ hardware-verified 2026-06-05. Runtime V18 adds cooperative cancellation tokens
 and was hardware-verified 2026-06-05. Runtime V19 adds structured Aether task
 spawn metadata and was hardware-verified 2026-06-05. Runtime V20 adds bounded
 Swift-facing async channels over fixed mailbox queues and was hardware-verified
-2026-06-05.
+2026-06-05. Runtime V21 adds read-only MMU ownership introspection and was
+hardware-verified 2026-06-05.
+
+> ## Runtime V21 ground truth (2026-06-05)
+> V21 does not add dynamic remapping. It records the current EL1 stage-1 MMU
+> ownership boundary before future isolation work. `MMU_OWNERSHIP.md` documents
+> the current identity map, BCM2711 low-peripheral boundary, and future TLBI /
+> table-allocation invariants. `mmu.c` exposes read-only introspection for the
+> static L1 table: 512 entries, four live 1 GiB block regions, Normal cacheable
+> mappings for `0x00000000` through `0xBfffffff`, Device mapping for
+> `0xC0000000` through `0xffffffff`, and fault entries above that. The UART
+> shell adds `mmu`, and `bootcert` reports `mmu=1`. Hardware proof: a single
+> `net-iterate.sh` run passed, followed by a clean `set -e` 3-cycle loop. Proof
+> lines included `runtime v21: mmu ownership boundary`, `bootcert ok=1
+> version=21 ... mmu=1 ... channels=1 ... events_lost=0`, and `mmu ok=1
+> regions=4 entries=512 block_size=0x40000000 ... selftest=1`.
 
 > ## Runtime V20 ground truth (2026-06-05)
 > V20 adds `AetherChannel.swift`, a small Swift wrapper over the fixed C-owned

@@ -1,0 +1,120 @@
+import pathlib
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+COMMANDS_V21 = (
+    "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,"
+    "supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,"
+    "retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,"
+    "bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
+    "heap-double-free-test,panic-test,fault-test,reboot"
+)
+
+
+def read_repo(path: str) -> str:
+    return (ROOT / path).read_text()
+
+
+def test_runtime_v21_mmu_ownership_note_is_primary_sourced() -> None:
+    note = read_repo("MMU_OWNERSHIP.md")
+
+    for marker in (
+        "Runtime V21",
+        "EL1 stage-1",
+        "identity map",
+        "TTBR0_EL1",
+        "TCR_EL1",
+        "MAIR_EL1",
+        "TLBI",
+        "Low Peripheral",
+        "0x0_FC00_0000",
+        "0x0_FF80_0000",
+        "no dynamic remap in V21",
+        "https://developer.arm.com/-/media/Arm%20Developer%20Community/PDF/Learn%20the%20Architecture/LearnTheArchitecture-MemoryManagement-101811_0100_00_en.pdf",
+        "https://datasheets.raspberrypi.com/bcm2711/bcm2711-peripherals.pdf",
+    ):
+        assert marker in note
+
+
+def test_runtime_v21_mmu_readonly_support_api_exists() -> None:
+    support = read_repo("Sources/Support/include/Support.h")
+    mmu = read_repo("Sources/Support/mmu.c")
+
+    for marker in (
+        "KERNEL_MMU_REGION_KIND_NORMAL",
+        "KERNEL_MMU_REGION_KIND_DEVICE",
+        "KERNEL_MMU_REGION_KIND_FAULT",
+        "kernel_mmu_l1_entry_count",
+        "kernel_mmu_block_size",
+        "kernel_mmu_region_count",
+        "kernel_mmu_region_va_base",
+        "kernel_mmu_region_pa_base",
+        "kernel_mmu_region_size",
+        "kernel_mmu_region_kind",
+        "kernel_mmu_tcr_value",
+        "kernel_mmu_mair_value",
+        "kernel_mmu_selftest",
+    ):
+        assert marker in support
+
+    for marker in (
+        "#define KERNEL_MMU_L1_ENTRY_COUNT 512U",
+        "#define KERNEL_MMU_BLOCK_SIZE 0x40000000UL",
+        "typedef struct kernel_mmu_region",
+        "static const kernel_mmu_region mmu_regions",
+        "KERNEL_MMU_REGION_KIND_NORMAL",
+        "KERNEL_MMU_REGION_KIND_DEVICE",
+        "KERNEL_MMU_REGION_KIND_FAULT",
+        "kernel_mmu_selftest",
+    ):
+        assert marker in mmu
+
+    assert "kernel_mmu_map_page" not in support
+    assert "kernel_mmu_map_page" not in mmu
+
+
+def test_runtime_v21_application_shell_and_bootcert_surface_exist() -> None:
+    app = read_repo("Sources/Application/Application.swift")
+    shell = read_repo("Sources/Application/UARTShell.swift")
+
+    assert "runtime v21: mmu ownership boundary" in app
+    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 21, 0, 0)" in app
+    assert "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 21, UInt(kernel_mmu_selftest()), 0)" in app
+
+    for marker in (
+        COMMANDS_V21,
+        "func printMMU()",
+        "mmu ok=",
+        " regions=",
+        " block_size=",
+        " tcr=",
+        " mair=",
+        " region index=",
+        " va=",
+        " pa=",
+        " size=",
+        " kind=",
+        "kernel_mmu_selftest()",
+        'shellBufferEquals("mmu")',
+        " version=21",
+        " mmu=",
+    ):
+        assert marker in shell
+
+
+def test_runtime_v21_netboot_gates_and_probe_exist() -> None:
+    net_iterate = read_repo("net-iterate.sh")
+    doctor = read_repo("netboot-doctor.sh")
+
+    for source in (net_iterate, doctor):
+        assert "runtime v21: mmu ownership boundary" in source
+        assert COMMANDS_V21 in source
+
+    for marker in (
+        "probe shell: mmu",
+        "^mmu ok=1 .*regions=4 .*block_size=0x40000000",
+        "^bootcert ok=1 version=21 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0",
+        "stale pre-V21 SD fallback",
+    ):
+        assert marker in net_iterate

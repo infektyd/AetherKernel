@@ -6,7 +6,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 COMMANDS_V20 = (
     "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,"
     "supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,"
-    "retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,"
+    "retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,"
     "bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
     "heap-double-free-test,panic-test,fault-test,reboot"
 )
@@ -42,7 +42,7 @@ def test_runtime_v20_demo_mailbox_tasks_use_channel_wrapper() -> None:
         "channel.send(n)",
         "await channel.receive()",
         "runtime v20: bounded async channels",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 20, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 21, 0, 0)",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20",
     ):
         assert marker in app
@@ -74,9 +74,9 @@ def test_runtime_v20_bootcert_includes_channel_health() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
     net_iterate = read_repo("net-iterate.sh")
 
-    assert " version=20" in shell
+    assert " version=21" in shell
     assert " channels=" in shell
-    assert "^bootcert ok=1 version=20 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0" in net_iterate
+    assert "^bootcert ok=1 version=21 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0" in net_iterate
 
 
 def test_runtime_v20_netboot_gates_and_shell_probe_exist() -> None:
@@ -90,6 +90,6 @@ def test_runtime_v20_netboot_gates_and_shell_probe_exist() -> None:
     for marker in (
         "probe shell: channeltest",
         "^channeltest ok=1 .*received=1",
-        "stale pre-V20 SD fallback",
+        "stale pre-V21 SD fallback",
     ):
         assert marker in net_iterate

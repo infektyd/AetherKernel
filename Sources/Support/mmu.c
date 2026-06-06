@@ -1,6 +1,9 @@
 #include "Support.h"
 
 // AArch64 stage-1 L1 block descriptor bits (MS4_MMU_BRIEF).
+#define KERNEL_MMU_L1_ENTRY_COUNT 512U
+#define KERNEL_MMU_BLOCK_SIZE 0x40000000UL
+
 #define DESC_BLOCK     (1UL << 0)
 #define DESC_AF        (1UL << 10)
 #define SH_INNER       (3UL << 8)
@@ -12,6 +15,22 @@
 #define SCTLR_MMU_ON  ((1UL << 0) | (1UL << 2) | (1UL << 12))
 
 static unsigned long l1_table[512] __attribute__((aligned(4096)));
+
+typedef struct kernel_mmu_region {
+    unsigned long va_base;
+    unsigned long pa_base;
+    unsigned long size;
+    unsigned int kind;
+} kernel_mmu_region;
+
+static const kernel_mmu_region mmu_regions[] = {
+    {0x00000000UL, 0x00000000UL, KERNEL_MMU_BLOCK_SIZE, KERNEL_MMU_REGION_KIND_NORMAL},
+    {0x40000000UL, 0x40000000UL, KERNEL_MMU_BLOCK_SIZE, KERNEL_MMU_REGION_KIND_NORMAL},
+    {0x80000000UL, 0x80000000UL, KERNEL_MMU_BLOCK_SIZE, KERNEL_MMU_REGION_KIND_NORMAL},
+    {0xC0000000UL, 0xC0000000UL, KERNEL_MMU_BLOCK_SIZE, KERNEL_MMU_REGION_KIND_DEVICE},
+};
+
+#define KERNEL_MMU_REGION_COUNT ((unsigned int)(sizeof(mmu_regions) / sizeof(mmu_regions[0])))
 
 static unsigned long normal_block(unsigned long pa) {
     return pa | DESC_BLOCK | DESC_AF | SH_INNER | ATTRIDX_NORMAL;
@@ -71,4 +90,72 @@ void mmu_enable(void) {
         msr_sctlr_el1(sctlr);
         __asm__ volatile("isb" ::: "memory");
     }
+}
+
+unsigned int kernel_mmu_l1_entry_count(void) {
+    return KERNEL_MMU_L1_ENTRY_COUNT;
+}
+
+unsigned long kernel_mmu_block_size(void) {
+    return KERNEL_MMU_BLOCK_SIZE;
+}
+
+unsigned int kernel_mmu_region_count(void) {
+    return KERNEL_MMU_REGION_COUNT;
+}
+
+unsigned long kernel_mmu_region_va_base(unsigned int index) {
+    if (index >= KERNEL_MMU_REGION_COUNT) {
+        return 0;
+    }
+    return mmu_regions[index].va_base;
+}
+
+unsigned long kernel_mmu_region_pa_base(unsigned int index) {
+    if (index >= KERNEL_MMU_REGION_COUNT) {
+        return 0;
+    }
+    return mmu_regions[index].pa_base;
+}
+
+unsigned long kernel_mmu_region_size(unsigned int index) {
+    if (index >= KERNEL_MMU_REGION_COUNT) {
+        return 0;
+    }
+    return mmu_regions[index].size;
+}
+
+unsigned int kernel_mmu_region_kind(unsigned int index) {
+    if (index >= KERNEL_MMU_REGION_COUNT) {
+        return KERNEL_MMU_REGION_KIND_FAULT;
+    }
+    return mmu_regions[index].kind;
+}
+
+unsigned long kernel_mmu_tcr_value(void) {
+    return TCR_EL1_VAL;
+}
+
+unsigned long kernel_mmu_mair_value(void) {
+    return MAIR_EL1_VAL;
+}
+
+int kernel_mmu_selftest(void) {
+    if (KERNEL_MMU_REGION_COUNT != 4U ||
+        KERNEL_MMU_L1_ENTRY_COUNT != 512U ||
+        KERNEL_MMU_BLOCK_SIZE != 0x40000000UL) {
+        return 0;
+    }
+    if (l1_table[0] != normal_block(0x00000000UL) ||
+        l1_table[1] != normal_block(0x40000000UL) ||
+        l1_table[2] != normal_block(0x80000000UL) ||
+        l1_table[3] != device_block(0xC0000000UL)) {
+        return 0;
+    }
+    for (unsigned int i = 4; i < KERNEL_MMU_L1_ENTRY_COUNT; i++) {
+        if (l1_table[i] != 0) {
+            return 0;
+        }
+    }
+    return 1;
 }

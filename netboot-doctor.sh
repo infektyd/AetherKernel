@@ -18,7 +18,7 @@ PREFIX="${PREFIX%/}"
 IFACE="${AETHER_NETBOOT_INTERFACE:-en0}"
 SERVER_IP="${AETHER_NETBOOT_SERVER_IP:-10.42.0.1}"
 SERIAL_LOG="${AETHER_SERIAL_LOG:-/tmp/aether-serial.log}"
-DNSMASQ_LOG="${AETHER_DNSMASQ_LOG:-/tmp/aether-dnsmasq.log}"
+DNSMASQ_LOG="${AETHER_DNSMASQ_LOG:-${AETHER_TFTP_LOG:-/tmp/aether-dnsmasq.log}}"
 TIMEOUT_S="${AETHER_NETBOOT_DOCTOR_TIMEOUT:-180}"
 
 usage() {
@@ -60,6 +60,16 @@ file_delta() {
   tail -c +$((start + 1)) "$file" 2>/dev/null || true
 }
 
+tftp_server_running() {
+  local escaped_root
+  escaped_root="$(printf '%s' "$TFTP_ROOT" | sed 's/[.[\*^$()+?{|]/\\&/g')"
+  pgrep -f "dnsmasq.*${escaped_root}" >/dev/null && return 0
+  pgrep -f "tftp-now.*serve.*${escaped_root}" >/dev/null && return 0
+  pgrep -f "tftpd.*${escaped_root}" >/dev/null && return 0
+  pgrep -f "aether_tftp.py.*${escaped_root}" >/dev/null && return 0
+  return 1
+}
+
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   usage
   exit 0
@@ -67,18 +77,18 @@ fi
 
 if [ "${AETHER_NETBOOT_DOCTOR_DRY_RUN:-0}" = "1" ]; then
   echo "check interface: $IFACE at $SERVER_IP"
-  echo "check dnsmasq TFTP root: $TFTP_ROOT"
+  echo "check TFTP root: $TFTP_ROOT"
   echo "stage latest image: ./netflash.sh $TFTP_ROOT"
   echo "ACTION: reset or power-cycle the Pi once"
   echo "watch TFTP prefix: $PREFIX/"
   echo "watch serial log: $SERIAL_LOG"
-  echo "watch dnsmasq log: $DNSMASQ_LOG"
+  echo "watch TFTP log: $DNSMASQ_LOG"
   exit 0
 fi
 
 [ -n "$PREFIX" ] || die "AETHER_TFTP_PREFIX must not be empty"
 [ -f "$SERIAL_LOG" ] || die "serial log missing: $SERIAL_LOG"
-[ -f "$DNSMASQ_LOG" ] || die "dnsmasq log missing: $DNSMASQ_LOG"
+[ -f "$DNSMASQ_LOG" ] || die "TFTP log missing: $DNSMASQ_LOG"
 
 if ! ifconfig "$IFACE" | grep -q "status: active"; then
   die "$IFACE is not active"
@@ -87,8 +97,7 @@ if ! ifconfig "$IFACE" | grep -q "inet $SERVER_IP "; then
   die "$IFACE does not have $SERVER_IP"
 fi
 
-pgrep -f "dnsmasq.*$(printf '%s' "$TFTP_ROOT" | sed 's/[.[\*^$()+?{|]/\\&/g')" >/dev/null \
-  || die "dnsmasq does not appear to be serving $TFTP_ROOT"
+tftp_server_running || die "TFTP provider does not appear to be serving $TFTP_ROOT"
 
 "$SCRIPT_DIR/netflash.sh" "$TFTP_ROOT"
 
@@ -112,7 +121,7 @@ dns_start="$(file_size "$DNSMASQ_LOG")"
 
 echo
 echo "ACTION: reset or power-cycle the Pi once now."
-echo "I am watching for: dnsmasq sends $PREFIX/kernel8.img + serial prints fresh Runtime V20 shell markers."
+echo "I am watching for: TFTP sends $PREFIX/kernel8.img + serial prints fresh Runtime V21 shell markers."
 echo "Timeout: ${TIMEOUT_S}s"
 
 deadline=$((SECONDS + TIMEOUT_S))
@@ -139,10 +148,11 @@ while [ "$SECONDS" -lt "$deadline" ]; do
     && printf '%s' "$serial_delta" | grep -q "runtime v18: cooperative cancellation tokens" \
     && printf '%s' "$serial_delta" | grep -q "runtime v19: structured aether task spawn" \
     && printf '%s' "$serial_delta" | grep -q "runtime v20: bounded async channels" \
+    && printf '%s' "$serial_delta" | grep -q "runtime v21: mmu ownership boundary" \
     && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
-    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
+    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
     echo "netboot bring-up verified"
-    echo "--- dnsmasq delta ---"
+    echo "--- TFTP delta ---"
     printf '%s\n' "$dns_delta" | tail -n 80
     echo "--- serial delta ---"
     printf '%s\n' "$serial_delta" | tail -n 120
@@ -153,7 +163,7 @@ done
 
 echo "netboot bring-up did not verify within ${TIMEOUT_S}s"
 print_tftp_diagnostics "$(file_delta "$DNSMASQ_LOG" "$dns_start")"
-echo "--- dnsmasq delta ---"
+echo "--- TFTP delta ---"
 file_delta "$DNSMASQ_LOG" "$dns_start" | tail -n 80
 echo "--- serial delta ---"
 file_delta "$SERIAL_LOG" "$serial_start" | tail -n 120

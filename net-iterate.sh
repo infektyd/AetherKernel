@@ -5,8 +5,8 @@
 #   usage: ./net-iterate.sh [tftp-root]
 #
 # Builds and stages kernel8.img/config.txt, sends the serial reset command, and
-# watches dnsmasq + serial logs for proof that the Pi fetched over TFTP,
-# booted the staged image, brought up the Runtime V20 shell, and proves a small
+# watches TFTP + serial logs for proof that the Pi fetched over TFTP,
+# booted the staged image, brought up the Runtime V21 shell, and proves a small
 # command set through ./serial-probe.sh.
 #===----------------------------------------------------------------------===#
 set -euo pipefail
@@ -18,7 +18,7 @@ PREFIX="${PREFIX#/}"
 PREFIX="${PREFIX%/}"
 SERIAL_PORT="${AETHER_SERIAL_PORT:-/dev/cu.usbserial-B0044J1V}"
 SERIAL_LOG="${AETHER_SERIAL_LOG:-/tmp/aether-serial.log}"
-DNSMASQ_LOG="${AETHER_DNSMASQ_LOG:-/tmp/aether-dnsmasq.log}"
+DNSMASQ_LOG="${AETHER_DNSMASQ_LOG:-${AETHER_TFTP_LOG:-/tmp/aether-dnsmasq.log}}"
 TIMEOUT_S="${AETHER_NETITERATE_TIMEOUT:-150}"
 RETRIES="${AETHER_NETITERATE_RETRIES:-3}"
 
@@ -78,6 +78,16 @@ is_positive_int() {
   [ "$1" -gt 0 ] 2>/dev/null
 }
 
+tftp_server_running() {
+  local escaped_root
+  escaped_root="$(printf '%s' "$TFTP_ROOT" | sed 's/[.[\*^$()+?{|]/\\&/g')"
+  pgrep -f "dnsmasq.*${escaped_root}" >/dev/null && return 0
+  pgrep -f "tftp-now.*serve.*${escaped_root}" >/dev/null && return 0
+  pgrep -f "tftpd.*${escaped_root}" >/dev/null && return 0
+  pgrep -f "aether_tftp.py.*${escaped_root}" >/dev/null && return 0
+  return 1
+}
+
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   usage
   exit 0
@@ -91,19 +101,18 @@ if [ "${AETHER_NETITERATE_DRY_RUN:-0}" = "1" ]; then
   echo "./netflash.sh $TFTP_ROOT"
   echo "./serial-reset.sh $SERIAL_PORT"
   echo "watch serial log: $SERIAL_LOG"
-  echo "watch dnsmasq log: $DNSMASQ_LOG"
+  echo "watch TFTP log: $DNSMASQ_LOG"
   echo "expect TFTP prefix: $PREFIX/"
   echo "attempts: $RETRIES"
   echo "timeout per attempt: ${TIMEOUT_S}s"
-  echo "shell probes: ./serial-probe.sh status bootcert canceltest taskcheck channeltest bootcheck stress soak kobjects tasks2 mailboxes sendtest supervisor health capcheck events"
+  echo "shell probes: ./serial-probe.sh status bootcert canceltest taskcheck channeltest mmu bootcheck stress soak kobjects tasks2 mailboxes sendtest supervisor health capcheck events"
   exit 0
 fi
 
 [ -f "$SERIAL_LOG" ] || die "serial log missing: $SERIAL_LOG"
-[ -f "$DNSMASQ_LOG" ] || die "dnsmasq log missing: $DNSMASQ_LOG"
+[ -f "$DNSMASQ_LOG" ] || die "TFTP log missing: $DNSMASQ_LOG"
 [ -d "$TFTP_ROOT/$PREFIX" ] || die "TFTP prefix missing: $TFTP_ROOT/$PREFIX"
-pgrep -f "dnsmasq.*$(printf '%s' "$TFTP_ROOT" | sed 's/[.[\\*^$()+?{|]/\\&/g')" >/dev/null \
-  || die "dnsmasq does not appear to be serving $TFTP_ROOT"
+tftp_server_running || die "TFTP server does not appear to be serving $TFTP_ROOT"
 
 "$SCRIPT_DIR/netflash.sh" "$TFTP_ROOT"
 
@@ -153,22 +162,25 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -q "runtime v18: cooperative cancellation tokens" \
       && printf '%s' "$serial_delta" | grep -q "runtime v19: structured aether task spawn" \
       && printf '%s' "$serial_delta" | grep -q "runtime v20: bounded async channels" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v21: mmu ownership boundary" \
       && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail tx 0x0000000000000000" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail rx 0x0000000000000000" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
       echo "netboot iteration verified on attempt ${attempt}/${RETRIES}"
       if [ "${AETHER_NETITERATE_SKIP_SHELL_PROBES:-0}" != "1" ]; then
         # probe shell: status
         probe_shell "status" "^status uptime_ms=.*timer_mask="
         # probe shell: bootcert
-        probe_shell "bootcert" "^bootcert ok=1 version=20 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0"
+        probe_shell "bootcert" "^bootcert ok=1 version=21 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0"
         # probe shell: canceltest
         probe_shell "canceltest" "^canceltest ok=1 .*completed=1"
         # probe shell: taskcheck
         probe_shell "taskcheck" "^taskcheck ok=1 .*spawns="
         # probe shell: channeltest
         probe_shell "channeltest" "^channeltest ok=1 .*received=1"
+        # probe shell: mmu
+        probe_shell "mmu" "^mmu ok=1 .*regions=4 .*block_size=0x40000000"
         # probe shell: bootcheck
         probe_shell "bootcheck" "^bootcheck ok=1 .*frame_free="
         # probe shell: stress
@@ -192,7 +204,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
         # probe shell: events
         probe_shell "events" "^events count=.* lost=0 .*selftest=1"
       fi
-      echo "--- dnsmasq delta ---"
+      echo "--- TFTP delta ---"
       printf '%s\n' "$dns_delta" | tail -n 80
       echo "--- serial delta ---"
       printf '%s\n' "$serial_delta" | tail -n 120
@@ -200,8 +212,9 @@ while [ "$attempt" -le "$RETRIES" ]; do
     fi
 
     if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v20: bounded async channels"; then
-      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V20 SD fallback image detected"
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
+      && ! printf '%s' "$serial_delta" | grep -q "runtime v21: mmu ownership boundary"; then
+      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V21 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
       last_dns_delta="$dns_delta"
@@ -220,9 +233,9 @@ while [ "$attempt" -le "$RETRIES" ]; do
 
   if [ "$attempt" -lt "$RETRIES" ]; then
     if [ "$sd_fallback_seen" = "1" ]; then
-      echo "retrying after stale pre-V20 SD fallback..."
+      echo "retrying after stale pre-V21 SD fallback..."
     fi
-    echo "--- dnsmasq delta from failed attempt ---"
+    echo "--- TFTP delta from failed attempt ---"
     printf '%s\n' "$last_dns_delta" | tail -n 40
     print_tftp_diagnostics "$last_dns_delta"
     echo "--- serial delta from failed attempt ---"
@@ -236,13 +249,13 @@ done
 echo "netboot iteration did not verify after ${RETRIES} attempt(s)"
 print_tftp_diagnostics "$last_dns_delta"
 if printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v20: bounded async channels"; then
-  echo "final result: stale pre-V20 SD fallback image booted, but staged network image is not proven."
+  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v21: mmu ownership boundary"; then
+  echo "final result: stale pre-V21 SD fallback image booted, but staged network image is not proven."
   final_exit=3
 else
   final_exit=1
 fi
-echo "--- dnsmasq delta from final attempt ---"
+echo "--- TFTP delta from final attempt ---"
 printf '%s\n' "$last_dns_delta" | tail -n 80
 echo "--- serial delta from final attempt ---"
 printf '%s\n' "$last_serial_delta" | tail -n 120

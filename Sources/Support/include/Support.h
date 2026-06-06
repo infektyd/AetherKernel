@@ -438,7 +438,21 @@ unsigned int uart_rx_overflow_count(void);
 // MMU setup (Sources/Support/mmu.c). Called from boot.S after the EL1 drop and
 // before _main: identity-maps RAM as Normal Inner-Shareable cacheable (peripherals
 // as Device) so the concurrency runtime's ldxr/stxr atomics have an exclusive monitor.
+#define KERNEL_MMU_REGION_KIND_FAULT  0U
+#define KERNEL_MMU_REGION_KIND_NORMAL 1U
+#define KERNEL_MMU_REGION_KIND_DEVICE 2U
+
 void mmu_enable(void);
+unsigned int kernel_mmu_l1_entry_count(void);
+unsigned long kernel_mmu_block_size(void);
+unsigned int kernel_mmu_region_count(void);
+unsigned long kernel_mmu_region_va_base(unsigned int index);
+unsigned long kernel_mmu_region_pa_base(unsigned int index);
+unsigned long kernel_mmu_region_size(unsigned int index);
+unsigned int kernel_mmu_region_kind(unsigned int index);
+unsigned long kernel_mmu_tcr_value(void);
+unsigned long kernel_mmu_mair_value(void);
+int kernel_mmu_selftest(void);
 
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
