@@ -8,7 +8,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V30 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
-    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,diag,irqs,timers,"
+    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,cores,diag,irqs,timers,"
     "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,"
     "heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,"
     "canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
@@ -40,7 +40,7 @@ def test_runtime_v30_application_shell_and_certificate_surface_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
 
     for marker in (
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 31, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 32, 0, 0)",
         "runtime v30: swift-native kernel substrate certificate",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 30,",
     ):
@@ -83,7 +83,7 @@ def test_runtime_v30_bootcert_reports_certificate_field() -> None:
 
     for marker in (
         "let substrateCertificate = UInt32(1)",
-        "version=31",
+        "version=32",
         " certificate=",
         "substrateCertificate != 0",
         "printSubstrateCertificate()",
@@ -115,7 +115,7 @@ def test_runtime_v30_host_certificate_loop_contract_exists() -> None:
         "runtime-audit.sh",
         "cmd=certificate",
         "certificate-loop ok=",
-        "version=31",
+        "version=32",
         "substrate=1",
         "bootcert=1",
         "agent=1",
@@ -128,7 +128,7 @@ def test_runtime_v30_host_certificate_loop_contract_exists() -> None:
     assert "cycles: 2" in result.stdout
     assert "probe: req id=3001 cmd=certificate" in result.stdout
     assert "probe: runtime-audit .build/release/Application" in result.stdout
-    assert "^bootcert ok=1 version=31 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0" in agent_session
+    assert "^bootcert ok=1 version=32 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0" in agent_session
 
 
 def test_runtime_v30_netboot_gates_and_certificate_probe_exist() -> None:
@@ -141,11 +141,11 @@ def test_runtime_v30_netboot_gates_and_certificate_probe_exist() -> None:
 
     for marker in (
         "probe shell: certificate",
-        "^certificate ok=1 version=31 substrate=1 .*bootcert=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
+        "^certificate ok=1 version=32 substrate=1 .*bootcert=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
         "probe shell: req-certificate",
         "^resp id=30 ok=1 cmd=certificate end",
-        "^bootcert ok=1 version=31 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
-        "stale pre-V31 SD fallback",
+        "^bootcert ok=1 version=32 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "stale pre-V32 SD fallback",
     ):
         assert marker in net_iterate
 

@@ -30,7 +30,22 @@ hardware-verified 2026-06-06. Runtime V28 Swift runtime dependency audit was
 hardware-verified 2026-06-06. Runtime V29 agent-oriented control session was
 hardware-verified 2026-06-06. Runtime V30 Swift-native kernel substrate
 certificate was hardware-verified 2026-06-06. Runtime V31 preemptive scheduler
-substrate was hardware-verified 2026-06-06.
+substrate was hardware-verified 2026-06-06. Runtime V32 SMP secondary-core
+bring-up was hardware-verified 2026-06-06.
+
+> ## Runtime V32 SMP secondary-core bring-up ground truth (2026-06-06)
+> V32 keeps Swift execution on core 0 and releases A72 cores 1-3 into a fixed
+> C-only heartbeat/accounting loop. The first hardware attempt booted V32 but
+> reported `smp=0`; the root cause was that the default Raspberry Pi `armstub8`
+> had parked secondaries before Aether's `_start`. The accepted path writes
+> `_start` to the armstub8 64-bit spin-table slots `0xe0`, `0xe8`, and `0xf0`,
+> cleans those cache lines, and issues `sev`. Proof lines included `runtime v32:
+> smp secondary-core bring-up`, `bootcert ok=1 version=32 smp=1 scheduler=1
+> certificate=1 agent=1 runtime=1 ... events_lost=0`, `certificate ok=1
+> version=32 substrate=1 bootcert=1 smp=1 scheduler=1 agent=1 runtime=1
+> ... events_lost=0`, and `cores ok=1 version=32 capacity=4 online=4 mask=0xf
+> primary=0 release=0xe selftest=1 core0=1 core1=1 core2=1 core3=1`. Paired
+> `cores` probes showed secondary heartbeats advancing.
 
 > ## Runtime V31 preemptive scheduler substrate ground truth (2026-06-06)
 > V31 keeps the V25 request envelope and V30 certificate surface, then adds a

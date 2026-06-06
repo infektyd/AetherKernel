@@ -2,8 +2,9 @@
 // AetherKernel boot stub.
 //
 // The stock Pi 4 armstub hands control to kernel8.img at EL2 on the primary
-// core, secondaries parked. We: park secondaries, drop EL2->EL1, set the
-// stack, install vectors, and branch to Swift `main`.
+// core, with the other cores also entering this stub on the Pi 4. We: release
+// secondaries into fixed C accounting loops, drop EL2->EL1, set per-core stacks,
+// install vectors, and branch only the primary core to Swift `main`.
 //
 // Every system-register write in the EL drop is deliberate; see comments.
 //
@@ -15,23 +16,33 @@
 //===----------------------------------------------------------------------===//
 
 .section __BOOT,__text,regular,pure_instructions
+.equ KERNEL_SMP_CORE_CAPACITY, 4
+.equ KERNEL_SMP_STACK_BYTES, 4096
+.equ ARMSTUB_SPIN_CPU1, 0xe0
+.equ ARMSTUB_SPIN_CPU2, 0xe8
+.equ ARMSTUB_SPIN_CPU3, 0xf0
+
 .global _start
 
 _start:
-    // Only the primary core (affinity 0) proceeds; park the others.
-    mrs     x1, mpidr_el1
-    and     x1, x1, #3
-    cbz     x1, primary
-park:
+    // Runtime V32 secondary-core release. Affinity level 0 gives the Pi 4 core.
+    mrs     x20, mpidr_el1
+    and     x19, x20, #3
+    cbz     x19, primary
+
+secondary_wait:
+    ldr     x2, =_kernel_smp_release_flag
+    ldr     w3, [x2]
+    cbnz    w3, secondary
     wfe
-    b       park
+    b       secondary_wait
 
 primary:
     // If firmware already left us in EL1, skip the drop entirely.
     mrs     x0, CurrentEL
     lsr     x0, x0, #2           // CurrentEL holds the level in bits [3:2]
     cmp     x0, #2               // EL2?
-    b.ne    el1_entry
+    b.ne    primary_el1_entry
 
     // --- EL2 -> EL1 transition ---
 
@@ -54,12 +65,12 @@ primary:
     mov     x0, #0x3c5
     msr     spsr_el2, x0
 
-    // Resume in EL1 at el1_entry.
-    adr     x0, el1_entry
+    // Resume in EL1 at primary_el1_entry.
+    adr     x0, primary_el1_entry
     msr     elr_el2, x0
     eret
 
-el1_entry:
+primary_el1_entry:
     // Stack grows down from our load address (_start == 0x80000).
     ldr     x1, =_start
     mov     sp, x1
@@ -82,9 +93,99 @@ el1_entry:
     // would spin forever. Must run before any Swift concurrency code.
     bl      _mmu_enable
 
+    bl      _kernel_smp_init
+    mov     x0, x20
+    bl      _kernel_smp_note_primary
+
+    // Release default Raspberry Pi armstub8 secondaries from its 64-bit
+    // spin-table slots, then let them re-enter our _start and take the V32
+    // secondary path. Clean the slots and our release flag because parked cores
+    // are polling with MMU/caches off.
+    ldr     x0, =_start
+    mov     x1, #ARMSTUB_SPIN_CPU1
+    str     x0, [x1]
+    dc      cvac, x1
+    mov     x1, #ARMSTUB_SPIN_CPU2
+    str     x0, [x1]
+    dc      cvac, x1
+    mov     x1, #ARMSTUB_SPIN_CPU3
+    str     x0, [x1]
+    dc      cvac, x1
+
+    ldr     x1, =_kernel_smp_release_flag
+    mov     w0, #1
+    str     w0, [x1]
+    dc      cvac, x1
+    dsb     sy
+    sev
+
     // BSS is already zero in the loaded image (-no_zero_fill_sections), so jump
     // straight into Swift. (Mach-O: Swift's @main entry is the C symbol `_main`.)
     bl      _main
 halt:
     wfe
     b       halt
+
+secondary:
+    // If firmware already left us in EL1, skip the drop entirely.
+    mrs     x0, CurrentEL
+    lsr     x0, x0, #2
+    cmp     x0, #2
+    b.ne    secondary_el1_entry
+
+    // --- EL2 -> EL1 transition for secondary cores ---
+    mov     x0, #(1 << 31)
+    msr     hcr_el2, x0
+
+    ldr     x0, =0x30d00800
+    msr     sctlr_el1, x0
+
+    mov     x0, #3
+    msr     cnthctl_el2, x0
+    msr     cntvoff_el2, xzr
+
+    mov     x0, #0x3c5
+    msr     spsr_el2, x0
+
+    adr     x0, secondary_el1_entry
+    msr     elr_el2, x0
+    eret
+
+secondary_el1_entry:
+    // Private 4 KiB stack per core, indexed by affinity-0 core ID.
+    ldr     x2, =_kernel_smp_core_stacks
+    mov     x3, #KERNEL_SMP_STACK_BYTES
+    mul     x4, x19, x3
+    add     x2, x2, x4
+    add     x2, x2, x3
+    mov     sp, x2
+
+    ldr     x0, =vectors
+    msr     vbar_el1, x0
+
+    mov     x0, #(3 << 20)
+    msr     cpacr_el1, x0
+    isb
+
+    bl      _mmu_enable
+
+    mov     x0, x19
+    mov     x1, x20
+    bl      _kernel_smp_secondary_entry
+secondary_halt:
+    wfe
+    b       secondary_halt
+
+.section __DATA,__data
+.balign 16
+.global _kernel_smp_release_flag
+_kernel_smp_release_flag:
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+
+.balign 16
+.global _kernel_smp_core_stacks
+_kernel_smp_core_stacks:
+    .space (KERNEL_SMP_CORE_CAPACITY * KERNEL_SMP_STACK_BYTES)

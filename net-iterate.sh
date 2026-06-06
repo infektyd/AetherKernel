@@ -6,7 +6,7 @@
 #
 # Builds and stages kernel8.img/config.txt, sends the serial reset command, and
 # watches TFTP + serial logs for proof that the Pi fetched over TFTP,
-# booted the staged image, brought up the Runtime V31 shell, and proves a small
+# booted the staged image, brought up the Runtime V32 shell, and proves a small
 # command set through ./serial-probe.sh.
 #===----------------------------------------------------------------------===#
 set -euo pipefail
@@ -105,7 +105,7 @@ if [ "${AETHER_NETITERATE_DRY_RUN:-0}" = "1" ]; then
   echo "expect TFTP prefix: $PREFIX/"
   echo "attempts: $RETRIES"
   echo "timeout per attempt: ${TIMEOUT_S}s"
-  echo "shell probes: ./serial-probe.sh status protocol bootcert sched req-status req-sched canceltest taskcheck channeltest mmu poolcheck pools heapfrag poolstats bootcheck stress soak kobjects drivers drivercheck tasks2 mailboxes sendtest supervisor health capcheck events"
+  echo "shell probes: ./serial-probe.sh status protocol bootcert sched cores req-status req-sched req-cores canceltest taskcheck channeltest mmu poolcheck pools heapfrag poolstats bootcheck stress soak kobjects drivers drivercheck tasks2 mailboxes sendtest supervisor health capcheck events"
   exit 0
 fi
 
@@ -172,10 +172,11 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -q "runtime v29: agent-oriented control session" \
       && printf '%s' "$serial_delta" | grep -q "runtime v30: swift-native kernel substrate certificate" \
       && printf '%s' "$serial_delta" | grep -q "runtime v31: preemptive scheduler substrate" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v32: smp secondary-core bring-up" \
       && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail tx 0x0000000000000000" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail rx 0x0000000000000000" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,cores,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
       echo "netboot iteration verified on attempt ${attempt}/${RETRIES}"
       if [ "${AETHER_NETITERATE_SKIP_SHELL_PROBES:-0}" != "1" ]; then
         # probe shell: status
@@ -183,21 +184,25 @@ while [ "$attempt" -le "$RETRIES" ]; do
         # probe shell: protocol
         probe_shell "protocol" "^protocol version=2 .*begin_end=1 .*errors=1"
         # probe shell: bootcert
-        probe_shell "bootcert" "^bootcert ok=1 version=31 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0"
+        probe_shell "bootcert" "^bootcert ok=1 version=32 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0"
         # probe shell: runtime
         probe_shell "runtime" "^runtime ok=1 version=28 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5"
         # probe shell: agent
         probe_shell "agent" "^agent ok=1 version=29 health=green .*bootcert=1 .*runtime=1 .*protocol=2 .*events_lost=0"
         # probe shell: certificate
-        probe_shell "certificate" "^certificate ok=1 version=31 substrate=1 .*bootcert=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0"
+        probe_shell "certificate" "^certificate ok=1 version=32 substrate=1 .*bootcert=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0"
         # probe shell: sched
         probe_shell "sched" "^sched ok=1 version=31 .*active=1 .*cores=1 .*core=0 .*ticks=[1-9][0-9]* .*irq_ticks=[1-9][0-9]* .*preemptions=[1-9][0-9]* .*runqueue=0/[1-9][0-9]* .*selftest=1"
+        # probe shell: cores
+        probe_shell "cores" "^cores ok=1 version=32 .*capacity=4 .*online=4 .*mask=0xf .*primary=0 .*release=0xe .*selftest=1 .*core0=1 .*core1=1 .*core2=1 .*core3=1"
         # probe shell: req-agent
         probe_shell "req id=29 cmd=agent" "^resp id=29 ok=1 cmd=agent end"
         # probe shell: req-certificate
         probe_shell "req id=30 cmd=certificate" "^resp id=30 ok=1 cmd=certificate end"
         # probe shell: req-sched
         probe_shell "req id=31 cmd=sched" "^resp id=31 ok=1 cmd=sched end"
+        # probe shell: req-cores
+        probe_shell "req id=32 cmd=cores" "^resp id=32 ok=1 cmd=cores end"
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
@@ -252,8 +257,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
 
     if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
       && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v31: preemptive scheduler substrate"; then
-      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V31 SD fallback image detected"
+      && ! printf '%s' "$serial_delta" | grep -q "runtime v32: smp secondary-core bring-up"; then
+      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V32 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
       last_dns_delta="$dns_delta"
@@ -272,7 +277,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
 
     if [ "$attempt" -lt "$RETRIES" ]; then
       if [ "$sd_fallback_seen" = "1" ]; then
-        echo "retrying after stale pre-V31 SD fallback..."
+        echo "retrying after stale pre-V32 SD fallback..."
     fi
     echo "--- TFTP delta from failed attempt ---"
     printf '%s\n' "$last_dns_delta" | tail -n 40
@@ -288,8 +293,8 @@ done
 echo "netboot iteration did not verify after ${RETRIES} attempt(s)"
 print_tftp_diagnostics "$last_dns_delta"
 if printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v31: preemptive scheduler substrate"; then
-  echo "final result: stale pre-V31 SD fallback image booted, but staged network image is not proven."
+  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v32: smp secondary-core bring-up"; then
+  echo "final result: stale pre-V32 SD fallback image booted, but staged network image is not proven."
   final_exit=3
 else
   final_exit=1

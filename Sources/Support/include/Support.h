@@ -206,6 +206,28 @@ unsigned long kernel_scheduler_dequeue_count(unsigned int core_id);
 unsigned long kernel_scheduler_interval_ticks(void);
 int kernel_scheduler_selftest(void);
 
+// Runtime V32 SMP secondary-core bring-up substrate. Secondary cores enter a
+// fixed C-only accounting loop with private stacks; they do not touch Swift
+// runtime state. Later slices can attach scheduling/queues to these records.
+#define KERNEL_SMP_VERSION 32U
+#define KERNEL_SMP_CORE_CAPACITY 4U
+#define KERNEL_SMP_SECONDARY_MASK 0xeU
+#define KERNEL_SMP_STACK_BYTES 4096U
+
+void kernel_smp_init(void);
+void kernel_smp_note_primary(unsigned long mpidr);
+void kernel_smp_secondary_entry(unsigned int core_id, unsigned long mpidr);
+unsigned int kernel_smp_core_capacity(void);
+unsigned int kernel_smp_online_count(void);
+unsigned int kernel_smp_online_mask(void);
+unsigned int kernel_smp_primary_core_id(void);
+unsigned int kernel_smp_core_online(unsigned int core_id);
+unsigned long kernel_smp_core_mpidr(unsigned int core_id);
+unsigned long kernel_smp_core_entry_count(unsigned int core_id);
+unsigned long kernel_smp_core_heartbeat(unsigned int core_id);
+unsigned int kernel_smp_release_map(void);
+int kernel_smp_selftest(void);
+
 // Runtime V12 kernel object and cooperative task registries. These are fixed
 // tables: they give the Swift demo runtime names, counters, and object handles
 // without making the Swift heap the source of truth.

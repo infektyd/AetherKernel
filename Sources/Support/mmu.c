@@ -15,6 +15,7 @@
 #define SCTLR_MMU_ON  ((1UL << 0) | (1UL << 2) | (1UL << 12))
 
 static unsigned long l1_table[512] __attribute__((aligned(4096)));
+static volatile unsigned int l1_table_ready;
 
 typedef struct kernel_mmu_region {
     unsigned long va_base;
@@ -62,16 +63,35 @@ static void msr_sctlr_el1(unsigned long v) {
     __asm__ volatile("msr sctlr_el1, %0" :: "r"(v) : "memory");
 }
 
-void mmu_enable(void) {
-    unsigned long i;
+static void clean_data_cache_range(const void *addr, unsigned long size) {
+    unsigned long start = (unsigned long)addr & ~63UL;
+    unsigned long end = ((unsigned long)addr + size + 63UL) & ~63UL;
+    for (unsigned long p = start; p < end; p += 64UL) {
+        __asm__ volatile("dc cvac, %0" :: "r"(p) : "memory");
+    }
+    __asm__ volatile("dsb sy" ::: "memory");
+}
 
-    for (i = 0; i < 512; i++) {
+static void build_l1_table_once(void) {
+    if (l1_table_ready != 0) {
+        return;
+    }
+
+    for (unsigned long i = 0; i < 512; i++) {
         l1_table[i] = 0;
     }
     l1_table[0] = normal_block(0x00000000UL);
     l1_table[1] = normal_block(0x40000000UL);
     l1_table[2] = normal_block(0x80000000UL);
     l1_table[3] = device_block(0xC0000000UL);
+    clean_data_cache_range(l1_table, sizeof(l1_table));
+
+    l1_table_ready = 1;
+    clean_data_cache_range((const void *)&l1_table_ready, sizeof(l1_table_ready));
+}
+
+void mmu_enable(void) {
+    build_l1_table_once();
 
     msr_mair_el1(MAIR_EL1_VAL);
     msr_tcr_el1(TCR_EL1_VAL);

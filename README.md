@@ -3,7 +3,7 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V31 preemptive scheduler substrate hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V32 SMP secondary-core bring-up hardware-verified on real Raspberry Pi 4B**
 > (2026-06-06) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
@@ -39,7 +39,13 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 > ... events_lost=0`, and `sched ok=1 version=31 active=1 cores=1 core=0
 > interval_ticks=2700000 ticks=... irq_ticks=... preemptions=... runqueue=0/8
 > enqueues=4 dequeues=4 selftest=1` across live netboot proof and a clean 3-cycle
-> repeat.
+> repeat. Runtime V32 released the A72 secondary cores through the default
+> armstub8 spin-table slots and proved `bootcert ok=1 version=32 smp=1 scheduler=1
+> certificate=1 agent=1 runtime=1 ... events_lost=0`, `certificate ok=1
+> version=32 substrate=1 bootcert=1 smp=1 scheduler=1 agent=1 runtime=1
+> ... events_lost=0`, and `cores ok=1 version=32 capacity=4 online=4 mask=0xf
+> primary=0 release=0xe selftest=1 ...` with advancing secondary heartbeats across
+> a clean 3-cycle live netboot repeat.
 
 ## What works (verified)
 
@@ -82,6 +88,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V29 agent-oriented control session | ✅ | hardware run printed `runtime v29: agent-oriented control session`; `bootcert ok=1 version=29 agent=1 runtime=1 taxonomy=1 ... events_lost=0`; `agent ok=1 version=29 health=green bootcert=1 runtime=1 protocol=2 agent=1 events_lost=0`; `agent-session ok=1 version=29 health=green ... events_lost=0`; clean `set -e` 3-cycle netboot + agent-session loop passed |
 | Runtime V30 Swift-native kernel substrate certificate | ✅ | hardware run printed `runtime v30: swift-native kernel substrate certificate`; `bootcert ok=1 version=30 certificate=1 agent=1 runtime=1 taxonomy=1 ... events_lost=0`; `certificate ok=1 version=30 substrate=1 bootcert=1 agent=1 runtime=1 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 ... events_lost=0`; `certificate-loop ok=1 version=30 cycles=3 completed=3 ... events_lost=0` |
 | Runtime V31 preemptive scheduler substrate | ✅ | hardware run printed `runtime v31: preemptive scheduler substrate`; `bootcert ok=1 version=31 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`; `certificate ok=1 version=31 substrate=1 bootcert=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`; `sched ok=1 version=31 active=1 cores=1 core=0 interval_ticks=2700000 ticks=152 irq_ticks=152 preemptions=152 runqueue=0/8 enqueues=4 dequeues=4 selftest=1`; clean 3-cycle live netboot repeat passed |
+| Runtime V32 SMP secondary-core bring-up | ✅ | hardware run printed `runtime v32: smp secondary-core bring-up`; `bootcert ok=1 version=32 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`; `certificate ok=1 version=32 substrate=1 bootcert=1 smp=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`; `cores ok=1 version=32 capacity=4 online=4 mask=0xf primary=0 release=0xe selftest=1 core0=1 core1=1 core2=1 core3=1`; paired `cores` samples showed secondary heartbeats advancing |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -132,7 +139,7 @@ port on this bench. Homebrew `dnsmasq` remains an explicit fallback via
 ## Layout
 
 ```
-Sources/Support/boot.S        _start: park cores, EL2->EL1 drop, VBAR, BSS, ->main
+Sources/Support/boot.S        _start: release secondaries, EL2->EL1 drop, VBAR, ->main
 Sources/Support/vectors.S     16-entry EL1 vector table -> common syndrome handler
 Sources/Support/include/      C volatile MMIO shim (mmio_read32/write32, nop, CurrentEL)
 Sources/Application/UART.swift PL011 driver (init/putc/puts/puthex)
@@ -452,6 +459,22 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     `sched ok=1 version=31 active=1 cores=1 core=0 interval_ticks=2700000
     ticks=152 irq_ticks=152 preemptions=152 runqueue=0/8 enqueues=4 dequeues=4
     selftest=1`. A clean 3-cycle live netboot repeat passed.
+
+  - **Runtime V32 SMP secondary-core bring-up.** ✅ hardware-verified.
+    Primary core 0 now releases cores 1-3 by writing `_start` into the Raspberry
+    Pi armstub8 64-bit spin-table slots at `0xe0`, `0xe8`, and `0xf0`, cleaning
+    those slots to memory, and issuing `sev`. Secondary cores re-enter `boot.S`,
+    take private 4 KiB stacks, enable EL1/MMU state, and stay in a C-only
+    heartbeat/accounting loop without touching Swift runtime state. Hardware
+    proof: `net-iterate.sh` passed on real Pi 4, `bootcert` reported `bootcert
+    ok=1 version=32 smp=1 scheduler=1 certificate=1 agent=1 runtime=1
+    ... events_lost=0`, `certificate` returned `certificate ok=1 version=32
+    substrate=1 bootcert=1 smp=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`,
+    and `cores` returned `cores ok=1 version=32 capacity=4 online=4 mask=0xf
+    primary=0 release=0xe selftest=1 core0=1 entries0=1 heartbeat0=1 core1=1
+    entries1=1 heartbeat1=395336 core2=1 entries2=1 heartbeat2=395376 core3=1
+    entries3=1 heartbeat3=396081`. A clean 3-cycle live netboot repeat passed,
+    and paired `cores` samples showed secondary heartbeats advancing.
 
 ## Provenance
 

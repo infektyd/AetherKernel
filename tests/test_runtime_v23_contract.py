@@ -5,7 +5,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V23 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,"
-    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,diag,irqs,timers,memcheck,faults,retained,"
+    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,cores,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,"
     "heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,"
     "channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,"
@@ -79,7 +79,7 @@ def test_runtime_v23_application_shell_and_bootcert_surface_exist() -> None:
 
     for marker in (
         "Runtime V23 adds allocator/pool pressure telemetry.",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 31, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 32, 0, 0)",
         "runtime v23: allocator and pool pressure telemetry",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))",
     ):
@@ -123,8 +123,8 @@ def test_runtime_v23_netboot_gates_and_probes_exist() -> None:
         "^heapfrag ok=1 .*fragmentation_permil=.*pressure_largest_free=",
         "probe shell: poolstats",
         "^poolstats ok=1 .*total_slots=.*failed_allocs=",
-        "^bootcert ok=1 version=31 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
-        "stale pre-V31 SD fallback",
+        "^bootcert ok=1 version=32 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "stale pre-V32 SD fallback",
     ):
         assert marker in net_iterate
 

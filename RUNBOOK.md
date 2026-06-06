@@ -426,20 +426,31 @@ certificate ok=1 version=31 substrate=1 bootcert=1 scheduler=1 agent=1 runtime=1
 sched ok=1 version=31 active=1 cores=1 core=0 interval_ticks=2700000 ticks=... irq_ticks=... preemptions=... runqueue=0/8 enqueues=4 dequeues=4 selftest=1
 ```
 
+Runtime V32 SMP secondary-core bring-up keeps secondaries out of Swift and adds
+a `cores` proof command for the fixed C-owned per-core records:
+
+```text
+bootcert ok=1 version=32 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 taxonomy=1 protocol=1 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+certificate ok=1 version=32 substrate=1 bootcert=1 smp=1 scheduler=1 agent=1 runtime=1 protocol=2 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 swift=6.3.2 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+cores ok=1 version=32 capacity=4 online=4 mask=0xf primary=0 release=0xe selftest=1 core0=1 entries0=1 heartbeat0=1 core1=1 entries1=1 heartbeat1=... core2=1 entries2=1 heartbeat2=... core3=1 entries3=1 heartbeat3=...
+```
+
 `serial-probe.sh` sends one command and waits for a matching response line:
 
 ```bash
 ./serial-probe.sh status '^status uptime_ms=.*timer_mask='
 ./serial-probe.sh protocol '^protocol version=2 .*begin_end=1 .*errors=1'
 ./serial-probe.sh 'req id=25 cmd=status' '^resp id=25 ok=1 cmd=status end'
-./serial-probe.sh bootcert '^bootcert ok=1 version=31 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
+./serial-probe.sh bootcert '^bootcert ok=1 version=32 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
 ./serial-probe.sh runtime '^runtime ok=1 version=28 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5'
 ./serial-probe.sh agent '^agent ok=1 version=29 health=green .*bootcert=1 .*runtime=1 .*protocol=2 .*events_lost=0'
 ./serial-probe.sh 'req id=29 cmd=agent' '^resp id=29 ok=1 cmd=agent end'
-./serial-probe.sh certificate '^certificate ok=1 version=31 substrate=1 .*bootcert=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0'
+./serial-probe.sh certificate '^certificate ok=1 version=32 substrate=1 .*bootcert=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0'
 ./serial-probe.sh 'req id=30 cmd=certificate' '^resp id=30 ok=1 cmd=certificate end'
 ./serial-probe.sh sched '^sched ok=1 version=31 .*active=1 .*cores=1 .*core=0 .*ticks=[1-9][0-9]* .*irq_ticks=[1-9][0-9]* .*preemptions=[1-9][0-9]* .*selftest=1'
 ./serial-probe.sh 'req id=31 cmd=sched' '^resp id=31 ok=1 cmd=sched end'
+./serial-probe.sh cores '^cores ok=1 version=32 .*capacity=4 .*online=4 .*mask=0xf .*primary=0 .*release=0xe .*selftest=1'
+./serial-probe.sh 'req id=32 cmd=cores' '^resp id=32 ok=1 cmd=cores end'
 ./serial-probe.sh canceltest '^canceltest ok=1 .*completed=1'
 ./serial-probe.sh taskcheck '^taskcheck ok=1 .*spawns='
 ./serial-probe.sh channeltest '^channeltest ok=1 .*received=1'
