@@ -7,7 +7,17 @@ Runtime V6 retained panic/fault records were hardware-verified 2026-06-05.
 Runtime V7 memory map and frame allocator invariants were hardware-verified 2026-06-05.
 Runtime V8 allocator/frame guardrails were hardware-verified 2026-06-05.
 Runtime V9 bounded pressure tests, Runtime V10 guard probes, and Runtime V11 boot/soak
-invariants were hardware-verified 2026-06-05.
+invariants were hardware-verified 2026-06-05. Runtime V12 adds a fixed C-owned
+kernel object table and cooperative task registry; hardware verification is pending
+until serial proves `kobjects` and `tasks2`.
+
+> ## Runtime V12 ground truth (pending hardware proof)
+> V12 introduces bounded kernel object and task registries without allocator use in
+> the registry path. The object table names runtime, driver, and task records; the
+> task table tracks object id, state, tick count, and period for the current async
+> demo tasks plus the UART shell task. Shell commands `kobjects` and `tasks2` expose
+> the tables in machine-checkable form. Do not mark V12 hardware-verified until
+> `net-iterate.sh` proves those commands on the Pi.
 
 > ## Runtime V11 ground truth (2026-06-05)
 > V11 adds cheap boot and soak invariants over the V8-V10 memory foundation. Startup and shell

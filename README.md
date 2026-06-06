@@ -3,13 +3,15 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V11 hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V12 in progress; Runtime V11 hardware-verified on real Raspberry Pi 4B**
 > (2026-06-05) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
 > marker, the Runtime V6 retained-record marker, the Runtime V7 memory marker,
-> the Runtime V8 allocator-guard marker, Runtime V9-V11 self-test markers, and UART shell command responses over
-> PL011 serial @ 115200.
+> the Runtime V8 allocator-guard marker, Runtime V9-V11 self-test markers, and
+> UART shell command responses over PL011 serial @ 115200. Runtime V12 adds a
+> fixed kernel object table and cooperative task registry; mark it verified only
+> after serial proves `kobjects` and `tasks2`.
 
 ## What works (verified)
 
@@ -32,6 +34,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V9 bounded memory pressure self-tests | ✅ | hardware run printed `runtime v9: bounded memory pressure self-tests`; `stress` reported `ok=1 heap=1 frames=1 heap_leak=0 frame_leak=0` |
 | Runtime V10 explicit guard probes | ✅ | hardware run printed `runtime v10: explicit guard probes`; `frameprobe` reported `ok=1 last_ok=1`; destructive `heap-invalid-free-test` wrote retained `reason=heap-invalid-free` |
 | Runtime V11 boot/soak invariants | ✅ | hardware run printed `runtime v11: boot and soak invariants`; `bootcheck` and `soak` reported `ok=1`; retained clear/readback survived after fixing 8-byte Swift heap-object dealloc |
+| Runtime V12 kernel object/task registry | 🟡 | implemented path must print `runtime v12: kernel object table + task registry`; hardware proof requires `kobjects` and `tasks2` shell responses |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -89,8 +92,9 @@ Sources/Application/GPIO.swift UART pin mux + historical ACT-LED helpers
 Sources/Application/Exceptions.swift  prints machine-checkable sync fault lines + ESR/ELR/FAR
 Sources/Application/TimerSleep.swift   8-slot CNTP-backed async continuation sleep
 Sources/Application/UARTRX.swift       Runtime V4 IRQ-backed UART RX async byte bridge
-Sources/Application/UARTShell.swift    Runtime V11 line command shell over UART RX
-Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V11 async cadences + shell
+Sources/Application/UARTShell.swift    Runtime V12 line command shell over UART RX
+Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V12 async cadences + shell
+Sources/Support/kernel_registry.c     Runtime V12 fixed object/task registry
 Sources/Support/alloc.c               Runtime V11 fixed heap allocator + guard/pressure checks
 Sources/Support/diagnostics.c         Runtime V6 IRQ/fault/panic counters + retained reset record
 Sources/Support/memory_map.c          Runtime V11 fixed memory map + guarded 4 KiB frame allocator
@@ -183,6 +187,10 @@ macho2bin.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
     floor and later calls `free(object)` directly. The allocator now accepts 8-byte-aligned
     `posix_memalign` payloads while keeping header/footer validation strict. Hardware proof after the fix:
     `retained clear ok=1`, `retained valid=0`, and `bootcheck ok=1 ... retained_valid=0`.
+  - **Runtime V12 — kernel object table and task registry.** 🟡 implemented, hardware proof pending.
+    A fixed C-owned object table names runtime/driver/task records, and a fixed cooperative task
+    registry tracks demo task state, period, object id, and tick counters. The shell adds `kobjects`
+    and `tasks2`; `net-iterate.sh` must prove those commands before this row becomes hardware-verified.
 
 ## Provenance
 

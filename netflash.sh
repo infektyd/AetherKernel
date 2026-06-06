@@ -71,4 +71,4 @@ sync
 verify_copy "$KERNEL_IMG" "$DEST/kernel8.img"
 verify_copy "$CONFIG_TXT" "$DEST/config.txt"
 echo "netflashed kernel8.img + config.txt -> $DEST"
-echo "reset the Pi and watch /tmp/aether-serial.log for TFTP_GET + Runtime V11 shell ready"
+echo "reset the Pi and watch /tmp/aether-serial.log for TFTP_GET + Runtime V12 shell ready"

@@ -13,15 +13,27 @@ nonisolated(unsafe) var runtimeFastCount: UInt64 = 0
 nonisolated(unsafe) var runtimeSlowCount: UInt64 = 0
 nonisolated(unsafe) var runtimeLongCount: UInt64 = 0
 
+let TASK_FAST_ID: UInt32 = 0
+let TASK_SLOW_ID: UInt32 = 1
+let TASK_LONG_ID: UInt32 = 2
+let TASK_SHELL_ID: UInt32 = 3
+
+func registerKernelTask(_ taskID: UInt32, _ name: StaticString, _ periodMS: UInt32) {
+  _ = kernel_task_register(taskID, name.utf8Start, UInt32(name.utf8CodeUnitCount), periodMS)
+}
+
 @main
 struct Application {
   static func fastHeartbeat() async {
     var n: UInt64 = 0
     while true {
+      kernel_task_mark_state(TASK_FAST_ID, KERNEL_TASK_STATE_RUNNING)
       runtimeFastCount = n
+      kernel_task_record_tick(TASK_FAST_ID)
       uartPuts("rtv2 fast ")
       uartPutHex(n)
       uartPuts("\n")
+      kernel_task_mark_state(TASK_FAST_ID, KERNEL_TASK_STATE_WAITING)
       await timerSleepMillis(250)
       n &+= 1
     }
@@ -30,10 +42,13 @@ struct Application {
   static func slowHeartbeat() async {
     var n: UInt64 = 0
     while true {
+      kernel_task_mark_state(TASK_SLOW_ID, KERNEL_TASK_STATE_RUNNING)
       runtimeSlowCount = n
+      kernel_task_record_tick(TASK_SLOW_ID)
       uartPuts("rtv2 slow ")
       uartPutHex(n)
       uartPuts("\n")
+      kernel_task_mark_state(TASK_SLOW_ID, KERNEL_TASK_STATE_WAITING)
       await timerSleepSeconds(1)
       n &+= 1
     }
@@ -42,13 +57,23 @@ struct Application {
   static func longHeartbeat() async {
     var n: UInt64 = 0
     while true {
+      kernel_task_mark_state(TASK_LONG_ID, KERNEL_TASK_STATE_RUNNING)
       runtimeLongCount = n
+      kernel_task_record_tick(TASK_LONG_ID)
       uartPuts("rtv2 long ")
       uartPutHex(n)
       uartPuts("\n")
+      kernel_task_mark_state(TASK_LONG_ID, KERNEL_TASK_STATE_WAITING)
       await timerSleepSeconds(2)
       n &+= 1
     }
+  }
+
+  static func registerRuntimeTasks() {
+    registerKernelTask(TASK_FAST_ID, "fast", 250)
+    registerKernelTask(TASK_SLOW_ID, "slow", 1000)
+    registerKernelTask(TASK_LONG_ID, "long", 2000)
+    registerKernelTask(TASK_SHELL_ID, "shell", 0)
   }
 
   static func main() {
@@ -68,8 +93,11 @@ struct Application {
     // watchdog reset, Runtime V7 makes low-memory ownership explicit, Runtime
     // V8 adds allocator guardrails, Runtime V9 adds bounded pressure tests,
     // Runtime V10 adds explicit guard probes, and Runtime V11 adds boot/soak
-    // invariant checks.
+    // invariant checks. Runtime V12 adds fixed kernel object/task registries.
     kernel_memory_init()
+    kernel_object_registry_init()
+    kernel_task_registry_init()
+    registerRuntimeTasks()
     uart_rx_irq_init()
     gicInitRuntimeIRQs()
     uart_rx_irq_enable()
@@ -82,6 +110,7 @@ struct Application {
     uartPuts("runtime v9: bounded memory pressure self-tests\n")
     uartPuts("runtime v10: explicit guard probes\n")
     uartPuts("runtime v11: boot and soak invariants\n")
+    uartPuts("runtime v12: kernel object table + task registry\n")
     printBootcheck()
     Task { await fastHeartbeat() }
     Task { await slowHeartbeat() }

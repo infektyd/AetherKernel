@@ -157,6 +157,45 @@ unsigned int executor_ready_capacity(void);
 unsigned int executor_delayed_count(void);
 unsigned int executor_delayed_capacity(void);
 
+// Runtime V12 kernel object and cooperative task registries. These are fixed
+// tables: they give the Swift demo runtime names, counters, and object handles
+// without making the Swift heap the source of truth.
+#define KERNEL_OBJECT_KIND_TASK    1U
+#define KERNEL_OBJECT_KIND_DRIVER  2U
+#define KERNEL_OBJECT_KIND_RUNTIME 3U
+
+#define KERNEL_OBJECT_FLAG_ACTIVE  1U
+
+#define KERNEL_TASK_STATE_IDLE     0U
+#define KERNEL_TASK_STATE_RUNNING  1U
+#define KERNEL_TASK_STATE_WAITING  2U
+
+void kernel_object_registry_init(void);
+unsigned int kernel_object_register(unsigned int kind, unsigned int flags, const unsigned char *name, unsigned int name_len);
+unsigned int kernel_object_count(void);
+unsigned int kernel_object_capacity(void);
+unsigned int kernel_object_active_count(void);
+unsigned int kernel_object_kind(unsigned int index);
+unsigned int kernel_object_flags(unsigned int index);
+unsigned int kernel_object_id(unsigned int index);
+unsigned int kernel_object_name_len(unsigned int index);
+unsigned int kernel_object_name_byte(unsigned int index, unsigned int offset);
+int kernel_object_registry_selftest(void);
+
+void kernel_task_registry_init(void);
+unsigned int kernel_task_register(unsigned int task_id, const unsigned char *name, unsigned int name_len, unsigned int period_ms);
+void kernel_task_mark_state(unsigned int task_id, unsigned int state);
+void kernel_task_record_tick(unsigned int task_id);
+unsigned int kernel_task_count(void);
+unsigned int kernel_task_capacity(void);
+unsigned int kernel_task_object_id(unsigned int task_id);
+unsigned int kernel_task_state(unsigned int task_id);
+unsigned long kernel_task_tick_count(unsigned int task_id);
+unsigned int kernel_task_period_ms(unsigned int task_id);
+unsigned int kernel_task_name_len(unsigned int task_id);
+unsigned int kernel_task_name_byte(unsigned int task_id, unsigned int offset);
+int kernel_task_registry_selftest(void);
+
 // Runtime V7 memory ownership. V7 keeps the existing heap fixed and introduces
 // an explicit low-memory map plus a 4 KiB physical frame allocator above it.
 #define KERNEL_PAGE_SIZE   4096UL

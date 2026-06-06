@@ -5,7 +5,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 COMMANDS_V9 = (
-    "commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,"
+    "commands=help,status,heap,queues,tasks,tasks2,kobjects,diag,irqs,timers,memcheck,"
     "faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,"
     "stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"
 )

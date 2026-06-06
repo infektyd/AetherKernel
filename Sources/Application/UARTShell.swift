@@ -7,7 +7,8 @@
 // retained panic/fault records across watchdog reset. V7 adds memory ownership
 // and frame allocator inspection. V8 adds allocator guard/status self-checks.
 // V9 adds bounded heap/frame pressure tests. V10 adds explicit guard probes.
-// V11 adds boot and soak invariant checks for host-side proof loops.
+// V11 adds boot and soak invariant checks for host-side proof loops. V12 adds a
+// fixed kernel object table and cooperative task registry.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -38,11 +39,11 @@ func shellBufferEquals(_ s: StaticString) -> Bool {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printStatus() {
@@ -121,6 +122,124 @@ func printTasks() {
   uartPuts("task long count=")
   uartPutDec(runtimeLongCount)
   uartPuts(" period_ms=2000\n")
+}
+
+func printKernelObjectKind(_ kind: UInt32) {
+  if kind == KERNEL_OBJECT_KIND_TASK {
+    uartPuts("task")
+  } else if kind == KERNEL_OBJECT_KIND_DRIVER {
+    uartPuts("driver")
+  } else if kind == KERNEL_OBJECT_KIND_RUNTIME {
+    uartPuts("runtime")
+  } else {
+    uartPuts("unknown")
+  }
+}
+
+func printKernelObjectName(_ index: UInt32) {
+  var i: UInt32 = 0
+  let n = kernel_object_name_len(index)
+  while i < n {
+    let b = UInt8(kernel_object_name_byte(index, i) & 0xFF)
+    if b >= 0x20 && b < 0x7F {
+      uartPutc(b)
+    } else {
+      uartPutc(0x2E)
+    }
+    i += 1
+  }
+}
+
+func printTaskState(_ state: UInt32) {
+  if state == KERNEL_TASK_STATE_RUNNING {
+    uartPuts("running")
+  } else if state == KERNEL_TASK_STATE_WAITING {
+    uartPuts("waiting")
+  } else {
+    uartPuts("idle")
+  }
+}
+
+func printTaskName(_ task: UInt32) {
+  var i: UInt32 = 0
+  let n = kernel_task_name_len(task)
+  while i < n {
+    let b = UInt8(kernel_task_name_byte(task, i) & 0xFF)
+    if b >= 0x20 && b < 0x7F {
+      uartPutc(b)
+    } else {
+      uartPutc(0x2E)
+    }
+    i += 1
+  }
+}
+
+func printKobjects() {
+  let count = kernel_object_count()
+
+  uartPuts("kobjects count=")
+  uartPutDec(UInt64(count))
+  uartPuts(" capacity=")
+  uartPutDec(UInt64(kernel_object_capacity()))
+  uartPuts(" active=")
+  uartPutDec(UInt64(kernel_object_active_count()))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(kernel_object_registry_selftest()))
+  uartPuts("\n")
+
+  var i: UInt32 = 0
+  while i < count {
+    uartPuts(" object index=")
+    uartPutDec(UInt64(i))
+    uartPuts(" id=")
+    uartPutDec(UInt64(kernel_object_id(i)))
+    uartPuts(" kind=")
+    printKernelObjectKind(kernel_object_kind(i))
+    uartPuts(" flags=")
+    uartPutHexCompact(UInt64(kernel_object_flags(i)))
+    uartPuts(" name=")
+    printKernelObjectName(i)
+    uartPuts("\n")
+    i += 1
+  }
+}
+
+func printTasks2() {
+  let count = kernel_task_count()
+
+  uartPuts("tasks2 count=")
+  uartPutDec(UInt64(count))
+  uartPuts(" capacity=")
+  uartPutDec(UInt64(kernel_task_capacity()))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(kernel_task_registry_selftest()))
+  if kernel_task_object_id(TASK_FAST_ID) != 0 {
+    uartPuts(" task index=")
+    uartPutDec(UInt64(TASK_FAST_ID))
+    uartPuts(" name=")
+    printTaskName(TASK_FAST_ID)
+  }
+  uartPuts("\n")
+
+  var i: UInt32 = 0
+  while i < kernel_task_capacity() {
+    if kernel_task_object_id(i) != 0 {
+      uartPuts(" task index=")
+      uartPutDec(UInt64(i))
+      uartPuts(" object=")
+      uartPutDec(UInt64(kernel_task_object_id(i)))
+      uartPuts(" name=")
+      printTaskName(i)
+      uartPuts(" state=")
+      printTaskState(kernel_task_state(i))
+      uartPuts(" ticks=")
+      uartPutDec(UInt64(kernel_task_tick_count(i)))
+      uartPuts(" period_ms=")
+      uartPutDec(UInt64(kernel_task_period_ms(i)))
+      uartPuts("\n")
+    }
+    i += 1
+  }
 }
 
 func printDiag() {
@@ -583,6 +702,10 @@ func processUartShellLine() {
     printQueues()
   } else if shellBufferEquals("tasks") {
     printTasks()
+  } else if shellBufferEquals("tasks2") {
+    printTasks2()
+  } else if shellBufferEquals("kobjects") {
+    printKobjects()
   } else if shellBufferEquals("diag") {
     printDiag()
   } else if shellBufferEquals("irqs") {
@@ -645,7 +768,10 @@ func processUartShellByte(_ b: UInt8) {
 func uartShellMain() async {
   printShellReady()
   while true {
+    kernel_task_mark_state(TASK_SHELL_ID, KERNEL_TASK_STATE_WAITING)
     let b = await uartReadByteAsync()
+    kernel_task_mark_state(TASK_SHELL_ID, KERNEL_TASK_STATE_RUNNING)
+    kernel_task_record_tick(TASK_SHELL_ID)
     processUartShellByte(b)
   }
 }

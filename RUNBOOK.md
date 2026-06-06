@@ -117,9 +117,9 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V11 marker, `rtv2 fast/slow/long` zero-lines,
+AetherKernel banner plus Runtime V12 marker, `rtv2 fast/slow/long` zero-lines,
 the expanded `shell ready` command list, and shell probes for `status`,
-`bootcheck`, `stress`, and `soak`.
+`bootcheck`, `stress`, `soak`, `kobjects`, and `tasks2`.
 
 The first reset after adding this workflow is still physical if the currently
 running SD image predates the serial reset hook. For that first proof, use the
@@ -140,7 +140,7 @@ reset step is handled by:
 
 The expected serial flow is bootloader `TFTP_GET` lines, then the AetherKernel
 banner, padded `CurrentEL`, repeating `rtv2 fast/slow/long` cadences, the
-Runtime V5 through V11 markers, and:
+Runtime V5 through V12 markers, and:
 
 ```text
 runtime v5: diagnostics shell
@@ -150,7 +150,8 @@ runtime v8: allocator guardrails
 runtime v9: bounded memory pressure self-tests
 runtime v10: explicit guard probes
 runtime v11: boot and soak invariants
-shell ready commands=help,status,heap,queues,tasks,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
+runtime v12: kernel object table + task registry
+shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
 ```
 
 The current kernel image services UART RX through PL011 receive interrupts into
@@ -163,6 +164,8 @@ commands can be sent from the Mac:
 ./serial-command.sh heap
 ./serial-command.sh queues
 ./serial-command.sh tasks
+./serial-command.sh tasks2
+./serial-command.sh kobjects
 ./serial-command.sh diag
 ./serial-command.sh irqs
 ./serial-command.sh timers
@@ -206,11 +209,20 @@ bootcheck ok=1 memmap=1 heap=1 frames=1 retained_valid=0 heap_free=4188320 frame
 soak ok=1 rounds=3 failures=0 heap_peak=62928 frame_peak=16 heap_leak=0 frame_leak=0
 ```
 
+Runtime V12 adds fixed object/task registry inspection:
+
+```text
+kobjects count=7 capacity=16 active=7 selftest=1
+tasks2 count=4 capacity=8 selftest=1 task index=0 name=fast
+```
+
 `serial-probe.sh` sends one command and waits for a matching response line:
 
 ```bash
 ./serial-probe.sh status '^status uptime_ms=.*timer_mask='
 ./serial-probe.sh bootcheck '^bootcheck ok=1 .*frame_free='
+./serial-probe.sh kobjects '^kobjects count=.* active='
+./serial-probe.sh tasks2 '^tasks2 count=.* task index=.*fast'
 ```
 
 `panic-test` and `fault-test` are intentionally destructive: each writes a
