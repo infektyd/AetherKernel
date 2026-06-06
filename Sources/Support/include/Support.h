@@ -183,6 +183,7 @@ unsigned int executor_delayed_capacity(void);
 #define KERNEL_TASK_STATE_IDLE     0U
 #define KERNEL_TASK_STATE_RUNNING  1U
 #define KERNEL_TASK_STATE_WAITING  2U
+#define KERNEL_TASK_ROOT_PARENT    0xffffffffU
 
 void kernel_object_registry_init(void);
 unsigned int kernel_object_register(unsigned int kind, unsigned int flags, const unsigned char *name, unsigned int name_len);
@@ -235,13 +236,21 @@ int kernel_event_log_selftest(void);
 
 void kernel_task_registry_init(void);
 unsigned int kernel_task_register(unsigned int task_id, const unsigned char *name, unsigned int name_len, unsigned int period_ms);
+unsigned int kernel_task_register_with_parent(unsigned int task_id, const unsigned char *name, unsigned int name_len, unsigned int period_ms, unsigned int parent_task_id);
+void kernel_task_set_parent(unsigned int task_id, unsigned int parent_task_id);
 void kernel_task_mark_state(unsigned int task_id, unsigned int state);
 void kernel_task_record_tick(unsigned int task_id);
+void kernel_task_record_spawn(unsigned int task_id, unsigned int parent_task_id);
+void kernel_task_record_completion(unsigned int task_id);
 unsigned int kernel_task_count(void);
 unsigned int kernel_task_capacity(void);
 unsigned int kernel_task_object_id(unsigned int task_id);
+unsigned int kernel_task_parent_id(unsigned int task_id);
+unsigned long kernel_task_handle(unsigned int task_id);
 unsigned int kernel_task_state(unsigned int task_id);
 unsigned long kernel_task_tick_count(unsigned int task_id);
+unsigned long kernel_task_spawn_count(unsigned int task_id);
+unsigned long kernel_task_completion_count(unsigned int task_id);
 unsigned int kernel_task_period_ms(unsigned int task_id);
 unsigned int kernel_task_name_len(unsigned int task_id);
 unsigned int kernel_task_name_byte(unsigned int task_id, unsigned int offset);

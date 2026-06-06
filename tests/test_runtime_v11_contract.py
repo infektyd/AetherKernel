@@ -9,7 +9,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 COMMANDS_V11 = (
     "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,"
     "faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,"
-    "stress,frameprobe,bootcert,canceltest,bootcheck,soak,heap-invalid-free-test,"
+    "stress,frameprobe,bootcert,canceltest,taskcheck,bootcheck,soak,heap-invalid-free-test,"
     "heap-double-free-test,panic-test,fault-test,reboot"
 )
 
@@ -61,7 +61,7 @@ def test_runtime_v11_boot_marker_and_startup_bootcheck_exist() -> None:
     assert "runtime v11: boot and soak invariants" in app
     assert "printBootcheck()" in app
     assert app.index("runtime v11: boot and soak invariants") < app.index("printBootcheck()")
-    assert app.index("printBootcheck()") < app.index("Task { await fastHeartbeat() }")
+    assert app.index("printBootcheck()") < app.index("spawnAetherTask(TASK_FAST_ID")
 
 
 def test_serial_probe_script_sends_command_and_waits_for_expected_line() -> None:

@@ -104,13 +104,13 @@ struct Application {
   }
 
   static func registerRuntimeTasks() {
-    registerKernelTask(TASK_FAST_ID, "fast", 250)
-    registerKernelTask(TASK_SLOW_ID, "slow", 1000)
-    registerKernelTask(TASK_LONG_ID, "long", 2000)
-    registerKernelTask(TASK_SHELL_ID, "shell", 0)
-    registerKernelTask(TASK_MAIL_TX_ID, "mail-tx", 750)
-    registerKernelTask(TASK_MAIL_RX_ID, "mail-rx", 0)
-    registerKernelTask(TASK_CANCEL_ID, "cancel", 0)
+    registerAetherTask(TASK_FAST_ID, "fast", 250, KERNEL_TASK_ROOT_PARENT, 1000)
+    registerAetherTask(TASK_SLOW_ID, "slow", 1000, KERNEL_TASK_ROOT_PARENT, 3000)
+    registerAetherTask(TASK_LONG_ID, "long", 2000, KERNEL_TASK_ROOT_PARENT, 5000)
+    registerAetherTask(TASK_SHELL_ID, "shell", 0, KERNEL_TASK_ROOT_PARENT, 0)
+    registerAetherTask(TASK_MAIL_TX_ID, "mail-tx", 750, KERNEL_TASK_ROOT_PARENT, 3000)
+    registerAetherTask(TASK_MAIL_RX_ID, "mail-rx", 0, KERNEL_TASK_ROOT_PARENT, 3000)
+    registerAetherTask(TASK_CANCEL_ID, "cancel", 0, KERNEL_TASK_ROOT_PARENT, 0)
   }
 
   static func registerRuntimeMailboxes() {
@@ -119,13 +119,6 @@ struct Application {
   }
 
   static func registerRuntimeSupervisor() {
-    _ = kernel_supervisor_register_task(TASK_FAST_ID, 1000, KERNEL_SUPERVISOR_POLICY_OBSERVE)
-    _ = kernel_supervisor_register_task(TASK_SLOW_ID, 3000, KERNEL_SUPERVISOR_POLICY_OBSERVE)
-    _ = kernel_supervisor_register_task(TASK_LONG_ID, 5000, KERNEL_SUPERVISOR_POLICY_OBSERVE)
-    _ = kernel_supervisor_register_task(TASK_MAIL_TX_ID, 3000, KERNEL_SUPERVISOR_POLICY_OBSERVE)
-    _ = kernel_supervisor_register_task(TASK_MAIL_RX_ID, 3000, KERNEL_SUPERVISOR_POLICY_OBSERVE)
-    _ = kernel_supervisor_register_task(TASK_SHELL_ID, 0, KERNEL_SUPERVISOR_POLICY_OBSERVE)
-    _ = kernel_supervisor_register_task(TASK_CANCEL_ID, 0, KERNEL_SUPERVISOR_POLICY_OBSERVE)
     kernel_event_emit(KERNEL_EVENT_KIND_SUPERVISOR, UInt(kernel_supervisor_count()), 0, 0)
   }
 
@@ -190,11 +183,11 @@ struct Application {
     // capability-tagged kernel object handles. Runtime V16 adds a fixed event
     // log for kernel/agent observability. Runtime V17 adds a deterministic boot
     // certificate for host proof loops. Runtime V18 adds fixed cooperative
-    // cancellation tokens.
+    // cancellation tokens. Runtime V19 adds the Aether-owned task spawn wrapper.
     kernel_memory_init()
     kernel_cancel_init()
     kernel_event_log_init()
-    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 18, 0, 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 19, 0, 0)
     kernel_object_registry_init()
     kernel_task_registry_init()
     kernel_supervisor_init()
@@ -221,7 +214,9 @@ struct Application {
     uartPuts("runtime v16: kernel event log ring\n")
     uartPuts("runtime v17: deterministic boot certificate\n")
     uartPuts("runtime v18: cooperative cancellation tokens\n")
+    uartPuts("runtime v19: structured aether task spawn\n")
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(kernel_cancel_selftest()), 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19, UInt(aetherTaskSpawnSelftest()), UInt(kernel_task_count()))
     let handleSelftest = kernel_object_handle_selftest()
     let capSelftest = kernel_object_capcheck_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_HANDLE, UInt(handleSelftest), UInt(capSelftest), 0)
@@ -233,12 +228,13 @@ struct Application {
     uartPutDec(UInt64(capSelftest))
     uartPuts("\n")
     printBootcheck()
-    Task { await fastHeartbeat() }
-    Task { await slowHeartbeat() }
-    Task { await longHeartbeat() }
-    Task { await mailboxProducer() }
-    Task { await mailboxConsumer() }
-    startUartShellTask()
+    spawnAetherTask(TASK_FAST_ID, KERNEL_TASK_ROOT_PARENT) { await fastHeartbeat() }
+    spawnAetherTask(TASK_SLOW_ID, KERNEL_TASK_ROOT_PARENT) { await slowHeartbeat() }
+    spawnAetherTask(TASK_LONG_ID, KERNEL_TASK_ROOT_PARENT) { await longHeartbeat() }
+    spawnAetherTask(TASK_MAIL_TX_ID, KERNEL_TASK_ROOT_PARENT) { await mailboxProducer() }
+    spawnAetherTask(TASK_MAIL_RX_ID, KERNEL_TASK_ROOT_PARENT) { await mailboxConsumer() }
+    uart_shell_buffer_clear()
+    spawnAetherTask(TASK_SHELL_ID, KERNEL_TASK_ROOT_PARENT) { await uartShellMain() }
     irq_enable()
     swift_task_asyncMainDrainQueue()
   }

@@ -25,11 +25,14 @@ typedef struct kernel_object_record {
 typedef struct kernel_task_record {
     unsigned int active;
     unsigned int object_id;
+    unsigned int parent_task_id;
     unsigned int state;
     unsigned int period_ms;
     const unsigned char *name;
     unsigned int name_len;
     unsigned long ticks;
+    unsigned long spawns;
+    unsigned long completions;
 } kernel_task_record;
 
 static kernel_object_record objects[KERNEL_OBJECT_CAPACITY];
@@ -74,11 +77,14 @@ static void clear_tasks_unsafe(void) {
     for (unsigned int i = 0; i < KERNEL_TASK_CAPACITY; i++) {
         tasks[i].active = 0;
         tasks[i].object_id = 0;
+        tasks[i].parent_task_id = KERNEL_TASK_ROOT_PARENT;
         tasks[i].state = KERNEL_TASK_STATE_IDLE;
         tasks[i].period_ms = 0;
         tasks[i].name = 0;
         tasks[i].name_len = 0;
         tasks[i].ticks = 0;
+        tasks[i].spawns = 0;
+        tasks[i].completions = 0;
     }
     task_count_value = 0;
 }
@@ -459,6 +465,18 @@ unsigned int kernel_task_register(unsigned int task_id,
                                   const unsigned char *name,
                                   unsigned int name_len,
                                   unsigned int period_ms) {
+    return kernel_task_register_with_parent(task_id,
+                                            name,
+                                            name_len,
+                                            period_ms,
+                                            KERNEL_TASK_ROOT_PARENT);
+}
+
+unsigned int kernel_task_register_with_parent(unsigned int task_id,
+                                              const unsigned char *name,
+                                              unsigned int name_len,
+                                              unsigned int period_ms,
+                                              unsigned int parent_task_id) {
     if (task_id >= KERNEL_TASK_CAPACITY) {
         kernel_panic("kernel-task-registry-bad-id");
     }
@@ -478,13 +496,24 @@ unsigned int kernel_task_register(unsigned int task_id,
     }
     tasks[task_id].active = 1;
     tasks[task_id].object_id = object_id;
+    tasks[task_id].parent_task_id = parent_task_id;
     tasks[task_id].state = KERNEL_TASK_STATE_IDLE;
     tasks[task_id].period_ms = period_ms;
     tasks[task_id].name = name;
     tasks[task_id].name_len = name_len;
     tasks[task_id].ticks = 0;
+    tasks[task_id].spawns = 0;
+    tasks[task_id].completions = 0;
     irq_restore(flags);
     return object_id;
+}
+
+void kernel_task_set_parent(unsigned int task_id, unsigned int parent_task_id) {
+    unsigned long flags = irq_save();
+    if (task_id < KERNEL_TASK_CAPACITY && tasks[task_id].active) {
+        tasks[task_id].parent_task_id = parent_task_id;
+    }
+    irq_restore(flags);
 }
 
 void kernel_task_mark_state(unsigned int task_id, unsigned int state) {
@@ -499,6 +528,25 @@ void kernel_task_record_tick(unsigned int task_id) {
     unsigned long flags = irq_save();
     if (task_id < KERNEL_TASK_CAPACITY && tasks[task_id].active) {
         tasks[task_id].ticks++;
+    }
+    irq_restore(flags);
+}
+
+void kernel_task_record_spawn(unsigned int task_id, unsigned int parent_task_id) {
+    unsigned long flags = irq_save();
+    if (task_id < KERNEL_TASK_CAPACITY && tasks[task_id].active) {
+        tasks[task_id].parent_task_id = parent_task_id;
+        tasks[task_id].spawns++;
+        tasks[task_id].state = KERNEL_TASK_STATE_WAITING;
+    }
+    irq_restore(flags);
+}
+
+void kernel_task_record_completion(unsigned int task_id) {
+    unsigned long flags = irq_save();
+    if (task_id < KERNEL_TASK_CAPACITY && tasks[task_id].active) {
+        tasks[task_id].completions++;
+        tasks[task_id].state = KERNEL_TASK_STATE_IDLE;
     }
     irq_restore(flags);
 }
@@ -529,6 +577,28 @@ unsigned int kernel_task_object_id(unsigned int task_id) {
     return value;
 }
 
+unsigned int kernel_task_parent_id(unsigned int task_id) {
+    unsigned long flags = irq_save();
+    kernel_task_record *record = task_at(task_id);
+    unsigned int value = record ? record->parent_task_id : KERNEL_TASK_ROOT_PARENT;
+    irq_restore(flags);
+    return value;
+}
+
+unsigned long kernel_task_handle(unsigned int task_id) {
+    unsigned long flags = irq_save();
+    kernel_task_record *record = task_at(task_id);
+    unsigned int object_id = record ? record->object_id : 0;
+    irq_restore(flags);
+
+    if (object_id == 0) {
+        return KERNEL_OBJECT_HANDLE_INVALID;
+    }
+    return kernel_object_make_handle(object_id - 1U,
+                                     KERNEL_OBJECT_CAP_INSPECT |
+                                     KERNEL_OBJECT_CAP_SUPERVISE);
+}
+
 unsigned int kernel_task_state(unsigned int task_id) {
     unsigned long flags = irq_save();
     kernel_task_record *record = task_at(task_id);
@@ -541,6 +611,22 @@ unsigned long kernel_task_tick_count(unsigned int task_id) {
     unsigned long flags = irq_save();
     kernel_task_record *record = task_at(task_id);
     unsigned long value = record ? record->ticks : 0;
+    irq_restore(flags);
+    return value;
+}
+
+unsigned long kernel_task_spawn_count(unsigned int task_id) {
+    unsigned long flags = irq_save();
+    kernel_task_record *record = task_at(task_id);
+    unsigned long value = record ? record->spawns : 0;
+    irq_restore(flags);
+    return value;
+}
+
+unsigned long kernel_task_completion_count(unsigned int task_id) {
+    unsigned long flags = irq_save();
+    kernel_task_record *record = task_at(task_id);
+    unsigned long value = record ? record->completions : 0;
     irq_restore(flags);
     return value;
 }
@@ -581,7 +667,9 @@ int kernel_task_registry_selftest(void) {
     }
     for (unsigned int i = 0; i < KERNEL_TASK_CAPACITY; i++) {
         if (tasks[i].active &&
-            (tasks[i].object_id == 0 || tasks[i].name_len == 0)) {
+            (tasks[i].object_id == 0 ||
+             kernel_task_handle(i) == KERNEL_OBJECT_HANDLE_INVALID ||
+             tasks[i].name_len == 0)) {
             return 0;
         }
     }

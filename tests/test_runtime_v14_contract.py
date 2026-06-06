@@ -7,7 +7,7 @@ COMMANDS_V14 = (
     "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,"
     "supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,"
-    "bootcert,canceltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,"
+    "bootcert,canceltest,taskcheck,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,"
     "fault-test,reboot"
 )
 
@@ -61,11 +61,11 @@ def test_runtime_v14_demo_tasks_send_supervisor_heartbeats() -> None:
     app = read_repo("Sources/Application/Application.swift")
 
     for marker in (
-        "kernel_supervisor_register_task(TASK_FAST_ID",
-        "kernel_supervisor_register_task(TASK_SLOW_ID",
-        "kernel_supervisor_register_task(TASK_LONG_ID",
-        "kernel_supervisor_register_task(TASK_MAIL_TX_ID",
-        "kernel_supervisor_register_task(TASK_MAIL_RX_ID",
+        "registerAetherTask(TASK_FAST_ID",
+        "registerAetherTask(TASK_SLOW_ID",
+        "registerAetherTask(TASK_LONG_ID",
+        "registerAetherTask(TASK_MAIL_TX_ID",
+        "registerAetherTask(TASK_MAIL_RX_ID",
         "kernel_supervisor_heartbeat(TASK_FAST_ID)",
         "kernel_supervisor_heartbeat(TASK_SLOW_ID)",
         "kernel_supervisor_heartbeat(TASK_LONG_ID)",

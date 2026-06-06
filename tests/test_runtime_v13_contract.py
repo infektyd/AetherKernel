@@ -7,7 +7,7 @@ COMMANDS_V13 = (
     "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,"
     "supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,"
-    "bootcert,canceltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,"
+    "bootcert,canceltest,taskcheck,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,"
     "fault-test,reboot"
 )
 
@@ -76,8 +76,8 @@ def test_runtime_v13_demo_mailbox_tasks_exist() -> None:
         "await mailboxReceiveU64(MAILBOX_DEMO_ID)",
         "rtv13 mail tx ",
         "rtv13 mail rx ",
-        "Task { await mailboxProducer() }",
-        "Task { await mailboxConsumer() }",
+        "spawnAetherTask(TASK_MAIL_TX_ID",
+        "spawnAetherTask(TASK_MAIL_RX_ID",
     ):
         assert marker in app
 

@@ -7,7 +7,7 @@ COMMANDS_V18 = (
     "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,"
     "supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,"
-    "bootcert,canceltest,bootcheck,soak,heap-invalid-free-test,"
+    "bootcert,canceltest,taskcheck,bootcheck,soak,heap-invalid-free-test,"
     "heap-double-free-test,panic-test,fault-test,reboot"
 )
 
@@ -77,7 +77,7 @@ def test_runtime_v18_boot_marker_and_cancel_init_are_wired() -> None:
 
     assert "kernel_cancel_init()" in app
     assert "runtime v18: cooperative cancellation tokens" in app
-    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 18, 0, 0)" in app
+    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 19, 0, 0)" in app
     assert "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18" in app
 
 
@@ -107,9 +107,9 @@ def test_runtime_v18_bootcert_includes_cancellation_health() -> None:
     net_iterate = read_repo("net-iterate.sh")
 
     assert "func printBootcert()" in shell
-    assert " version=18" in shell
+    assert " version=19" in shell
     assert " cancellations=" in shell
-    assert "^bootcert ok=1 version=18 .*cancellations=1 .*events_lost=0" in net_iterate
+    assert "^bootcert ok=1 version=19 .*taskspawns=1 .*cancellations=1 .*events_lost=0" in net_iterate
 
 
 def test_runtime_v18_netboot_gates_and_shell_probe_exist() -> None:
@@ -123,6 +123,6 @@ def test_runtime_v18_netboot_gates_and_shell_probe_exist() -> None:
     for marker in (
         "probe shell: canceltest",
         "^canceltest ok=1 .*completed=1",
-        "stale pre-V18 SD fallback",
+        "stale pre-V19 SD fallback",
     ):
         assert marker in net_iterate

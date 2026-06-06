@@ -15,7 +15,24 @@ Runtime V15 adds capability-tagged kernel object handles and was hardware-verifi
 2026-06-05. Runtime V16 adds a fixed event log ring and was hardware-verified
 2026-06-05. Runtime V17 adds a deterministic boot certificate and was
 hardware-verified 2026-06-05. Runtime V18 adds cooperative cancellation tokens
-and was hardware-verified 2026-06-05.
+and was hardware-verified 2026-06-05. Runtime V19 adds structured Aether task
+spawn metadata and was hardware-verified 2026-06-05.
+
+> ## Runtime V19 ground truth (2026-06-05)
+> V19 adds `AetherTask.swift`, a small Swift-owned registration/spawn boundary
+> for Embedded Swift tasks. The fixed C task registry now stores parent task ID,
+> task handle, spawn count, and completion count; `tasks2` prints those fields
+> and `taskcheck` summarizes the live task substrate. The wrapper signature is
+> `@escaping @Sendable () async -> Void`; Swift 6.3.2 rejected the first
+> non-Sendable closure shape under strict concurrency, which is exactly the kind
+> of guardrail this kernel is trying to preserve from the metal up. Hardware
+> proof: a 3-cycle `net-iterate.sh` loop passed. Cycle 1 passed on attempt 2
+> after stale SD fallback; cycles 2 and 3 passed on attempt 1. Proof lines
+> included `runtime v19: structured aether task spawn`, `bootcert ok=1
+> version=19 ... taskspawns=1 cancellations=1 ... events_lost=0`, `taskcheck
+> ok=1 count=7 capacity=8 spawns=6 completions=0`, `supervisor count=7
+> capacity=8 unhealthy=0`, and `events count=16 capacity=64 lost=0 sequence=16
+> selftest=1`.
 
 > ## Runtime V18 ground truth (2026-06-05)
 > V18 adds a fixed 16-slot C-owned cooperative cancellation token table. Tokens
