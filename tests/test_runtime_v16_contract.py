@@ -5,7 +5,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V16 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,"
-    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,"
+    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,"
     "bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,"
     "fault-test,reboot"
@@ -109,6 +109,6 @@ def test_runtime_v16_netboot_gates_and_shell_probe_exist() -> None:
     for marker in (
         "probe shell: events",
         "^events count=.* lost=0 .*selftest=1",
-        "stale pre-V39 SD fallback",
+        "stale pre-V40 SD fallback",
     ):
         assert marker in net_iterate

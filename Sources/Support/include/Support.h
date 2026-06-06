@@ -210,6 +210,7 @@ unsigned long kernel_spinlock_acquisition_count(const kernel_spinlock_t *lock);
 unsigned long kernel_spinlock_contention_count(const kernel_spinlock_t *lock);
 int kernel_spinlock_selftest(void);
 
+// Runtime V40 scheduler backpressure protocol.
 // Runtime V39 secondary scheduler handoff protocol.
 // Runtime V38 secondary scheduler wake protocol.
 // Runtime V37 timer-fed secondary C scheduler jobs.
@@ -231,12 +232,15 @@ int kernel_spinlock_selftest(void);
 // signals when timer-fed secondary work is enqueued.
 // V39 records cross-core scheduler handoff issues and completion
 // acknowledgements for those C-only secondary jobs.
-#define KERNEL_SCHEDULER_VERSION 39U
+// V40 proves bounded per-core queue backpressure: full queues reject overflow,
+// record high-water/overflow telemetry, and drain back to zero.
+#define KERNEL_SCHEDULER_VERSION 40U
 #define KERNEL_SCHEDULER_CORE_CAPACITY 4U
 #define KERNEL_SCHEDULER_RUNQUEUE_CAPACITY 8U
 #define KERNEL_SCHEDULER_DISPATCH_TOKEN_BASE 0x3400U
 #define KERNEL_SCHEDULER_WORKER_TOKEN_BASE 0x3500U
 #define KERNEL_SCHEDULER_JOB_TOKEN_BASE 0x3700U
+#define KERNEL_SCHEDULER_PRESSURE_TOKEN_BASE 0x4000U
 #define KERNEL_SCHEDULER_JOB_OP_CHECKSUM 1U
 
 void kernel_scheduler_init(void);
@@ -262,6 +266,8 @@ int kernel_scheduler_enqueue(unsigned int core_id, unsigned int token);
 int kernel_scheduler_dequeue(unsigned int core_id, unsigned int *out_token);
 unsigned int kernel_scheduler_runqueue_head(unsigned int core_id);
 unsigned int kernel_scheduler_runqueue_tail(unsigned int core_id);
+unsigned long kernel_scheduler_runqueue_high_water(unsigned int core_id);
+unsigned long kernel_scheduler_runqueue_overflow_count(unsigned int core_id);
 void kernel_scheduler_secondary_worker_tick(unsigned int core_id);
 unsigned long kernel_scheduler_dispatch_count(unsigned int core_id);
 unsigned long kernel_scheduler_route_count(unsigned int core_id);
@@ -279,6 +285,8 @@ unsigned long kernel_scheduler_total_worker_drain_count(void);
 unsigned long kernel_scheduler_total_worker_idle_count(void);
 unsigned long kernel_scheduler_total_worker_feed_count(void);
 unsigned long kernel_scheduler_total_worker_feed_drop_count(void);
+unsigned long kernel_scheduler_runqueue_overflow_total(void);
+unsigned long kernel_scheduler_runqueue_high_water_max(void);
 unsigned long kernel_scheduler_secondary_worker_total(void);
 unsigned long kernel_scheduler_secondary_worker_min(void);
 unsigned long kernel_scheduler_secondary_worker_max(void);
@@ -329,6 +337,7 @@ int kernel_scheduler_timer_worker_feed_selftest(void);
 int kernel_scheduler_secondary_job_selftest(void);
 int kernel_scheduler_secondary_wake_selftest(void);
 int kernel_scheduler_secondary_handoff_selftest(void);
+int kernel_scheduler_backpressure_selftest(void);
 
 // Runtime V32 SMP secondary-core bring-up substrate. Secondary cores enter a
 // fixed C-only accounting loop with private stacks; they do not touch Swift

@@ -1,6 +1,7 @@
 #include "Support.h"
 
 //===----------------------------------------------------------------------===//
+// Runtime V40 scheduler backpressure protocol.
 // Runtime V39 secondary scheduler handoff protocol.
 // Runtime V38 secondary scheduler wake protocol.
 // Runtime V37 timer-fed secondary C scheduler jobs.
@@ -15,7 +16,9 @@
 // own queues. V38 wakes those parked secondary workers with SEV when timer-fed
 // work is available, while the workers park with WFE between scheduler ticks.
 // V39 records bounded issue/completion handoff acknowledgements for those
-// C-only secondary jobs.
+// C-only secondary jobs. V40 proves the bounded per-core queues fail closed:
+// saturating a queue records high-water/overflow telemetry, rejects overfill,
+// and drains back to zero without corrupting queued tokens.
 //===----------------------------------------------------------------------===//
 
 typedef struct scheduler_core {
@@ -35,6 +38,8 @@ typedef struct scheduler_core {
     unsigned long job_checksum;
     unsigned long handoff_issues;
     unsigned long handoff_completions;
+    unsigned long runqueue_high_water;
+    unsigned long runqueue_overflows;
     unsigned long enqueues;
     unsigned long dequeues;
     unsigned int queue[KERNEL_SCHEDULER_RUNQUEUE_CAPACITY];
@@ -85,6 +90,8 @@ static void clear_core_unsafe(scheduler_core *core) {
     core->job_checksum = 0;
     core->handoff_issues = 0;
     core->handoff_completions = 0;
+    core->runqueue_high_water = 0;
+    core->runqueue_overflows = 0;
     core->enqueues = 0;
     core->dequeues = 0;
     core->head = 0;
@@ -97,11 +104,15 @@ static void clear_core_unsafe(scheduler_core *core) {
 
 static int queue_push_unsafe(scheduler_core *core, unsigned int token) {
     if (core->count >= KERNEL_SCHEDULER_RUNQUEUE_CAPACITY) {
+        core->runqueue_overflows++;
         return 0;
     }
     core->queue[core->tail] = token;
     core->tail = (core->tail + 1U) % KERNEL_SCHEDULER_RUNQUEUE_CAPACITY;
     core->count++;
+    if (core->count > core->runqueue_high_water) {
+        core->runqueue_high_water = core->count;
+    }
     core->enqueues++;
     return 1;
 }
@@ -555,6 +566,28 @@ unsigned int kernel_scheduler_runqueue_tail(unsigned int core_id) {
     return tail;
 }
 
+unsigned long kernel_scheduler_runqueue_high_water(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned long value = cores[core_id].runqueue_high_water;
+    unlock_core(core_id, flags);
+    return value;
+}
+
+unsigned long kernel_scheduler_runqueue_overflow_count(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned long value = cores[core_id].runqueue_overflows;
+    unlock_core(core_id, flags);
+    return value;
+}
+
 void kernel_scheduler_secondary_worker_tick(unsigned int core_id) {
     if (!secondary_workers_enabled || !valid_core(core_id) || core_id == 0) {
         return;
@@ -747,6 +780,25 @@ unsigned long kernel_scheduler_total_worker_feed_drop_count(void) {
         total += kernel_scheduler_worker_feed_drop_count(i);
     }
     return total;
+}
+
+unsigned long kernel_scheduler_runqueue_overflow_total(void) {
+    unsigned long total = 0;
+    for (unsigned int i = 0; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        total += kernel_scheduler_runqueue_overflow_count(i);
+    }
+    return total;
+}
+
+unsigned long kernel_scheduler_runqueue_high_water_max(void) {
+    unsigned long max = 0;
+    for (unsigned int i = 0; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        unsigned long high = kernel_scheduler_runqueue_high_water(i);
+        if (high > max) {
+            max = high;
+        }
+    }
+    return max;
 }
 
 unsigned long kernel_scheduler_secondary_worker_total(void) {
@@ -1152,7 +1204,7 @@ int kernel_scheduler_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 39U) {
+    if (KERNEL_SCHEDULER_VERSION != 40U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY) {
@@ -1172,7 +1224,7 @@ int kernel_scheduler_runqueue_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 39U) {
+    if (KERNEL_SCHEDULER_VERSION != 40U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != 4U) {
@@ -1219,11 +1271,90 @@ int kernel_scheduler_runqueue_selftest(void) {
     return ok;
 }
 
+int kernel_scheduler_backpressure_selftest(void) {
+    if (!initialized) {
+        kernel_scheduler_init();
+    }
+    if (KERNEL_SCHEDULER_VERSION != 40U) {
+        return 0;
+    }
+    if (kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY ||
+        kernel_scheduler_runqueue_capacity() != KERNEL_SCHEDULER_RUNQUEUE_CAPACITY) {
+        return 0;
+    }
+
+    unsigned int saved_feed = kernel_scheduler_timer_worker_feed_enabled();
+    set_timer_worker_feed_enabled(0);
+    wait_for_secondary_queues_empty();
+
+    int ok = 1;
+    for (unsigned int core_id = 0; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+        unsigned long overflow_before = kernel_scheduler_runqueue_overflow_count(core_id);
+        if (kernel_scheduler_runqueue_count(core_id) != 0) {
+            ok = 0;
+        }
+
+        for (unsigned int slot = 0; slot < KERNEL_SCHEDULER_RUNQUEUE_CAPACITY; slot++) {
+            unsigned int token = KERNEL_SCHEDULER_PRESSURE_TOKEN_BASE |
+                ((core_id & 0x0fU) << 4) |
+                (slot & 0x0fU);
+            if (!kernel_scheduler_enqueue(core_id, token)) {
+                ok = 0;
+                break;
+            }
+        }
+
+        if (kernel_scheduler_runqueue_count(core_id) != KERNEL_SCHEDULER_RUNQUEUE_CAPACITY ||
+            kernel_scheduler_runqueue_high_water(core_id) < KERNEL_SCHEDULER_RUNQUEUE_CAPACITY) {
+            ok = 0;
+        }
+
+        unsigned int overflow_token = KERNEL_SCHEDULER_PRESSURE_TOKEN_BASE |
+            ((core_id & 0x0fU) << 4) |
+            KERNEL_SCHEDULER_RUNQUEUE_CAPACITY;
+        if (kernel_scheduler_enqueue(core_id, overflow_token)) {
+            ok = 0;
+        }
+        if (kernel_scheduler_runqueue_overflow_count(core_id) <= overflow_before) {
+            ok = 0;
+        }
+
+        for (unsigned int slot = 0; slot < KERNEL_SCHEDULER_RUNQUEUE_CAPACITY; slot++) {
+            unsigned int expected = KERNEL_SCHEDULER_PRESSURE_TOKEN_BASE |
+                ((core_id & 0x0fU) << 4) |
+                (slot & 0x0fU);
+            unsigned int value = 0;
+            if (!kernel_scheduler_dequeue(core_id, &value) || value != expected) {
+                ok = 0;
+                break;
+            }
+        }
+
+        for (unsigned int cleanup = 0;
+             cleanup < KERNEL_SCHEDULER_RUNQUEUE_CAPACITY &&
+             kernel_scheduler_runqueue_count(core_id) != 0;
+             cleanup++) {
+            unsigned int ignored = 0;
+            (void)kernel_scheduler_dequeue(core_id, &ignored);
+        }
+        if (kernel_scheduler_runqueue_count(core_id) != 0) {
+            ok = 0;
+        }
+    }
+
+    if (saved_feed) {
+        set_timer_worker_feed_enabled(1);
+    }
+    return ok &&
+        kernel_scheduler_runqueue_high_water_max() >= KERNEL_SCHEDULER_RUNQUEUE_CAPACITY &&
+        kernel_scheduler_runqueue_overflow_total() >= KERNEL_SCHEDULER_CORE_CAPACITY ? 1 : 0;
+}
+
 int kernel_scheduler_smp_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 39U) {
+    if (KERNEL_SCHEDULER_VERSION != 40U) {
         return 0;
     }
     if (!kernel_scheduler_active() || !kernel_scheduler_smp_dispatch_enabled()) {
@@ -1253,7 +1384,7 @@ int kernel_scheduler_secondary_worker_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 39U) {
+    if (KERNEL_SCHEDULER_VERSION != 40U) {
         return 0;
     }
     if (!kernel_scheduler_active() || !kernel_scheduler_secondary_workers_enabled()) {
@@ -1303,7 +1434,7 @@ int kernel_scheduler_timer_worker_feed_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 39U) {
+    if (KERNEL_SCHEDULER_VERSION != 40U) {
         return 0;
     }
     if (!kernel_scheduler_active() ||
@@ -1357,7 +1488,7 @@ int kernel_scheduler_secondary_job_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 39U) {
+    if (KERNEL_SCHEDULER_VERSION != 40U) {
         return 0;
     }
     if (!kernel_scheduler_active() ||
@@ -1408,7 +1539,7 @@ int kernel_scheduler_secondary_wake_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 39U) {
+    if (KERNEL_SCHEDULER_VERSION != 40U) {
         return 0;
     }
     if (!kernel_scheduler_active() ||
@@ -1466,7 +1597,7 @@ int kernel_scheduler_secondary_handoff_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 39U) {
+    if (KERNEL_SCHEDULER_VERSION != 40U) {
         return 0;
     }
     if (!kernel_scheduler_active() ||

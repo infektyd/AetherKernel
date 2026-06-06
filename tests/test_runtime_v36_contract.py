@@ -6,7 +6,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V36 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
-    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,cores,locks,runqueues,diag,irqs,timers,"
+    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,cores,locks,runqueues,diag,irqs,timers,"
     "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,"
     "heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,"
     "canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
@@ -24,7 +24,7 @@ def test_runtime_v36_timer_worker_feed_contract_exists() -> None:
 
     for marker in (
         "Runtime V36 timer-fed secondary scheduler workers",
-        "#define KERNEL_SCHEDULER_VERSION 39U",
+        "#define KERNEL_SCHEDULER_VERSION 40U",
         "void kernel_scheduler_enable_timer_worker_feed(void);",
         "unsigned int kernel_scheduler_timer_worker_feed_enabled(void);",
         "unsigned long kernel_scheduler_worker_feed_count(unsigned int core_id);",
@@ -57,7 +57,7 @@ def test_runtime_v36_application_boot_marker_and_selftest_exist() -> None:
 
     for marker in (
         "Runtime V36 adds timer-fed secondary scheduler workers.",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 39, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 40, 0, 0)",
         "kernel_scheduler_enable_timer_worker_feed()",
         "runtime v36: timer-fed secondary scheduler workers",
         "let runtimeV36 = kernel_scheduler_timer_worker_feed_selftest()",
@@ -118,9 +118,9 @@ def test_runtime_v36_netboot_gates_and_sched4_probe_exist() -> None:
         "^sched4 ok=1 version=36 .*worker_feed=1 .*secondary_workers=1 .*feeds=[1-9][0-9]* .*drains=[1-9][0-9]* .*drops=[0-9][0-9]* .*gap=[0-9][0-9]* .*feed_imbalance=[0-9][0-9]* .*drain_imbalance=[0-9][0-9]* .*core0_feed=0 .*core1_feed=[1-9][0-9]* .*core2_feed=[1-9][0-9]* .*core3_feed=[1-9][0-9]* .*core0_drain=0 .*core1_drain=[1-9][0-9]* .*core2_drain=[1-9][0-9]* .*core3_drain=[1-9][0-9]* .*selftest=1",
         "probe shell: req-sched4",
         "^resp id=37 ok=1 cmd=sched4 end",
-        "^bootcert ok=1 version=39 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
-        "^certificate ok=1 version=39 substrate=1 .*bootcert=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
-        "stale pre-V39 SD fallback",
+        "^bootcert ok=1 version=40 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "^certificate ok=1 version=40 substrate=1 .*bootcert=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
+        "stale pre-V40 SD fallback",
     ):
         assert marker in net_iterate
 

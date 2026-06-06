@@ -6,7 +6,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V33 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
-    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,cores,locks,runqueues,diag,irqs,timers,"
+    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,cores,locks,runqueues,diag,irqs,timers,"
     "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,"
     "heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,"
     "canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
@@ -67,7 +67,7 @@ def test_runtime_v33_scheduler_per_core_runqueue_contract_exists() -> None:
 
     for marker in (
         "Runtime V34 timer-driven SMP scheduler dispatch",
-        "#define KERNEL_SCHEDULER_VERSION 39U",
+        "#define KERNEL_SCHEDULER_VERSION 40U",
         "#define KERNEL_SCHEDULER_CORE_CAPACITY 4U",
         "#define KERNEL_SCHEDULER_RUNQUEUE_CAPACITY 8U",
         "int kernel_scheduler_enqueue(unsigned int core_id, unsigned int token);",
@@ -97,7 +97,7 @@ def test_runtime_v33_application_boot_marker_and_selftest_exist() -> None:
 
     for marker in (
         "Runtime V33 adds atomics, spinlocks, and per-core run queues.",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 39, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 40, 0, 0)",
         "runtime v33: atomics spinlocks per-core run queues",
         "let runtimeV33 = kernel_atomic_selftest() != 0 && kernel_spinlock_selftest() != 0 && kernel_scheduler_runqueue_selftest() != 0 ? 1 : 0",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 33, UInt(runtimeV33), UInt(kernel_scheduler_core_count()))",
@@ -166,9 +166,9 @@ def test_runtime_v33_netboot_gates_and_probes_exist() -> None:
         "^resp id=33 ok=1 cmd=locks end",
         "probe shell: req-runqueues",
         "^resp id=34 ok=1 cmd=runqueues end",
-        "^bootcert ok=1 version=39 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
-        "^certificate ok=1 version=39 substrate=1 .*bootcert=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
-        "stale pre-V39 SD fallback",
+        "^bootcert ok=1 version=40 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "^certificate ok=1 version=40 substrate=1 .*bootcert=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
+        "stale pre-V40 SD fallback",
     ):
         assert marker in net_iterate
 

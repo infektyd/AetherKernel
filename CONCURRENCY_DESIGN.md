@@ -39,7 +39,27 @@ V36 timer-fed secondary scheduler workers were hardware-verified 2026-06-06.
 Runtime V37 timer-fed secondary C scheduler jobs was hardware-verified
 2026-06-06. Runtime V38 secondary scheduler wake protocol was
 hardware-verified 2026-06-06. Runtime V39 secondary scheduler handoff protocol
+was hardware-verified 2026-06-06. Runtime V40 scheduler backpressure protocol
 was hardware-verified 2026-06-06.
+
+> ## Runtime V40 scheduler backpressure protocol ground truth (2026-06-06)
+> V40 keeps Swift execution on core 0, keeps secondary cores in C-only loops,
+> and proves the SMP scheduler's fixed per-core queues fail closed under
+> saturation. The selftest fills each bounded runqueue to capacity, verifies one
+> extra enqueue is rejected and recorded as overflow, then drains every queue
+> back to zero. The live Pi proof used `kernel8.img` sha256
+> `46bc501a6513cf8a2187203c216be0dd6e54cf49223db3547f4d01578ca78372` and
+> passed a normal `net-iterate.sh` run plus a clean 3-cycle repeat. Proof lines
+> included `runtime v40: scheduler backpressure protocol`, `bootcert ok=1 version=40
+> backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1
+> secondary_workers=1 ... events_lost=0`, `certificate ok=1 version=40
+> substrate=1 bootcert=1 backpressure=1 handoff=1 wake=1 job_exec=1
+> worker_feed=1 secondary_workers=1 ... events_lost=0`, and `sched8 ok=1 version=40
+> backpressure=1 handoff=1 wake=1 high_water=8 overflows=16 total=0
+> capacity=8 core0_high=8 core1_high=8 core2_high=8 core3_high=8
+> core0_overflow=4 core1_overflow=4 core2_overflow=4 core3_overflow=4
+> selftest=1`. The repeat kept `resp id=41 ok=1 cmd=sched8 end`,
+> `sched7 ok=1`, `runqueues total=0`, and `events_lost=0`.
 
 > ## Runtime V39 secondary scheduler handoff protocol ground truth (2026-06-06)
 > V39 keeps Swift execution on core 0 and records bounded cross-core scheduler

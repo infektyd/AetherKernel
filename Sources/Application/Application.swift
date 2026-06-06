@@ -196,12 +196,13 @@ struct Application {
     // Runtime V37 adds timer-fed secondary C scheduler jobs.
     // Runtime V38 adds SEV/WFE secondary scheduler wakeups.
     // Runtime V39 adds secondary scheduler handoff acknowledgements.
+    // Runtime V40 adds bounded scheduler backpressure proof.
     kernel_memory_init()
     kernel_pool_init()
     kernel_cancel_init()
     kernel_event_log_init()
     kernel_scheduler_init()
-    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 39, 0, 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 40, 0, 0)
     kernel_object_registry_init()
     kernel_driver_registry_init()
     kernel_task_registry_init()
@@ -256,6 +257,7 @@ struct Application {
     uartPuts("runtime v37: timer-fed secondary C scheduler jobs\n")
     uartPuts("runtime v38: secondary scheduler wake protocol\n")
     uartPuts("runtime v39: secondary scheduler handoff protocol\n")
+    uartPuts("runtime v40: scheduler backpressure protocol\n")
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(kernel_cancel_selftest()), 0)
     kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19, UInt(aetherTaskSpawnSelftest()), UInt(kernel_task_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20, UInt(aetherChannelSelftest()), UInt(kernel_mailbox_count()))
@@ -284,6 +286,8 @@ struct Application {
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 38, UInt(runtimeV38), UInt(kernel_scheduler_secondary_wake_signal_total()))
     let runtimeV39 = kernel_scheduler_secondary_handoff_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 39, UInt(runtimeV39), UInt(kernel_scheduler_secondary_handoff_issue_total()))
+    let runtimeV40 = kernel_scheduler_backpressure_selftest()
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 40, UInt(runtimeV40), UInt(kernel_scheduler_runqueue_overflow_total()))
     let handleSelftest = kernel_object_handle_selftest()
     let capSelftest = kernel_object_capcheck_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_HANDLE, UInt(handleSelftest), UInt(capSelftest), 0)

@@ -8,7 +8,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V28 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
-    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,cores,locks,runqueues,diag,irqs,timers,"
+    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,cores,locks,runqueues,diag,irqs,timers,"
     "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,"
     "heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,"
     "canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
@@ -80,7 +80,7 @@ def test_runtime_v28_application_shell_and_bootcert_surface_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
 
     for marker in (
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 39, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 40, 0, 0)",
         "runtime v28: swift runtime dependency audit",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 28,",
     ):
@@ -151,8 +151,8 @@ def test_runtime_v28_netboot_gates_exist() -> None:
     for marker in (
         "probe shell: runtime",
         "^runtime ok=1 version=28 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5",
-        "^bootcert ok=1 version=39 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
-        "stale pre-V39 SD fallback",
+        "^bootcert ok=1 version=40 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "stale pre-V40 SD fallback",
     ):
         assert marker in net_iterate
 
