@@ -36,6 +36,26 @@ per-core run queues were hardware-verified 2026-06-06. Runtime V34 timer-driven
 SMP scheduler dispatch was hardware-verified 2026-06-06. Runtime V35
 secondary-owned scheduler workers were hardware-verified 2026-06-06. Runtime
 V36 timer-fed secondary scheduler workers were hardware-verified 2026-06-06.
+Runtime V37 timer-fed secondary C scheduler jobs was hardware-verified
+2026-06-06.
+
+> ## Runtime V37 timer-fed secondary C scheduler jobs ground truth (2026-06-06)
+> V37 keeps Swift task execution on core 0 and extends V36's bounded timer-fed
+> secondary worker path into typed C-only scheduler jobs. Secondary cores 1-3
+> execute those jobs in their own loops and report execution, completion, noop,
+> checksum, gap, and imbalance counters. The live Pi proof passed a normal
+> `net-iterate.sh` run and a clean 3-cycle repeat. Proof lines included
+> `runtime v37: timer-fed secondary C scheduler jobs`, `bootcert ok=1 version=37
+> job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1
+> smp_scheduler=1 ... events_lost=0`, `certificate ok=1 version=37 substrate=1
+> bootcert=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1
+> smp_scheduler=1 ... events_lost=0`, and `sched5 ok=1 version=37 job_exec=1
+> worker_feed=1 secondary_workers=1 executions=756 completions=756 noops=0
+> checksum=698517273110 gap=0 imbalance=0 core0_exec=0 core1_exec=252
+> core2_exec=252 core3_exec=252 core0_done=0 core1_done=252 core2_done=252
+> core3_done=252 selftest=1`. Repeat cycles stayed at `738/738`, `699/699`,
+> and `699/699` executions/completions with `noops=0 gap=0 imbalance=0`;
+> V33 `runqueues` stayed `total=0`.
 
 > ## Runtime V36 timer-fed secondary scheduler workers ground truth (2026-06-06)
 > V36 keeps Swift task execution on core 0, but lets the scheduler timer feed

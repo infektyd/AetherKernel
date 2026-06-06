@@ -210,6 +210,7 @@ unsigned long kernel_spinlock_acquisition_count(const kernel_spinlock_t *lock);
 unsigned long kernel_spinlock_contention_count(const kernel_spinlock_t *lock);
 int kernel_spinlock_selftest(void);
 
+// Runtime V37 timer-fed secondary C scheduler jobs.
 // Runtime V36 timer-fed secondary scheduler workers.
 // Runtime V35 secondary-owned scheduler workers.
 // Runtime V34 timer-driven SMP scheduler dispatch.
@@ -222,11 +223,15 @@ int kernel_spinlock_selftest(void);
 // drain their own per-core queues without entering the Swift runtime. V36 lets
 // the timer tick feed bounded worker tokens into secondary queues so cores 1-3
 // repeatedly drain C-owned scheduler work while core 0 stays the Swift owner.
-#define KERNEL_SCHEDULER_VERSION 36U
+// V37 turns those fed tokens into typed C-only scheduler jobs with completion
+// accounting, still without letting secondary cores enter Swift runtime state.
+#define KERNEL_SCHEDULER_VERSION 37U
 #define KERNEL_SCHEDULER_CORE_CAPACITY 4U
 #define KERNEL_SCHEDULER_RUNQUEUE_CAPACITY 8U
 #define KERNEL_SCHEDULER_DISPATCH_TOKEN_BASE 0x3400U
 #define KERNEL_SCHEDULER_WORKER_TOKEN_BASE 0x3500U
+#define KERNEL_SCHEDULER_JOB_TOKEN_BASE 0x3700U
+#define KERNEL_SCHEDULER_JOB_OP_CHECKSUM 1U
 
 void kernel_scheduler_init(void);
 void kernel_scheduler_start(unsigned long interval_ticks);
@@ -234,10 +239,12 @@ void kernel_scheduler_on_timer_irq(void);
 void kernel_scheduler_enable_smp_dispatch(void);
 void kernel_scheduler_enable_secondary_workers(void);
 void kernel_scheduler_enable_timer_worker_feed(void);
+void kernel_scheduler_enable_secondary_job_execution(void);
 unsigned int kernel_scheduler_active(void);
 unsigned int kernel_scheduler_smp_dispatch_enabled(void);
 unsigned int kernel_scheduler_secondary_workers_enabled(void);
 unsigned int kernel_scheduler_timer_worker_feed_enabled(void);
+unsigned int kernel_scheduler_secondary_job_execution_enabled(void);
 unsigned int kernel_scheduler_core_count(void);
 unsigned int kernel_scheduler_runqueue_capacity(void);
 unsigned int kernel_scheduler_runqueue_count(unsigned int core_id);
@@ -252,6 +259,10 @@ unsigned long kernel_scheduler_worker_drain_count(unsigned int core_id);
 unsigned long kernel_scheduler_worker_idle_count(unsigned int core_id);
 unsigned long kernel_scheduler_worker_feed_count(unsigned int core_id);
 unsigned long kernel_scheduler_worker_feed_drop_count(unsigned int core_id);
+unsigned long kernel_scheduler_secondary_job_execution_count(unsigned int core_id);
+unsigned long kernel_scheduler_secondary_job_completion_count(unsigned int core_id);
+unsigned long kernel_scheduler_secondary_job_noop_count(unsigned int core_id);
+unsigned long kernel_scheduler_secondary_job_checksum(unsigned int core_id);
 unsigned long kernel_scheduler_total_dispatch_count(void);
 unsigned long kernel_scheduler_total_route_count(void);
 unsigned long kernel_scheduler_total_worker_drain_count(void);
@@ -267,6 +278,14 @@ unsigned long kernel_scheduler_secondary_worker_feed_min(void);
 unsigned long kernel_scheduler_secondary_worker_feed_max(void);
 unsigned long kernel_scheduler_secondary_worker_feed_imbalance(void);
 unsigned long kernel_scheduler_worker_feed_drain_gap(void);
+unsigned long kernel_scheduler_secondary_job_total(void);
+unsigned long kernel_scheduler_secondary_job_completion_total(void);
+unsigned long kernel_scheduler_secondary_job_noop_total(void);
+unsigned long kernel_scheduler_secondary_job_checksum_total(void);
+unsigned long kernel_scheduler_secondary_job_min(void);
+unsigned long kernel_scheduler_secondary_job_max(void);
+unsigned long kernel_scheduler_secondary_job_imbalance(void);
+unsigned long kernel_scheduler_secondary_job_completion_gap(void);
 unsigned long kernel_scheduler_fairness_min(void);
 unsigned long kernel_scheduler_fairness_max(void);
 unsigned long kernel_scheduler_fairness_imbalance(void);
@@ -282,6 +301,7 @@ int kernel_scheduler_runqueue_selftest(void);
 int kernel_scheduler_smp_selftest(void);
 int kernel_scheduler_secondary_worker_selftest(void);
 int kernel_scheduler_timer_worker_feed_selftest(void);
+int kernel_scheduler_secondary_job_selftest(void);
 
 // Runtime V32 SMP secondary-core bring-up substrate. Secondary cores enter a
 // fixed C-only accounting loop with private stacks; they do not touch Swift
