@@ -6,7 +6,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V34 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
-    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,cores,locks,runqueues,diag,irqs,timers,"
+    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,cores,locks,runqueues,diag,irqs,timers,"
     "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,"
     "heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,"
     "canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
@@ -24,7 +24,7 @@ def test_runtime_v34_scheduler_dispatch_contract_exists() -> None:
 
     for marker in (
         "Runtime V34 timer-driven SMP scheduler dispatch",
-        "#define KERNEL_SCHEDULER_VERSION 37U",
+        "#define KERNEL_SCHEDULER_VERSION 38U",
         "#define KERNEL_SCHEDULER_DISPATCH_TOKEN_BASE 0x3400U",
         "void kernel_scheduler_enable_smp_dispatch(void);",
         "unsigned int kernel_scheduler_smp_dispatch_enabled(void);",
@@ -59,7 +59,7 @@ def test_runtime_v34_application_boot_marker_and_selftest_exist() -> None:
 
     for marker in (
         "Runtime V34 adds timer-driven SMP scheduler dispatch accounting.",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 37, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 38, 0, 0)",
         "kernel_scheduler_enable_smp_dispatch()",
         "runtime v34: timer-driven smp scheduler dispatch",
         "let runtimeV34 = kernel_scheduler_smp_selftest()",
@@ -120,9 +120,9 @@ def test_runtime_v34_netboot_gates_and_sched2_probe_exist() -> None:
         "^sched2 ok=1 version=34 .*preemptive=1 .*smp_scheduler=1 .*active=1 .*cores=4 .*online=4 .*dispatches=[1-9][0-9]* .*routes=[1-9][0-9]* .*imbalance=[0-9][0-9]* .*core0=[1-9][0-9]* .*core1=[1-9][0-9]* .*core2=[1-9][0-9]* .*core3=[1-9][0-9]* .*selftest=1",
         "probe shell: req-sched2",
         "^resp id=35 ok=1 cmd=sched2 end",
-        "^bootcert ok=1 version=37 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
-        "^certificate ok=1 version=37 substrate=1 .*bootcert=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
-        "stale pre-V37 SD fallback",
+        "^bootcert ok=1 version=38 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "^certificate ok=1 version=38 substrate=1 .*bootcert=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
+        "stale pre-V38 SD fallback",
     ):
         assert marker in net_iterate
 

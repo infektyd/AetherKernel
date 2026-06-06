@@ -81,7 +81,7 @@ probe_certificate() {
 
   printf '%s\n' "$probe_output" | tee -a "$CERTIFICATE_LOG"
   delta="$(file_delta "$SERIAL_LOG" "$start")"
-  summary_line="$(printf '%s\n' "$delta" | grep -a -E "^certificate ok=1 version=37 substrate=1 .*bootcert=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*events_lost=0" | tail -n 1 || true)"
+  summary_line="$(printf '%s\n' "$delta" | grep -a -E "^certificate ok=1 version=38 substrate=1 .*bootcert=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*events_lost=0" | tail -n 1 || true)"
   if [ -z "$summary_line" ]; then
     log_line "certificate-loop probe cycle=$cycle id=$id command=certificate ok=0 reason=summary_missing"
     {
@@ -145,4 +145,4 @@ while [ "$cycle" -le "$CYCLES" ]; do
   cycle=$((cycle + 1))
 done
 
-log_line "certificate-loop ok=1 version=37 cycles=$CYCLES completed=$completed substrate=1 bootcert=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 events_lost=0 log=$CERTIFICATE_LOG"
+log_line "certificate-loop ok=1 version=38 cycles=$CYCLES completed=$completed substrate=1 bootcert=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 events_lost=0 log=$CERTIFICATE_LOG"

@@ -1,6 +1,7 @@
 #include "Support.h"
 
 //===----------------------------------------------------------------------===//
+// Runtime V38 secondary scheduler wake protocol.
 // Runtime V37 timer-fed secondary C scheduler jobs.
 // Runtime V36 timer-fed secondary scheduler workers.
 // Runtime V35 secondary-owned scheduler workers.
@@ -10,7 +11,8 @@
 // It owns a periodic CNTP timer client, records IRQ preemption opportunities on
 // core 0, routes bounded dispatch tokens through each online A72 core queue, and
 // lets C-only secondary workers drain V35/V36/V37 worker/job tokens from their
-// own queues.
+// own queues. V38 wakes those parked secondary workers with SEV when timer-fed
+// work is available, while the workers park with WFE between scheduler ticks.
 //===----------------------------------------------------------------------===//
 
 typedef struct scheduler_core {
@@ -43,6 +45,7 @@ static unsigned int smp_dispatch_enabled;
 static unsigned int secondary_workers_enabled;
 static unsigned int timer_worker_feed_enabled;
 static unsigned int secondary_job_execution_enabled;
+static unsigned int secondary_wake_signals_enabled;
 static unsigned int last_dispatch_core;
 static unsigned long interval_ticks_value;
 
@@ -121,6 +124,7 @@ void kernel_scheduler_init(void) {
     secondary_workers_enabled = 0;
     timer_worker_feed_enabled = 0;
     secondary_job_execution_enabled = 0;
+    secondary_wake_signals_enabled = 0;
     last_dispatch_core = 0;
     interval_ticks_value = 0;
     irq_restore(flags);
@@ -179,6 +183,15 @@ void kernel_scheduler_enable_secondary_job_execution(void) {
     irq_restore(flags);
 }
 
+void kernel_scheduler_enable_secondary_wake_signals(void) {
+    if (!initialized) {
+        kernel_scheduler_init();
+    }
+    unsigned long flags = irq_save();
+    secondary_wake_signals_enabled = 1;
+    irq_restore(flags);
+}
+
 static unsigned int scheduler_job_token_for_core(unsigned int core_id) {
     return KERNEL_SCHEDULER_JOB_TOKEN_BASE |
         (KERNEL_SCHEDULER_JOB_OP_CHECKSUM << 4) |
@@ -199,6 +212,13 @@ static int is_scheduler_job_token(unsigned int token) {
 static int is_worker_token(unsigned int token) {
     return ((token & 0xfff0U) == KERNEL_SCHEDULER_WORKER_TOKEN_BASE) ||
         is_scheduler_job_token(token);
+}
+
+static void signal_secondary_work_for_core(unsigned int core_id) {
+    if (!secondary_wake_signals_enabled || !valid_core(core_id) || core_id == 0) {
+        return;
+    }
+    kernel_smp_signal_scheduler_work(1U << core_id);
 }
 
 static void execute_scheduler_job_for_core(unsigned int core_id, unsigned int token) {
@@ -243,7 +263,11 @@ static int enqueue_worker_probe_for_core(unsigned int core_id) {
     if (kernel_scheduler_runqueue_count(core_id) != 0) {
         return 0;
     }
-    return kernel_scheduler_enqueue(core_id, worker_token_for_core(core_id));
+    int ok = kernel_scheduler_enqueue(core_id, worker_token_for_core(core_id));
+    if (ok) {
+        signal_secondary_work_for_core(core_id);
+    }
+    return ok;
 }
 
 static void set_timer_worker_feed_enabled(unsigned int value) {
@@ -330,6 +354,7 @@ static int route_worker_feed_for_core(unsigned int core_id) {
         lock_core(core_id, &flags);
         cores[core_id].worker_feeds++;
         unlock_core(core_id, flags);
+        signal_secondary_work_for_core(core_id);
         return 1;
     }
 
@@ -406,6 +431,13 @@ unsigned int kernel_scheduler_timer_worker_feed_enabled(void) {
 unsigned int kernel_scheduler_secondary_job_execution_enabled(void) {
     unsigned long flags = irq_save();
     unsigned int value = secondary_job_execution_enabled;
+    irq_restore(flags);
+    return value;
+}
+
+unsigned int kernel_scheduler_secondary_wake_signals_enabled(void) {
+    unsigned long flags = irq_save();
+    unsigned int value = secondary_wake_signals_enabled;
     irq_restore(flags);
     return value;
 }
@@ -835,6 +867,68 @@ unsigned long kernel_scheduler_secondary_job_completion_gap(void) {
     return executions >= completions ? executions - completions : 0;
 }
 
+unsigned long kernel_scheduler_secondary_wake_signal_total(void) {
+    return kernel_smp_scheduler_signal_count();
+}
+
+unsigned int kernel_scheduler_secondary_wake_signal_mask(void) {
+    return kernel_smp_scheduler_signal_mask();
+}
+
+unsigned long kernel_scheduler_secondary_wake_target_total(void) {
+    return kernel_smp_scheduler_signal_target_total();
+}
+
+unsigned long kernel_scheduler_secondary_wake_wait_count(unsigned int core_id) {
+    return kernel_smp_core_scheduler_wait_count(core_id);
+}
+
+unsigned long kernel_scheduler_secondary_wake_ack_count(unsigned int core_id) {
+    return kernel_smp_core_scheduler_wake_count(core_id);
+}
+
+unsigned long kernel_scheduler_secondary_wake_wait_total(void) {
+    unsigned long total = 0;
+    for (unsigned int i = 1; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        total += kernel_scheduler_secondary_wake_wait_count(i);
+    }
+    return total;
+}
+
+unsigned long kernel_scheduler_secondary_wake_ack_total(void) {
+    unsigned long total = 0;
+    for (unsigned int i = 1; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        total += kernel_scheduler_secondary_wake_ack_count(i);
+    }
+    return total;
+}
+
+unsigned long kernel_scheduler_secondary_wake_gap(void) {
+    unsigned long waits = kernel_scheduler_secondary_wake_wait_total();
+    unsigned long wakes = kernel_scheduler_secondary_wake_ack_total();
+    return waits >= wakes ? waits - wakes : 0;
+}
+
+unsigned long kernel_scheduler_secondary_wake_imbalance(void) {
+    unsigned long min = 0;
+    unsigned long max = 0;
+    unsigned int seen = 0;
+    for (unsigned int i = 1; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        if (!kernel_smp_core_online(i)) {
+            continue;
+        }
+        unsigned long count = kernel_scheduler_secondary_wake_ack_count(i);
+        if (!seen || count < min) {
+            min = count;
+        }
+        if (count > max) {
+            max = count;
+        }
+        seen = 1;
+    }
+    return seen && max >= min ? max - min : 0;
+}
+
 unsigned long kernel_scheduler_fairness_min(void) {
     unsigned long min = 0;
     unsigned int seen = 0;
@@ -944,7 +1038,7 @@ int kernel_scheduler_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 37U) {
+    if (KERNEL_SCHEDULER_VERSION != 38U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY) {
@@ -964,7 +1058,7 @@ int kernel_scheduler_runqueue_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 37U) {
+    if (KERNEL_SCHEDULER_VERSION != 38U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != 4U) {
@@ -1015,7 +1109,7 @@ int kernel_scheduler_smp_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 37U) {
+    if (KERNEL_SCHEDULER_VERSION != 38U) {
         return 0;
     }
     if (!kernel_scheduler_active() || !kernel_scheduler_smp_dispatch_enabled()) {
@@ -1045,7 +1139,7 @@ int kernel_scheduler_secondary_worker_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 37U) {
+    if (KERNEL_SCHEDULER_VERSION != 38U) {
         return 0;
     }
     if (!kernel_scheduler_active() || !kernel_scheduler_secondary_workers_enabled()) {
@@ -1095,7 +1189,7 @@ int kernel_scheduler_timer_worker_feed_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 37U) {
+    if (KERNEL_SCHEDULER_VERSION != 38U) {
         return 0;
     }
     if (!kernel_scheduler_active() ||
@@ -1149,7 +1243,7 @@ int kernel_scheduler_secondary_job_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 37U) {
+    if (KERNEL_SCHEDULER_VERSION != 38U) {
         return 0;
     }
     if (!kernel_scheduler_active() ||
@@ -1194,4 +1288,62 @@ int kernel_scheduler_secondary_job_selftest(void) {
         kernel_scheduler_secondary_job_checksum_total() > 0 &&
         kernel_scheduler_secondary_job_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY &&
         kernel_scheduler_secondary_job_completion_gap() == 0 ? 1 : 0;
+}
+
+int kernel_scheduler_secondary_wake_selftest(void) {
+    if (!initialized) {
+        kernel_scheduler_init();
+    }
+    if (KERNEL_SCHEDULER_VERSION != 38U) {
+        return 0;
+    }
+    if (!kernel_scheduler_active() ||
+        !kernel_scheduler_secondary_workers_enabled() ||
+        !kernel_scheduler_timer_worker_feed_enabled() ||
+        !kernel_scheduler_secondary_job_execution_enabled() ||
+        !kernel_scheduler_secondary_wake_signals_enabled()) {
+        return 0;
+    }
+    if (kernel_smp_online_count() != 4U || kernel_smp_online_mask() != 0xfU) {
+        return 0;
+    }
+
+    for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+        if (kernel_scheduler_secondary_wake_ack_count(core_id) == 0 ||
+            kernel_scheduler_secondary_job_execution_count(core_id) == 0) {
+            (void)route_worker_feed_for_core(core_id);
+        }
+    }
+
+    for (unsigned int spin = 0; spin < 200000U; spin++) {
+        if (kernel_scheduler_secondary_wake_signal_total() > 0 &&
+            kernel_scheduler_secondary_wake_wait_count(1) > 0 &&
+            kernel_scheduler_secondary_wake_wait_count(2) > 0 &&
+            kernel_scheduler_secondary_wake_wait_count(3) > 0 &&
+            kernel_scheduler_secondary_wake_ack_count(1) > 0 &&
+            kernel_scheduler_secondary_wake_ack_count(2) > 0 &&
+            kernel_scheduler_secondary_wake_ack_count(3) > 0 &&
+            kernel_scheduler_secondary_job_execution_count(1) > 0 &&
+            kernel_scheduler_secondary_job_execution_count(2) > 0 &&
+            kernel_scheduler_secondary_job_execution_count(3) > 0) {
+            break;
+        }
+        if ((spin & 0xffU) == 0U) {
+            route_worker_feed_for_online_secondary_cores();
+        }
+        __asm__ volatile("nop" ::: "memory");
+    }
+
+    // On the Pi 4, WFE can return for architectural events beyond our SEV
+    // pulses, so wake imbalance is telemetry, not a gate.
+    return kernel_smp_scheduler_wake_selftest() != 0 &&
+        kernel_scheduler_secondary_job_selftest() != 0 &&
+        kernel_scheduler_secondary_wake_signal_total() > 0 &&
+        kernel_scheduler_secondary_wake_signal_mask() == KERNEL_SMP_SECONDARY_MASK &&
+        kernel_scheduler_secondary_wake_target_total() >= 3UL &&
+        kernel_scheduler_secondary_wake_wait_count(0) == 0 &&
+        kernel_scheduler_secondary_wake_ack_count(0) == 0 &&
+        kernel_scheduler_secondary_wake_wait_total() >= 3UL &&
+        kernel_scheduler_secondary_wake_ack_total() >= 3UL &&
+        kernel_scheduler_secondary_wake_gap() <= KERNEL_SCHEDULER_CORE_CAPACITY ? 1 : 0;
 }

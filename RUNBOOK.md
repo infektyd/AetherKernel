@@ -111,7 +111,7 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V25 marker, `rtv2 fast/slow/long` zero-lines,
+AetherKernel banner plus Runtime V38 marker, `rtv2 fast/slow/long` zero-lines,
 the expanded `shell ready` command list, and shell probes for `status`,
 `protocol`, request-wrapped `status`, `bootcert`, `canceltest`, `taskcheck`, `channeltest`, `mmu`, `poolcheck`,
 `pools`, `heapfrag`, `poolstats`, `bootcheck`, `stress`, `soak`, `kobjects`,
@@ -152,7 +152,7 @@ reset step is handled by:
 
 The expected serial flow is bootloader `TFTP_GET` lines, then the AetherKernel
 banner, padded `CurrentEL`, repeating `rtv2 fast/slow/long` cadences, the
-Runtime V5 through V21 markers, and:
+Runtime V5 through V38 kernel markers (V26 is host-only), and:
 
 ```text
 runtime v5: diagnostics shell
@@ -176,8 +176,20 @@ runtime v22: guarded typed pools
 runtime v23: allocator and pool pressure telemetry
 runtime v24: fixed driver registry
 runtime v25: scriptable command protocol v2
+runtime v27: panic taxonomy and symbolic retained records
+runtime v28: swift runtime dependency audit
+runtime v29: agent-oriented control session
+runtime v30: swift-native kernel substrate certificate
+runtime v31: preemptive scheduler substrate
+runtime v32: smp secondary-core bring-up
+runtime v33: atomics spinlocks per-core run queues
+runtime v34: timer-driven smp scheduler dispatch
+runtime v35: secondary-owned scheduler workers
+runtime v36: timer-fed secondary scheduler workers
+runtime v37: timer-fed secondary C scheduler jobs
+runtime v38: secondary scheduler wake protocol
 handlecheck ok=1 handle_selftest=1 cap_selftest=1
-shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
+shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
 ```
 
 The current kernel image services UART RX through PL011 receive interrupts into
@@ -478,6 +490,21 @@ The 3-cycle repeat kept `sched4` at `693/696`, `684/687`, and `684/687`
 feeds/drains with `drops=0 gap=0`; `sched2` stayed balanced and `runqueues`
 stayed `total=0`.
 
+Runtime V38 secondary scheduler wake protocol keeps Swift execution on core 0,
+parks secondary C-only scheduler loops with WFE between ticks, and wakes them
+with bounded SEV signals when timer-fed scheduler jobs are enqueued. The V38
+hardware proof closed on 2026-06-06. The live Pi run and a clean 3-cycle repeat
+kept `bootcert`/`certificate` at `wake=1`, `sched6 ok=1`, `runqueues total=0`,
+and `events_lost=0`. WFE wait/wake imbalance is telemetry, not a pass/fail
+gate, because the A72 can resume WFE for architectural events beyond this
+scheduler SEV path:
+
+```text
+bootcert ok=1 version=38 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 taxonomy=1 protocol=1 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=4184112 frame_free=14336 uptime_ms=3679
+certificate ok=1 version=38 substrate=1 bootcert=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 protocol=2 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 swift=6.3.2 events_lost=0 heap_free=4184112 frame_free=14336 uptime_ms=7072
+sched6 ok=1 version=38 wake=1 job_exec=1 worker_feed=1 signals=825 mask=0xe targets=825 waits=84020214 wakes=84028069 gap=1 imbalance=6818555 core0_wait=0 core1_wait=30418819 core2_wait=23601879 core3_wait=30047539 core0_wake=0 core1_wake=30432773 core2_wake=23612725 core3_wake=30060963 selftest=1
+```
+
 Runtime V37 timer-fed secondary C scheduler jobs keep Swift execution on core
 0, turn V36's timer-fed secondary worker tokens into typed C-only scheduler
 jobs, and report execution/completion/checksum telemetry from secondary cores
@@ -500,11 +527,11 @@ executions/completions with `noops=0 gap=0 imbalance=0`; `sched4` stayed at
 ./serial-probe.sh status '^status uptime_ms=.*timer_mask='
 ./serial-probe.sh protocol '^protocol version=2 .*begin_end=1 .*errors=1'
 ./serial-probe.sh 'req id=25 cmd=status' '^resp id=25 ok=1 cmd=status end'
-./serial-probe.sh bootcert '^bootcert ok=1 version=37 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
+./serial-probe.sh bootcert '^bootcert ok=1 version=38 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
 ./serial-probe.sh runtime '^runtime ok=1 version=28 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5'
 ./serial-probe.sh agent '^agent ok=1 version=29 health=green .*bootcert=1 .*runtime=1 .*protocol=2 .*events_lost=0'
 ./serial-probe.sh 'req id=29 cmd=agent' '^resp id=29 ok=1 cmd=agent end'
-./serial-probe.sh certificate '^certificate ok=1 version=37 substrate=1 .*bootcert=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0'
+./serial-probe.sh certificate '^certificate ok=1 version=38 substrate=1 .*bootcert=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0'
 ./serial-probe.sh 'req id=30 cmd=certificate' '^resp id=30 ok=1 cmd=certificate end'
 ./serial-probe.sh sched '^sched ok=1 version=31 .*active=1 .*cores=1 .*core=0 .*ticks=[1-9][0-9]* .*irq_ticks=[1-9][0-9]* .*preemptions=[1-9][0-9]* .*selftest=1'
 ./serial-probe.sh 'req id=31 cmd=sched' '^resp id=31 ok=1 cmd=sched end'
@@ -516,6 +543,8 @@ executions/completions with `noops=0 gap=0 imbalance=0`; `sched4` stayed at
 ./serial-probe.sh 'req id=37 cmd=sched4' '^resp id=37 ok=1 cmd=sched4 end'
 ./serial-probe.sh sched5 '^sched5 ok=1 version=37 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*executions=[1-9][0-9]* .*completions=[1-9][0-9]* .*checksum=[1-9][0-9]* .*selftest=1'
 ./serial-probe.sh 'req id=38 cmd=sched5' '^resp id=38 ok=1 cmd=sched5 end'
+./serial-probe.sh sched6 '^sched6 ok=1 version=38 .*wake=1 .*job_exec=1 .*worker_feed=1 .*signals=[1-9][0-9]* .*mask=0xe .*targets=[1-9][0-9]* .*waits=[1-9][0-9]* .*wakes=[1-9][0-9]* .*gap=[0-9][0-9]* .*imbalance=[0-9][0-9]* .*core0_wait=0 .*core1_wait=[1-9][0-9]* .*core2_wait=[1-9][0-9]* .*core3_wait=[1-9][0-9]* .*core0_wake=0 .*core1_wake=[1-9][0-9]* .*core2_wake=[1-9][0-9]* .*core3_wake=[1-9][0-9]* .*selftest=1'
+./serial-probe.sh 'req id=39 cmd=sched6' '^resp id=39 ok=1 cmd=sched6 end'
 ./serial-probe.sh cores '^cores ok=1 version=32 .*capacity=4 .*online=4 .*mask=0xf .*primary=0 .*release=0xe .*selftest=1'
 ./serial-probe.sh 'req id=32 cmd=cores' '^resp id=32 ok=1 cmd=cores end'
 ./serial-probe.sh locks '^locks ok=1 version=33 .*atomics=1 .*spinlocks=1 .*selftest=1'
@@ -571,8 +600,8 @@ Open a terminal on macOS to monitor the serial output:
 ## 5. Boot & Expected Output
 1. Insert the SD card back into the Raspberry Pi 4B.
 2. Connect the Raspberry Pi's USB-C power supply.
-3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, Runtime V4 through V37 markers, repeating `rtv2 fast/slow/long` lines, `bootcheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, `poolstats ok=1`, `drivers count=4 capacity=4 selftest=1`, `drivercheck ok=1`, `protocol version=2`, `agent ok=1 version=29 health=green`, `certificate ok=1 version=37 substrate=1`, `sched ok=1 version=31`, `sched2 ok=1 version=34`, `sched3 ok=1 version=35`, `sched4 ok=1 version=36`, `sched5 ok=1 version=37`, `cores ok=1 version=32`, `locks ok=1 version=33`, `runqueues ok=1 version=33`, and `shell ready`.
-4. **Liveness Check:** Current liveness is the serial Runtime V37 cadence output plus UART shell diagnostic responses, especially `bootcert ok=1 version=37 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1`, `certificate ok=1 version=37 substrate=1 bootcert=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1`, `sched ok=1 version=31 active=1`, `sched2 ok=1 version=34 preemptive=1 smp_scheduler=1 active=1 cores=4 online=4`, `sched3 ok=1 version=35 secondary_workers=1 active=1 cores=4 online=4`, `sched4 ok=1 version=36 worker_feed=1 secondary_workers=1`, `sched5 ok=1 version=37 job_exec=1 worker_feed=1 secondary_workers=1`, `cores ok=1 version=32 capacity=4 online=4`, `locks ok=1 version=33 atomics=1 spinlocks=1`, `runqueues ok=1 version=33 cores=4`, `agent ok=1 version=29 health=green`, `agent-session ok=1 version=29 health=green`, `protocol version=2`, `resp id=30 ok=1 cmd=certificate end`, `resp id=31 ok=1 cmd=sched end`, `resp id=35 ok=1 cmd=sched2 end`, `resp id=36 ok=1 cmd=sched3 end`, `resp id=37 ok=1 cmd=sched4 end`, `resp id=38 ok=1 cmd=sched5 end`, `resp id=33 ok=1 cmd=locks end`, `resp id=34 ok=1 cmd=runqueues end`, `drivercheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, and `poolstats ok=1`. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
+3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, Runtime V4 through V38 markers, repeating `rtv2 fast/slow/long` lines, `bootcheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, `poolstats ok=1`, `drivers count=4 capacity=4 selftest=1`, `drivercheck ok=1`, `protocol version=2`, `agent ok=1 version=29 health=green`, `certificate ok=1 version=38 substrate=1`, `sched ok=1 version=31`, `sched2 ok=1 version=34`, `sched3 ok=1 version=35`, `sched4 ok=1 version=36`, `sched5 ok=1 version=37`, `sched6 ok=1 version=38`, `cores ok=1 version=32`, `locks ok=1 version=33`, `runqueues ok=1 version=33`, and `shell ready`.
+4. **Liveness Check:** Current liveness is the serial Runtime V38 cadence output plus UART shell diagnostic responses, especially `bootcert ok=1 version=38 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1`, `certificate ok=1 version=38 substrate=1 bootcert=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1`, `sched ok=1 version=31 active=1`, `sched2 ok=1 version=34 preemptive=1 smp_scheduler=1 active=1 cores=4 online=4`, `sched3 ok=1 version=35 secondary_workers=1 active=1 cores=4 online=4`, `sched4 ok=1 version=36 worker_feed=1 secondary_workers=1`, `sched5 ok=1 version=37 job_exec=1 worker_feed=1 secondary_workers=1`, `sched6 ok=1 version=38 wake=1 job_exec=1 worker_feed=1`, `cores ok=1 version=32 capacity=4 online=4`, `locks ok=1 version=33 atomics=1 spinlocks=1`, `runqueues ok=1 version=33 cores=4`, `agent ok=1 version=29 health=green`, `agent-session ok=1 version=29 health=green`, `protocol version=2`, `resp id=30 ok=1 cmd=certificate end`, `resp id=31 ok=1 cmd=sched end`, `resp id=35 ok=1 cmd=sched2 end`, `resp id=36 ok=1 cmd=sched3 end`, `resp id=37 ok=1 cmd=sched4 end`, `resp id=38 ok=1 cmd=sched5 end`, `resp id=39 ok=1 cmd=sched6 end`, `resp id=33 ok=1 cmd=locks end`, `resp id=34 ok=1 cmd=runqueues end`, `drivercheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, and `poolstats ok=1`. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
 
 ## 6. Troubleshooting
 * **No output:**

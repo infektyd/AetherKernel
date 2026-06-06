@@ -37,7 +37,26 @@ SMP scheduler dispatch was hardware-verified 2026-06-06. Runtime V35
 secondary-owned scheduler workers were hardware-verified 2026-06-06. Runtime
 V36 timer-fed secondary scheduler workers were hardware-verified 2026-06-06.
 Runtime V37 timer-fed secondary C scheduler jobs was hardware-verified
-2026-06-06.
+2026-06-06. Runtime V38 secondary scheduler wake protocol was
+hardware-verified 2026-06-06.
+
+> ## Runtime V38 secondary scheduler wake protocol ground truth (2026-06-06)
+> V38 keeps Swift execution on core 0, parks the C-only secondary scheduler
+> loops with WFE between ticks, and emits bounded SEV wake signals when core 0
+> enqueues timer-fed secondary scheduler jobs. The live Pi proof passed a normal
+> `net-iterate.sh` run and a clean 3-cycle repeat. Proof lines included
+> `runtime v38: secondary scheduler wake protocol`, `bootcert ok=1 version=38
+> wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1
+> smp_scheduler=1 ... events_lost=0`, `certificate ok=1 version=38 substrate=1
+> bootcert=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`,
+> and `sched6 ok=1 version=38 wake=1 job_exec=1 worker_feed=1 signals=825
+> mask=0xe targets=825 waits=84020214 wakes=84028069 gap=1
+> imbalance=6818555 core0_wait=0 core1_wait=30418819 core2_wait=23601879
+> core3_wait=30047539 core0_wake=0 core1_wake=30432773
+> core2_wake=23612725 core3_wake=30060963 selftest=1`. Repeat cycles kept
+> `sched6 ok=1`, `wake=1`, `runqueues total=0`, and `events_lost=0`. WFE
+> imbalance is telemetry, not a gate, because the A72 can resume WFE for
+> architectural events beyond scheduler SEV.
 
 > ## Runtime V37 timer-fed secondary C scheduler jobs ground truth (2026-06-06)
 > V37 keeps Swift task execution on core 0 and extends V36's bounded timer-fed

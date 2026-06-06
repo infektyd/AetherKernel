@@ -210,6 +210,7 @@ unsigned long kernel_spinlock_acquisition_count(const kernel_spinlock_t *lock);
 unsigned long kernel_spinlock_contention_count(const kernel_spinlock_t *lock);
 int kernel_spinlock_selftest(void);
 
+// Runtime V38 secondary scheduler wake protocol.
 // Runtime V37 timer-fed secondary C scheduler jobs.
 // Runtime V36 timer-fed secondary scheduler workers.
 // Runtime V35 secondary-owned scheduler workers.
@@ -225,7 +226,9 @@ int kernel_spinlock_selftest(void);
 // repeatedly drain C-owned scheduler work while core 0 stays the Swift owner.
 // V37 turns those fed tokens into typed C-only scheduler jobs with completion
 // accounting, still without letting secondary cores enter Swift runtime state.
-#define KERNEL_SCHEDULER_VERSION 37U
+// V38 parks secondary scheduler loops with WFE and wakes them with bounded SEV
+// signals when timer-fed secondary work is enqueued.
+#define KERNEL_SCHEDULER_VERSION 38U
 #define KERNEL_SCHEDULER_CORE_CAPACITY 4U
 #define KERNEL_SCHEDULER_RUNQUEUE_CAPACITY 8U
 #define KERNEL_SCHEDULER_DISPATCH_TOKEN_BASE 0x3400U
@@ -240,11 +243,13 @@ void kernel_scheduler_enable_smp_dispatch(void);
 void kernel_scheduler_enable_secondary_workers(void);
 void kernel_scheduler_enable_timer_worker_feed(void);
 void kernel_scheduler_enable_secondary_job_execution(void);
+void kernel_scheduler_enable_secondary_wake_signals(void);
 unsigned int kernel_scheduler_active(void);
 unsigned int kernel_scheduler_smp_dispatch_enabled(void);
 unsigned int kernel_scheduler_secondary_workers_enabled(void);
 unsigned int kernel_scheduler_timer_worker_feed_enabled(void);
 unsigned int kernel_scheduler_secondary_job_execution_enabled(void);
+unsigned int kernel_scheduler_secondary_wake_signals_enabled(void);
 unsigned int kernel_scheduler_core_count(void);
 unsigned int kernel_scheduler_runqueue_capacity(void);
 unsigned int kernel_scheduler_runqueue_count(unsigned int core_id);
@@ -286,6 +291,15 @@ unsigned long kernel_scheduler_secondary_job_min(void);
 unsigned long kernel_scheduler_secondary_job_max(void);
 unsigned long kernel_scheduler_secondary_job_imbalance(void);
 unsigned long kernel_scheduler_secondary_job_completion_gap(void);
+unsigned long kernel_scheduler_secondary_wake_signal_total(void);
+unsigned int kernel_scheduler_secondary_wake_signal_mask(void);
+unsigned long kernel_scheduler_secondary_wake_target_total(void);
+unsigned long kernel_scheduler_secondary_wake_wait_count(unsigned int core_id);
+unsigned long kernel_scheduler_secondary_wake_ack_count(unsigned int core_id);
+unsigned long kernel_scheduler_secondary_wake_wait_total(void);
+unsigned long kernel_scheduler_secondary_wake_ack_total(void);
+unsigned long kernel_scheduler_secondary_wake_gap(void);
+unsigned long kernel_scheduler_secondary_wake_imbalance(void);
 unsigned long kernel_scheduler_fairness_min(void);
 unsigned long kernel_scheduler_fairness_max(void);
 unsigned long kernel_scheduler_fairness_imbalance(void);
@@ -302,6 +316,7 @@ int kernel_scheduler_smp_selftest(void);
 int kernel_scheduler_secondary_worker_selftest(void);
 int kernel_scheduler_timer_worker_feed_selftest(void);
 int kernel_scheduler_secondary_job_selftest(void);
+int kernel_scheduler_secondary_wake_selftest(void);
 
 // Runtime V32 SMP secondary-core bring-up substrate. Secondary cores enter a
 // fixed C-only accounting loop with private stacks; they do not touch Swift
@@ -323,6 +338,14 @@ unsigned long kernel_smp_core_mpidr(unsigned int core_id);
 unsigned long kernel_smp_core_entry_count(unsigned int core_id);
 unsigned long kernel_smp_core_heartbeat(unsigned int core_id);
 unsigned int kernel_smp_release_map(void);
+void kernel_smp_signal_scheduler_work(unsigned int target_mask);
+void kernel_smp_secondary_wait_for_work(unsigned int core_id);
+unsigned long kernel_smp_scheduler_signal_count(void);
+unsigned int kernel_smp_scheduler_signal_mask(void);
+unsigned long kernel_smp_scheduler_signal_target_total(void);
+unsigned long kernel_smp_core_scheduler_wait_count(unsigned int core_id);
+unsigned long kernel_smp_core_scheduler_wake_count(unsigned int core_id);
+int kernel_smp_scheduler_wake_selftest(void);
 int kernel_smp_selftest(void);
 
 // Runtime V12 kernel object and cooperative task registries. These are fixed
