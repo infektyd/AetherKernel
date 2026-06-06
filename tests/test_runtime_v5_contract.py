@@ -36,7 +36,7 @@ def test_uart_shell_v5_commands_and_response_prefixes_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
 
     for marker in (
-        "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot",
+        "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot",
         "diag version=v5",
         "irqs total=",
         "timers now=",
@@ -73,7 +73,9 @@ def test_exception_handler_emits_machine_checkable_fault_line() -> None:
     exceptions = read_repo("Sources/Application/Exceptions.swift")
 
     assert "kernel_record_fault(UInt(esr), UInt(elr), UInt(far))" in exceptions
-    assert "fault kind=sync esr=" in exceptions
+    assert "fault kind=sync category=" in exceptions
+    assert " reason_id=" in exceptions
+    assert " esr=" in exceptions
     assert " elr=" in exceptions
     assert " far=" in exceptions
 

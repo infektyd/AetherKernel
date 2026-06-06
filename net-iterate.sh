@@ -6,7 +6,7 @@
 #
 # Builds and stages kernel8.img/config.txt, sends the serial reset command, and
 # watches TFTP + serial logs for proof that the Pi fetched over TFTP,
-# booted the staged image, brought up the Runtime V21 shell, and proves a small
+# booted the staged image, brought up the Runtime V30 shell, and proves a small
 # command set through ./serial-probe.sh.
 #===----------------------------------------------------------------------===#
 set -euo pipefail
@@ -105,7 +105,7 @@ if [ "${AETHER_NETITERATE_DRY_RUN:-0}" = "1" ]; then
   echo "expect TFTP prefix: $PREFIX/"
   echo "attempts: $RETRIES"
   echo "timeout per attempt: ${TIMEOUT_S}s"
-  echo "shell probes: ./serial-probe.sh status bootcert canceltest taskcheck channeltest mmu bootcheck stress soak kobjects tasks2 mailboxes sendtest supervisor health capcheck events"
+  echo "shell probes: ./serial-probe.sh status protocol bootcert req-status canceltest taskcheck channeltest mmu poolcheck pools heapfrag poolstats bootcheck stress soak kobjects drivers drivercheck tasks2 mailboxes sendtest supervisor health capcheck events"
   exit 0
 fi
 
@@ -163,16 +163,38 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -q "runtime v19: structured aether task spawn" \
       && printf '%s' "$serial_delta" | grep -q "runtime v20: bounded async channels" \
       && printf '%s' "$serial_delta" | grep -q "runtime v21: mmu ownership boundary" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v22: guarded typed pools" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v23: allocator and pool pressure telemetry" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v24: fixed driver registry" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v25: scriptable command protocol v2" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v27: panic taxonomy and symbolic retained records" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v28: swift runtime dependency audit" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v29: agent-oriented control session" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v30: swift-native kernel substrate certificate" \
       && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail tx 0x0000000000000000" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail rx 0x0000000000000000" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
       echo "netboot iteration verified on attempt ${attempt}/${RETRIES}"
       if [ "${AETHER_NETITERATE_SKIP_SHELL_PROBES:-0}" != "1" ]; then
         # probe shell: status
         probe_shell "status" "^status uptime_ms=.*timer_mask="
+        # probe shell: protocol
+        probe_shell "protocol" "^protocol version=2 .*begin_end=1 .*errors=1"
         # probe shell: bootcert
-        probe_shell "bootcert" "^bootcert ok=1 version=21 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0"
+        probe_shell "bootcert" "^bootcert ok=1 version=30 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0"
+        # probe shell: runtime
+        probe_shell "runtime" "^runtime ok=1 version=28 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5"
+        # probe shell: agent
+        probe_shell "agent" "^agent ok=1 version=29 health=green .*bootcert=1 .*runtime=1 .*protocol=2 .*events_lost=0"
+        # probe shell: certificate
+        probe_shell "certificate" "^certificate ok=1 version=30 substrate=1 .*bootcert=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0"
+        # probe shell: req-agent
+        probe_shell "req id=29 cmd=agent" "^resp id=29 ok=1 cmd=agent end"
+        # probe shell: req-certificate
+        probe_shell "req id=30 cmd=certificate" "^resp id=30 ok=1 cmd=certificate end"
+        # probe shell: req-status
+        probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
         probe_shell "canceltest" "^canceltest ok=1 .*completed=1"
         # probe shell: taskcheck
@@ -181,6 +203,14 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "channeltest" "^channeltest ok=1 .*received=1"
         # probe shell: mmu
         probe_shell "mmu" "^mmu ok=1 .*regions=4 .*block_size=0x40000000"
+        # probe shell: poolcheck
+        probe_shell "poolcheck" "^poolcheck ok=1 .*bad_frees=1 .*double_frees=1"
+        # probe shell: pools
+        probe_shell "pools" "^pools count=.* capacity=.* selftest=1"
+        # probe shell: heapfrag
+        probe_shell "heapfrag" "^heapfrag ok=1 .*fragmentation_permil=.*pressure_largest_free="
+        # probe shell: poolstats
+        probe_shell "poolstats" "^poolstats ok=1 .*total_slots=.*failed_allocs="
         # probe shell: bootcheck
         probe_shell "bootcheck" "^bootcheck ok=1 .*frame_free="
         # probe shell: stress
@@ -189,6 +219,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "soak" "^soak ok=1 .*failures=0 .*heap_leak=0 frame_leak=0"
         # probe shell: kobjects
         probe_shell "kobjects" "^kobjects count=.* active=.* handle_selftest=1 .*cap_selftest=1"
+        # probe shell: drivers
+        probe_shell "drivers" "^drivers count=4 capacity=4 selftest=1"
+        # probe shell: drivercheck
+        probe_shell "drivercheck" "^drivercheck ok=1 .*uart_irq=.*timer_irq=.*watchdog_resets="
         # probe shell: tasks2
         probe_shell "tasks2" "^tasks2 count=.* task index=.*fast"
         # probe shell: mailboxes
@@ -213,8 +247,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
 
     if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
       && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v21: mmu ownership boundary"; then
-      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V21 SD fallback image detected"
+      && ! printf '%s' "$serial_delta" | grep -q "runtime v30: swift-native kernel substrate certificate"; then
+      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V30 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
       last_dns_delta="$dns_delta"
@@ -231,9 +265,9 @@ while [ "$attempt" -le "$RETRIES" ]; do
     echo "netboot attempt ${attempt}/${RETRIES} did not verify within ${TIMEOUT_S}s"
   fi
 
-  if [ "$attempt" -lt "$RETRIES" ]; then
-    if [ "$sd_fallback_seen" = "1" ]; then
-      echo "retrying after stale pre-V21 SD fallback..."
+    if [ "$attempt" -lt "$RETRIES" ]; then
+      if [ "$sd_fallback_seen" = "1" ]; then
+        echo "retrying after stale pre-V30 SD fallback..."
     fi
     echo "--- TFTP delta from failed attempt ---"
     printf '%s\n' "$last_dns_delta" | tail -n 40
@@ -249,8 +283,8 @@ done
 echo "netboot iteration did not verify after ${RETRIES} attempt(s)"
 print_tftp_diagnostics "$last_dns_delta"
 if printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v21: mmu ownership boundary"; then
-  echo "final result: stale pre-V21 SD fallback image booted, but staged network image is not proven."
+  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v30: swift-native kernel substrate certificate"; then
+  echo "final result: stale pre-V30 SD fallback image booted, but staged network image is not proven."
   final_exit=3
 else
   final_exit=1

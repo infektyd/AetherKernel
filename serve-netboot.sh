@@ -16,6 +16,7 @@
 # Set AETHER_NETBOOT_REPLACE=1 to let this script stop an existing AetherKernel
 # TFTP provider before binding UDP/69. This keeps the sudoers rule scoped to this
 # one bench script instead of requiring passwordless kill/pkill.
+# Set AETHER_NETBOOT_STOP=1 to stop matching AetherKernel TFTP providers and exit.
 # Set AETHER_TFTP_PROVIDER=dnsmasq to use Homebrew dnsmasq as an explicit fallback.
 #===----------------------------------------------------------------------===#
 set -euo pipefail
@@ -27,10 +28,12 @@ PREFIX="${AETHER_TFTP_PREFIX:-aether}"
 PREFIX="${PREFIX#/}"
 PREFIX="${PREFIX%/}"
 SERVER_IP="${AETHER_NETBOOT_SERVER_IP:-10.42.0.1}"
+TFTP_LOG="${AETHER_TFTP_LOG:-${AETHER_DNSMASQ_LOG:-/tmp/aether-dnsmasq.log}}"
 NO_BLOCKSIZE="${AETHER_TFTP_NO_BLOCKSIZE:-0}"
 SINGLE_PORT="${AETHER_TFTP_SINGLE_PORT:-1}"
 TFTP_MTU="${AETHER_TFTP_MTU:-}"
 REPLACE_EXISTING="${AETHER_NETBOOT_REPLACE:-0}"
+STOP_ONLY="${AETHER_NETBOOT_STOP:-0}"
 PROVIDER="${AETHER_TFTP_PROVIDER:-aether}"
 
 usage() {
@@ -147,6 +150,7 @@ case "$PROVIDER" in
       "--port=69"
       "--root=$TFTP_ROOT"
       "--block-size=${AETHER_TFTP_BLOCK_SIZE:-1468}"
+      "--log-file=$TFTP_LOG"
     )
     if [ "$SINGLE_PORT" = "1" ]; then
       cmd+=("--single-port")
@@ -185,15 +189,28 @@ if [ "$(id -u)" -ne 0 ]; then
     AETHER_TFTP_PREFIX="$PREFIX" \
     AETHER_NETBOOT_INTERFACE="$IFACE" \
     AETHER_NETBOOT_SERVER_IP="$SERVER_IP" \
+    AETHER_TFTP_LOG="$TFTP_LOG" \
     AETHER_TFTP_NO_BLOCKSIZE="$NO_BLOCKSIZE" \
     AETHER_TFTP_SINGLE_PORT="$SINGLE_PORT" \
     AETHER_TFTP_MTU="$TFTP_MTU" \
     AETHER_NETBOOT_REPLACE="$REPLACE_EXISTING" \
+    AETHER_NETBOOT_STOP="$STOP_ONLY" \
     AETHER_TFTP_PROVIDER="$PROVIDER" \
-    AETHER_TFTP_BLOCK_SIZE="${AETHER_TFTP_BLOCK_SIZE:-512}" \
+    AETHER_TFTP_BLOCK_SIZE="${AETHER_TFTP_BLOCK_SIZE:-1468}" \
     DNSMASQ="${DNSMASQ_BIN:-}" \
     PYTHON3="${PYTHON3_BIN:-}" \
     "$SCRIPT_DIR/serve-netboot.sh" "$IFACE" "$TFTP_ROOT"
+fi
+
+if [ "$STOP_ONLY" = "1" ]; then
+  echo "stopping existing AetherKernel TFTP providers for $TFTP_ROOT"
+  stop_matching_provider "dnsmasq.*--tftp-root=${TFTP_ROOT}"
+  stop_matching_provider "tftp-now.*serve.*${TFTP_ROOT}"
+  stop_matching_provider "aether_tftp.py.*${TFTP_ROOT}"
+  pkill -f "dnsmasq.*--tftp-root=${TFTP_ROOT}" 2>/dev/null || true
+  pkill -f "tftp-now.*serve.*${TFTP_ROOT}" 2>/dev/null || true
+  pkill -f "aether_tftp.py.*${TFTP_ROOT}" 2>/dev/null || true
+  exit 0
 fi
 
 if [ "$REPLACE_EXISTING" = "1" ]; then

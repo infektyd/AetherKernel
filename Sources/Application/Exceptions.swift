@@ -11,7 +11,11 @@ import Support
 @_cdecl("kernel_exception_handler")
 func kernelExceptionHandler(_ esr: UInt64, _ elr: UInt64, _ far: UInt64) {
   kernel_record_fault(UInt(esr), UInt(elr), UInt(far))
-  uartPuts("\nfault kind=sync esr=")
+  uartPuts("\nfault kind=sync category=")
+  uartPutDec(UInt64(KERNEL_RETAINED_CATEGORY_FAULT))
+  uartPuts(" reason_id=")
+  uartPutDec(UInt64(KERNEL_RETAINED_REASON_SYNC_FAULT))
+  uartPuts(" esr=")
   uartPutHexCompact(esr)
   uartPuts(" elr=")
   uartPutHexCompact(elr)

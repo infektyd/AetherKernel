@@ -99,14 +99,6 @@ void kernel_object_registry_init(void) {
                                  KERNEL_OBJECT_FLAG_ACTIVE,
                                  (const unsigned char *)"runtime",
                                  cstr_len("runtime"));
-    (void)kernel_object_register(KERNEL_OBJECT_KIND_DRIVER,
-                                 KERNEL_OBJECT_FLAG_ACTIVE,
-                                 (const unsigned char *)"uart0",
-                                 cstr_len("uart0"));
-    (void)kernel_object_register(KERNEL_OBJECT_KIND_DRIVER,
-                                 KERNEL_OBJECT_FLAG_ACTIVE,
-                                 (const unsigned char *)"cntp",
-                                 cstr_len("cntp"));
 }
 
 static unsigned int next_generation(unsigned int generation) {
@@ -384,7 +376,7 @@ int kernel_object_registry_selftest(void) {
     if (kernel_object_capacity() != KERNEL_OBJECT_CAPACITY) {
         return 0;
     }
-    if (kernel_object_count() < 3U) {
+    if (kernel_object_count() < 1U) {
         return 0;
     }
     for (unsigned int i = 0; i < kernel_object_capacity(); i++) {

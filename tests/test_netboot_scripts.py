@@ -266,6 +266,7 @@ def test_serve_netboot_can_use_repo_owned_tftp_provider(tmp_path: pathlib.Path) 
     assert "aether_tftp.py" in result.stdout
     assert f"--root={root}" in result.stdout
     assert "--block-size=1468" in result.stdout
+    assert "--log-file=/tmp/aether-dnsmasq.log" in result.stdout
     assert "--single-port" in result.stdout
 
 
@@ -287,8 +288,17 @@ def test_serve_netboot_defaults_to_repo_owned_tftp_provider(tmp_path: pathlib.Pa
     assert "aether_tftp.py" in result.stdout
     assert f"--root={root}" in result.stdout
     assert "--block-size=1468" in result.stdout
+    assert "--log-file=/tmp/aether-dnsmasq.log" in result.stdout
     assert "--single-port" in result.stdout
-    assert "dnsmasq" not in result.stdout
+
+
+def test_serve_netboot_has_scoped_stop_mode_for_repo_owned_provider() -> None:
+    script = read_repo("serve-netboot.sh")
+
+    assert "AETHER_NETBOOT_STOP" in script
+    assert 'AETHER_NETBOOT_STOP="$STOP_ONLY"' in script
+    assert "stopping existing AetherKernel TFTP providers for $TFTP_ROOT" in script
+    assert 'stop_matching_provider "aether_tftp.py.*${TFTP_ROOT}"' in script
 
 
 def test_serial_reset_dry_run_targets_default_usb_ttl_port() -> None:
@@ -330,11 +340,11 @@ def test_net_iterate_detects_stale_sd_fallback_image() -> None:
 def test_net_iterate_reports_stale_pre_v11_sd_fallback_without_claiming_netboot() -> None:
     net_iterate = read_repo("net-iterate.sh")
 
-    assert "stale pre-V21 SD fallback image detected" in net_iterate
+    assert "stale pre-V30 SD fallback image detected" in net_iterate
     assert "TFTP kernel fetch was not verified" in net_iterate
     assert 'grep -q "shell ready commands="' in net_iterate
     assert "sd_fallback_seen=1" in net_iterate
-    assert "retrying after stale pre-V21 SD fallback" in net_iterate
+    assert "retrying after stale pre-V30 SD fallback" in net_iterate
     assert "final_exit=3" in net_iterate
     assert 'exit "$final_exit"' in net_iterate
 
@@ -392,7 +402,7 @@ def test_netboot_doctor_verifies_runtime_v11_markers() -> None:
     assert "runtime v10: explicit guard probes" in doctor
     assert "runtime v11: boot and soak invariants" in doctor
     assert "runtime v21: mmu ownership boundary" in doctor
-    assert "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot" in doctor
+    assert "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot" in doctor
     assert "async tick 0x0000000000000000" not in doctor
 
 

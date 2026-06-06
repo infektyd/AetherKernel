@@ -3,17 +3,36 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V21 hardware-verified on real Raspberry Pi 4B**
-> (2026-06-05) — netbooted image fetched `kernel8.img`, printed banner +
+> Status: **Runtime V30 Swift-native kernel substrate certificate hardware-verified on real Raspberry Pi 4B**
+> (2026-06-06) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
 > marker, the Runtime V6 retained-record marker, the Runtime V7 memory marker,
-> the Runtime V8 allocator-guard marker, Runtime V9-V21 self-test markers, and
-> UART shell command responses over PL011 serial @ 115200. Runtime V21 records
-> the current EL1 MMU ownership boundary; hardware proved
-> `bootcert ok=1 version=21 ... mmu=1 ... channels=1 ... events_lost=0` plus
-> `mmu ok=1 regions=4 entries=512 block_size=0x40000000` across a clean
-> `set -e` 3-cycle netboot loop.
+> the Runtime V8 allocator-guard marker, Runtime V9-V25 self-test markers, and
+> UART shell command responses over PL011 serial @ 115200. Runtime V25 scriptable
+> command protocol v2 proved `protocol version=2 request=req id_field=id
+> cmd_field=cmd begin_end=1 errors=1 max_line=80`, `bootcert ok=1 version=28
+> runtime=1 taxonomy=1 protocol=1 ... drivers=1 pressure=1 pools=1 ... events_lost=0`, and
+> `resp id=25 ok=1 cmd=status end` across a clean `set -e` 3-cycle netboot loop.
+> Runtime V26 host soak harness ran a 3-cycle `soak-loop.sh` proof. Runtime V27
+> panic/fault retained taxonomy proved `retained valid=1 kind=panic kind_id=1
+> category=1 reason_id=1 ... reason=panic-test`, `retained valid=1 kind=fault
+> kind_id=2 category=2 reason_id=2 ... reason=sync-fault`, and
+> `symbol address=0x92968 symbol_name=_kernel_trigger_sync_fault`. Runtime V28
+> Swift runtime dependency audit proved `runtime ok=1 version=28 swift=6.3.2
+> source_hooks=10 linked_hooks=2 heap_shims=5 linked_heap_shims=3
+> required_symbols=5 audit=1`; host `runtime-audit.sh` reported
+> `runtime-audit ok=1 ... missing=none`. Runtime V29 added the agent session
+> health surface and proved `bootcert ok=1 version=29 agent=1 runtime=1 ... events_lost=0`,
+> `agent ok=1 version=29 health=green bootcert=1 runtime=1 protocol=2 agent=1 events_lost=0`,
+> and `agent-session ok=1 version=29 health=green bootcert=1 runtime=1 stress=1 soak=1 events_lost=0`
+> across a clean 3-cycle netboot + agent-session loop. Runtime V30 added the
+> substrate certificate and proved `bootcert ok=1 version=30 certificate=1 agent=1
+> runtime=1 ... events_lost=0`, `certificate ok=1 version=30 substrate=1 bootcert=1
+> agent=1 runtime=1 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1
+> events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 ... events_lost=0`,
+> and `certificate-loop ok=1 version=30 cycles=3 completed=3 substrate=1 bootcert=1
+> agent=1 runtime=1 events_lost=0`.
 
 ## What works (verified)
 
@@ -46,6 +65,15 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V19 structured Aether task spawn | ✅ | hardware run printed `runtime v19: structured aether task spawn`; `bootcert ok=1 version=19 ... taskspawns=1 cancellations=1 ... events_lost=0`; `taskcheck ok=1 count=7 capacity=8 spawns=6 completions=0`; 3-cycle netboot loop passed |
 | Runtime V20 bounded async channels | ✅ | hardware run printed `runtime v20: bounded async channels`; `bootcert ok=1 version=20 ... channels=1 taskspawns=1 cancellations=1 ... events_lost=0`; `channeltest ok=1 mailbox=1 sent=1 received=1 value=0x000000000000c020`; 3-cycle netboot loop passed |
 | Runtime V21 MMU ownership boundary | ✅ | hardware run printed `runtime v21: mmu ownership boundary`; `bootcert ok=1 version=21 ... mmu=1 ... events_lost=0`; `mmu ok=1 regions=4 entries=512 block_size=0x40000000 ... selftest=1`; clean `set -e` 3-cycle netboot loop passed |
+| Runtime V22 guarded typed pools | ✅ | hardware run printed `runtime v22: guarded typed pools`; `bootcert ok=1 version=22 ... pools=1 ... mmu=1 ... events_lost=0`; `poolcheck ok=1 ... bad_frees=1 double_frees=1`; `pools count=3 capacity=4 selftest=1`; clean `set -e` 3-cycle netboot loop passed |
+| Runtime V23 allocator/pool pressure telemetry | ✅ | hardware run printed `runtime v23: allocator and pool pressure telemetry`; `bootcert ok=1 version=23 ... pressure=1 pools=1 ... events_lost=0`; `heapfrag ok=1 ... fragmentation_permil=0 ... pressure_largest_free=4184112`; `poolstats ok=1 ... total_slots=24 ... failed_allocs=1`; clean `set -e` 3-cycle netboot loop passed |
+| Runtime V24 fixed driver registry | ✅ | hardware run printed `runtime v24: fixed driver registry`; `bootcert ok=1 version=24 ... drivers=1 pressure=1 pools=1 ... events_lost=0`; `drivers count=4 capacity=4 selftest=1`; `drivercheck ok=1 ... uart_irq=16 timer_irq=689 gic_total=705 watchdog_resets=0 unknown_irq=0 selftest=1`; clean `set -e` 3-cycle netboot loop passed |
+| Runtime V25 scriptable command protocol v2 | ✅ | hardware run printed `runtime v25: scriptable command protocol v2`; `protocol version=2 request=req id_field=id cmd_field=cmd begin_end=1 errors=1 max_line=80`; `bootcert ok=1 version=25 protocol=1 ... drivers=1 pressure=1 pools=1 ... events_lost=0`; `resp id=25 ok=1 cmd=status end`; clean `set -e` 3-cycle netboot loop passed |
+| Runtime V26 host soak harness | ✅ | host-side `soak-loop.sh` ran 3 netboot cycles, then harvested request-wrapped `status`, `bootcert`, `stress`, `soak`, and `events` summaries; proof ended `soak result ok=1 cycles=3 completed=3` |
+| Runtime V27 panic taxonomy and symbolic retained records | ✅ | hardware run printed `runtime v27: panic taxonomy and symbolic retained records`; `bootcert ok=1 version=27 taxonomy=1 ... events_lost=0`; `panic-test` reported `retained valid=1 kind=panic kind_id=1 category=1 reason_id=1`; `fault-test` reported `kind_id=2 category=2 reason_id=2`; `symbol address=0x92968 symbol_name=_kernel_trigger_sync_fault`; clean `set -e` 3-cycle netboot loop passed |
+| Runtime V28 Swift runtime dependency audit | ✅ | hardware run printed `runtime v28: swift runtime dependency audit`; `bootcert ok=1 version=28 runtime=1 taxonomy=1 ... events_lost=0`; `runtime ok=1 version=28 swift=6.3.2 source_hooks=10 linked_hooks=2 heap_shims=5 linked_heap_shims=3 required_symbols=5 audit=1`; host `runtime-audit ok=1 ... missing=none` |
+| Runtime V29 agent-oriented control session | ✅ | hardware run printed `runtime v29: agent-oriented control session`; `bootcert ok=1 version=29 agent=1 runtime=1 taxonomy=1 ... events_lost=0`; `agent ok=1 version=29 health=green bootcert=1 runtime=1 protocol=2 agent=1 events_lost=0`; `agent-session ok=1 version=29 health=green ... events_lost=0`; clean `set -e` 3-cycle netboot + agent-session loop passed |
+| Runtime V30 Swift-native kernel substrate certificate | ✅ | hardware run printed `runtime v30: swift-native kernel substrate certificate`; `bootcert ok=1 version=30 certificate=1 agent=1 runtime=1 taxonomy=1 ... events_lost=0`; `certificate ok=1 version=30 substrate=1 bootcert=1 agent=1 runtime=1 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 ... events_lost=0`; `certificate-loop ok=1 version=30 cycles=3 completed=3 ... events_lost=0` |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -106,19 +134,21 @@ Sources/Application/TimerSleep.swift   8-slot CNTP-backed async continuation sle
 Sources/Application/UARTRX.swift       Runtime V4 IRQ-backed UART RX async byte bridge
 Sources/Application/AetherTask.swift   Runtime V19 structured task registration/spawn helper
 Sources/Application/AetherChannel.swift Runtime V20 Swift async channel wrapper over mailboxes
-Sources/Application/UARTShell.swift    Runtime V21 line command shell over UART RX
-Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V21 async cadences + shell
+Sources/Application/UARTShell.swift    Runtime V25 line shell + request/response protocol over UART RX
+Sources/Application/Application.swift  @main: banner, CurrentEL, Runtime V25 async cadences + shell
 Sources/Support/kernel_registry.c     Runtime V12 fixed object/task registry
 Sources/Support/kernel_mailbox.c      Runtime V13 fixed mailbox queues
 Sources/Support/kernel_supervisor.c   Runtime V14 fixed task supervisor
 Sources/Support/kernel_event_log.c    Runtime V16 fixed event log ring
 Sources/Support/kernel_cancel.c       Runtime V18 fixed cancellation token table
-Sources/Support/alloc.c               Runtime V11 fixed heap allocator + guard/pressure checks
+Sources/Support/alloc.c               Runtime V23 fixed heap allocator + guard/pressure telemetry
+Sources/Support/kernel_driver.c       Runtime V24 fixed driver registry + stats surface
 Sources/Support/diagnostics.c         Runtime V6 IRQ/fault/panic counters + retained reset record
 Sources/Support/memory_map.c          Runtime V11 fixed memory map + guarded 4 KiB frame allocator
 Sources/Support/mmu.c                 Runtime V21 static EL1 MMU table + read-only introspection
+Sources/Support/kernel_pool.c         Runtime V22 guarded typed pools
 build.sh / flash.sh / netboot-doctor.sh / netflash.sh / net-iterate.sh
-prepare-tftp.sh / serve-netboot.sh / serial-reset.sh / serial-command.sh / serial-probe.sh
+prepare-tftp.sh / serve-netboot.sh / serial-reset.sh / serial-command.sh / serial-probe.sh / soak-loop.sh
 macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK.md
 ```
 
@@ -288,6 +318,118 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     lines included `runtime v21: mmu ownership boundary`, `bootcert ok=1
     version=21 ... mmu=1 ... channels=1 ... events_lost=0`, and `mmu ok=1
     regions=4 entries=512 block_size=0x40000000 ... selftest=1`.
+
+  - **Runtime V22 — guarded typed pools.** ✅ hardware-verified.
+    `kernel_pool.c` adds fixed C-owned typed pools beside the heap, with guard
+    words, generation counters, high-water/counter telemetry, deterministic
+    bad-free/double-free/overflow selftests, and shell visibility via `pools`
+    and `poolcheck`. Hardware proof: a single `net-iterate.sh` run passed,
+    then a clean `set -e` 3-cycle loop passed all cycles. Proof lines included
+    `runtime v22: guarded typed pools`, `bootcert ok=1 version=22 ... pools=1
+    ... mmu=1 ... events_lost=0`, `poolcheck ok=1 ... bad_frees=1
+    double_frees=1`, and `pools count=3 capacity=4 selftest=1`.
+
+  - **Runtime V23 — allocator/pool pressure telemetry.** ✅ hardware-verified.
+    `alloc.c` now exposes heap free/allocated block counts, smallest/largest
+    free block size, fragmentation permille, and last pressure-run snapshots.
+    `kernel_pool.c` adds aggregate pool slot pressure counters. The shell adds
+    `heapfrag` and `poolstats`, and `bootcert` reports `pressure=1`. Hardware
+    proof: a single `net-iterate.sh` run passed, then a clean `set -e` 3-cycle
+    loop passed all cycles. Proof lines included `runtime v23: allocator and
+    pool pressure telemetry`, `bootcert ok=1 version=23 ... pressure=1 pools=1
+    ... events_lost=0`, `heapfrag ok=1 ... fragmentation_permil=0 ...
+    pressure_largest_free=4184112`, and `poolstats ok=1 ... total_slots=24 ...
+    failed_allocs=1`.
+
+  - **Runtime V24 fixed driver registry.** ✅ hardware-verified.
+    `kernel_driver.c` adds a fixed C-owned registry for the current UART0,
+    CNTP, GIC, and watchdog drivers. It registers each as a kernel object and
+    exposes stable IDs, names, handles, INTIDs, base addresses, capabilities,
+    IRQ counters, error counters, and operation counters. The shell adds
+    `drivers` and `drivercheck`, and `bootcert` reports `drivers=1`.
+    Hardware proof: a single `net-iterate.sh` run passed, then a clean
+    `set -e` 3-cycle loop passed all cycles. Proof lines included
+    `runtime v24: fixed driver registry`, `bootcert ok=1 version=24 ...
+    drivers=1 pressure=1 pools=1 ... events_lost=0`, `drivers count=4
+    capacity=4 selftest=1`, and `drivercheck ok=1 ... uart_irq=16
+    timer_irq=689 gic_total=705 watchdog_resets=0 unknown_irq=0 selftest=1`.
+
+  - **Runtime V25 scriptable command protocol v2.** ✅ hardware-verified.
+    The UART shell keeps legacy human commands, but also accepts request-wrapped
+    commands shaped as `req id=<n> cmd=<command>` and emits stable begin/end or
+    error response envelopes for agent control. The `protocol` command describes
+    the wire contract, and `bootcert` reports `protocol=1`. Hardware proof: a
+    single `net-iterate.sh` run passed, then a clean `set -e` 3-cycle loop passed
+    all cycles. Proof lines included `runtime v25: scriptable command protocol
+    v2`, `protocol version=2 request=req id_field=id cmd_field=cmd begin_end=1
+    errors=1 max_line=80`, `bootcert ok=1 version=25 protocol=1 ... drivers=1
+    pressure=1 pools=1 ... events_lost=0`, and
+    `resp id=25 ok=1 cmd=status end`.
+
+  - **Runtime V26 host soak harness.** ✅ hardware-verified.
+    This is host-side hardening, not a kernel bootcert bump: the Pi still boots
+    the Runtime V25 image and reports `bootcert ok=1 version=25`. The new
+    `soak-loop.sh` script repeats `net-iterate.sh`, then sends request-wrapped
+    `status`, `bootcert`, `stress`, `soak`, and `events` commands with unique
+    IDs and appends machine-checkable summaries to a log. Hardware proof:
+    `AETHER_SOAK_CYCLES=3 ./soak-loop.sh /Users/hansaxelsson/aether-tftp`
+    completed all cycles. Proof lines included `soak summary cycle=3
+    command=bootcert id=2622 line=bootcert ok=1 version=25 ... events_lost=0`,
+    `soak summary cycle=3 command=stress ... heap_leak=0 frame_leak=0`,
+    `soak summary cycle=3 command=soak ... failures=0 heap_leak=0 frame_leak=0`,
+    `soak summary cycle=3 command=events ... lost=0 ... selftest=1`, and
+    `soak result ok=1 cycles=3 completed=3 log=/tmp/aether-soak-v26.log`.
+
+  - **Runtime V27 panic taxonomy and symbolic retained records.** ✅ hardware-verified.
+    Retained panic/fault records now carry stable numeric taxonomy beside the
+    historical reason text: `kind_id`, `category`, and `reason_id`. `bootcert`
+    reports `bootcert ok=1 version=27 taxonomy=1 ... events_lost=0`, and
+    `symbolicate-retained.sh` maps retained ELR-style addresses against the
+    built Mach-O. Hardware proof: `panic-test` rebooted and `retained` reported
+    `retained valid=1 kind=panic kind_id=1 category=1 reason_id=1 ... reason=panic-test`;
+    `fault-test` rebooted and `retained` reported `kind=fault kind_id=2
+    category=2 reason_id=2 esr=0xf20000a5 elr=0x92968 ... reason=sync-fault`;
+    `./symbolicate-retained.sh 0x92968 .build/release/Application` returned
+    `symbol address=0x92968 symbol_name=_kernel_trigger_sync_fault ...`; a clean
+    `set -e` 3-cycle netboot loop then passed.
+
+  - **Runtime V28 Swift runtime dependency audit.** ✅ hardware-verified.
+    V28 makes the Swift runtime boundary explicit: Aether owns 10 source-level
+    Swift concurrency hooks, the linked Mach-O currently carries 2 load-bearing
+    hook symbols, and the heap shim contract is audited separately. Hardware
+    proof: `net-iterate.sh` passed on real Pi 4, `bootcert` reported
+    `bootcert ok=1 version=28 runtime=1 taxonomy=1 ... events_lost=0`, the
+    shell `runtime` command returned `runtime ok=1 version=28 swift=6.3.2
+    source_hooks=10 linked_hooks=2 heap_shims=5 linked_heap_shims=3
+    required_symbols=5 audit=1`, and host `./runtime-audit.sh
+    .build/release/Application` returned `runtime-audit ok=1 ... missing=none`.
+
+  - **Runtime V29 agent-oriented control session.** ✅ hardware-verified.
+    The UART shell now exposes a one-line `agent` health session surface for
+    host agents. It aggregates the boot certificate, runtime audit, protocol
+    version, queue pressure, sleeper count, heap free space, and event loss into
+    one parseable line while preserving the V25 request envelope. Hardware
+    proof: `net-iterate.sh` passed on real Pi 4, `bootcert` reported
+    `bootcert ok=1 version=29 agent=1 runtime=1 taxonomy=1 ... events_lost=0`,
+    the shell `agent` command returned `agent ok=1 version=29 health=green
+    bootcert=1 runtime=1 protocol=2 agent=1 events_lost=0`, and
+    `agent-session.sh` reported `agent-session ok=1 version=29 health=green
+    bootcert=1 runtime=1 stress=1 soak=1 events_lost=0`. A clean `set -e`
+    3-cycle netboot + agent-session loop passed.
+
+  - **Runtime V30 Swift-native kernel substrate certificate.** ✅ hardware-verified.
+    The UART shell now exposes a one-line `certificate` command that aggregates
+    the substrate invariants built through V12-V29: object table, task registry,
+    mailboxes, supervisor, handles, event log, cancellations, channels, drivers,
+    allocator pressure, pools, MMU boundary, bootcert, agent surface, and runtime
+    audit. Hardware proof: `net-iterate.sh` passed on real Pi 4, `bootcert`
+    reported `bootcert ok=1 version=30 certificate=1 agent=1 runtime=1 taxonomy=1
+    ... events_lost=0`, the shell `certificate` command returned `certificate ok=1
+    version=30 substrate=1 bootcert=1 agent=1 runtime=1 memory=1 objects=1 tasks=1
+    mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1 channels=1
+    drivers=1 pressure=1 pools=1 mmu=1 ... events_lost=0`, and
+    `certificate-loop.sh` reported `certificate-loop ok=1 version=30 cycles=3
+    completed=3 substrate=1 bootcert=1 agent=1 runtime=1 events_lost=0`.
 
 ## Provenance
 

@@ -38,6 +38,8 @@ static unsigned long heap_double_frees = 0;
 static unsigned long heap_corruptions = 0;
 static unsigned long heap_pressure_last_peak = 0;
 static unsigned long heap_pressure_last_leak = 0;
+static unsigned long heap_pressure_last_free_blocks = 0;
+static unsigned long heap_pressure_last_largest_free = 0;
 static unsigned long heap_free_context = HEAP_FREE_CONTEXT_DIRECT;
 static unsigned long heap_free_context_align_mask = 0;
 static unsigned long heap_free_context_return_address = 0;
@@ -51,10 +53,19 @@ static void heap_record_corruption(unsigned int reason) {
     heap_corruptions++;
 }
 
+static void heap_init(void);
+static unsigned long heap_free_block_count_unsafe(void);
+static unsigned long heap_largest_free_bytes_unsafe(void);
+
 static void heap_pressure_record(unsigned long peak, unsigned long leak) {
     unsigned long flags = irq_save();
+    if (!heap_initialized) {
+        heap_init();
+    }
     heap_pressure_last_peak = peak;
     heap_pressure_last_leak = leak;
+    heap_pressure_last_free_blocks = heap_free_block_count_unsafe();
+    heap_pressure_last_largest_free = heap_largest_free_bytes_unsafe();
     irq_restore(flags);
 }
 
@@ -115,6 +126,72 @@ static unsigned long heap_free_bytes_unsafe(void) {
         curr = curr->next;
     }
     return total;
+}
+
+//===----------------------------------------------------------------------===//
+// Runtime V23 allocator fragmentation telemetry.
+//===----------------------------------------------------------------------===//
+
+static unsigned long heap_free_block_count_unsafe(void) {
+    unsigned long count = 0;
+    free_block *curr = free_list_head;
+    while (curr != NULL) {
+        count++;
+        curr = curr->next;
+        if (count > 65536) {
+            return count;
+        }
+    }
+    return count;
+}
+
+static unsigned long heap_largest_free_bytes_unsafe(void) {
+    unsigned long largest = 0;
+    free_block *curr = free_list_head;
+    while (curr != NULL) {
+        unsigned long size = curr->size & ~1UL;
+        if (size > largest) {
+            largest = size;
+        }
+        curr = curr->next;
+    }
+    return largest;
+}
+
+static unsigned long heap_smallest_free_bytes_unsafe(void) {
+    unsigned long smallest = 0;
+    free_block *curr = free_list_head;
+    while (curr != NULL) {
+        unsigned long size = curr->size & ~1UL;
+        if (smallest == 0 || size < smallest) {
+            smallest = size;
+        }
+        curr = curr->next;
+    }
+    return smallest;
+}
+
+static unsigned long heap_allocated_block_count_unsafe(void) {
+    unsigned long count = 0;
+    char *p = (char *)(HEAP_BASE + 8);
+    char *end = (char *)(HEAP_END - 8);
+
+    while (p < end) {
+        block_header *h = (block_header *)p;
+        size_t raw = h->size;
+        size_t size = raw & ~1UL;
+        if (size == 0 || (size & 0xFUL) != 0) {
+            return count;
+        }
+        if ((raw & 1UL) != 0) {
+            count++;
+        }
+        p += 16 + size;
+        if (count > 65536) {
+            return count;
+        }
+    }
+    return count;
 }
 
 static unsigned long heap_allocated_bytes_unsafe(void) {
@@ -602,6 +679,45 @@ unsigned long heap_pressure_last_leak_bytes(void) {
     return leak;
 }
 
+unsigned long heap_pressure_last_free_block_count(void) {
+    unsigned long flags = irq_save();
+    unsigned long count = heap_pressure_last_free_blocks;
+    irq_restore(flags);
+    return count;
+}
+
+unsigned long heap_pressure_last_largest_free_bytes(void) {
+    unsigned long flags = irq_save();
+    unsigned long largest = heap_pressure_last_largest_free;
+    irq_restore(flags);
+    return largest;
+}
+
+int heap_fragmentation_selftest(void) {
+    if (!heap_integrity_check()) {
+        return 0;
+    }
+
+    unsigned long free_bytes = heap_free_bytes();
+    unsigned long largest = heap_largest_free_bytes();
+    unsigned long smallest = heap_smallest_free_bytes();
+    unsigned long free_blocks = heap_free_block_count();
+    unsigned long allocated_blocks = heap_allocated_block_count();
+    unsigned long fragmentation = heap_fragmentation_permil();
+
+    if (free_bytes == 0) {
+        return largest == 0 && smallest == 0 && free_blocks == 0 && fragmentation == 0;
+    }
+
+    return free_blocks > 0 &&
+           largest > 0 &&
+           smallest > 0 &&
+           smallest <= largest &&
+           largest <= free_bytes &&
+           allocated_blocks < 65536UL &&
+           fragmentation <= 1000UL;
+}
+
 void heap_guard_invalid_free_test(void) {
     free((void *)0x123450UL);
     kernel_panic("heap-invalid-free-test-survived");
@@ -682,15 +798,7 @@ unsigned long heap_largest_free_bytes(void) {
         heap_init();
     }
 
-    unsigned long largest = 0;
-    free_block *curr = free_list_head;
-    while (curr != NULL) {
-        unsigned long size = curr->size & ~1UL;
-        if (size > largest) {
-            largest = size;
-        }
-        curr = curr->next;
-    }
+    unsigned long largest = heap_largest_free_bytes_unsafe();
 
     irq_restore(flags);
     return largest;
@@ -747,6 +855,59 @@ unsigned long heap_failed_alloc_count(void) {
     unsigned long count = heap_failed_allocs;
     irq_restore(flags);
     return count;
+}
+
+unsigned long heap_free_block_count(void) {
+    unsigned long flags = irq_save();
+    if (!heap_initialized) {
+        heap_init();
+    }
+
+    unsigned long count = heap_free_block_count_unsafe();
+    irq_restore(flags);
+    return count;
+}
+
+unsigned long heap_allocated_block_count(void) {
+    unsigned long flags = irq_save();
+    if (!heap_initialized) {
+        heap_init();
+    }
+
+    unsigned long count = heap_allocated_block_count_unsafe();
+    irq_restore(flags);
+    return count;
+}
+
+unsigned long heap_smallest_free_bytes(void) {
+    unsigned long flags = irq_save();
+    if (!heap_initialized) {
+        heap_init();
+    }
+
+    unsigned long smallest = heap_smallest_free_bytes_unsafe();
+    irq_restore(flags);
+    return smallest;
+}
+
+unsigned long heap_fragmentation_permil(void) {
+    unsigned long flags = irq_save();
+    if (!heap_initialized) {
+        heap_init();
+    }
+
+    unsigned long free_bytes = heap_free_bytes_unsafe();
+    unsigned long largest = heap_largest_free_bytes_unsafe();
+    unsigned long value = 0;
+    if (free_bytes > 0 && largest < free_bytes) {
+        value = ((free_bytes - largest) * 1000UL) / free_bytes;
+        if (value > 1000UL) {
+            value = 1000UL;
+        }
+    }
+
+    irq_restore(flags);
+    return value;
 }
 
 int heap_integrity_check(void) {

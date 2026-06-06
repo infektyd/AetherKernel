@@ -2,13 +2,19 @@
 #===----------------------------------------------------------------------===#
 # Send one line-oriented AetherKernel UART shell command over USB-TTL.
 #
-#   usage: ./serial-command.sh <command> [serial-port]
+#   usage: ./serial-command.sh [--request-id id] <command> [serial-port]
 #
 # Defaults:
 #   serial-port: $AETHER_SERIAL_PORT, /dev/cu.usbserial-B0044J1V, or the first
 #                /dev/cu.usbserial-* device.
 #===----------------------------------------------------------------------===#
 set -euo pipefail
+
+REQUEST_ID=""
+if [ "${1:-}" = "--request-id" ]; then
+  REQUEST_ID="${2:-}"
+  shift 2 || true
+fi
 
 COMMAND="${1:-}"
 PORT="${2:-${AETHER_SERIAL_PORT:-}}"
@@ -29,6 +35,14 @@ fi
 
 [ -n "$COMMAND" ] || die "missing command"
 
+if [ -n "$REQUEST_ID" ]; then
+  case "$REQUEST_ID" in
+    ''|*[!0-9]*)
+      die "--request-id must be a non-negative integer"
+      ;;
+  esac
+fi
+
 case "$COMMAND" in
   *$'\n'*|*$'\r'*)
     die "command must be a single line"
@@ -48,11 +62,22 @@ fi
 if [ "${AETHER_SERIAL_COMMAND_DRY_RUN:-0}" = "1" ]; then
   echo "serial port: $PORT"
   echo "command: $COMMAND"
-  echo "payload: ${COMMAND}\\n"
+  if [ -n "$REQUEST_ID" ]; then
+    echo "request id: $REQUEST_ID"
+    echo "payload: req id=${REQUEST_ID} cmd=${COMMAND}\\n"
+  else
+    echo "payload: ${COMMAND}\\n"
+  fi
   exit 0
 fi
 
-python3 - "$PORT" "$COMMAND" <<'PY'
+if [ -n "$REQUEST_ID" ]; then
+  PAYLOAD="req id=${REQUEST_ID} cmd=${COMMAND}"
+else
+  PAYLOAD="$COMMAND"
+fi
+
+python3 - "$PORT" "$PAYLOAD" <<'PY'
 import os
 import sys
 import termios
@@ -80,4 +105,8 @@ finally:
     os.close(fd)
 PY
 
-echo "sent serial command '$COMMAND' to $PORT"
+if [ -n "$REQUEST_ID" ]; then
+  echo "sent serial command '$COMMAND' request-id $REQUEST_ID to $PORT"
+else
+  echo "sent serial command '$COMMAND' to $PORT"
+fi

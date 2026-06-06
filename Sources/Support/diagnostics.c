@@ -11,7 +11,7 @@
 #define UART0_FR_BUSY (1U << 3)
 #define UART0_FR_TXFF (1U << 5)
 
-#define RETAINED_MAGIC 0x4145544852563601UL  // "AETHRV6" + version byte
+#define RETAINED_MAGIC 0x4145544852561b01UL  // "AETHRV27" + version byte
 #define RETAINED_REASON_CAPACITY 40U
 
 static unsigned long irq_total;
@@ -31,6 +31,8 @@ typedef struct retained_record {
     unsigned long checksum;
     unsigned long sequence;
     unsigned long kind;
+    unsigned long category;
+    unsigned long reason_id;
     unsigned long esr;
     unsigned long elr;
     unsigned long far;
@@ -68,6 +70,10 @@ static unsigned long retained_checksum(const volatile retained_record *r) {
     c = (c << 7) | (c >> (sizeof(unsigned long) * 8 - 7));
     c ^= r->kind;
     c = (c << 7) | (c >> (sizeof(unsigned long) * 8 - 7));
+    c ^= r->category;
+    c = (c << 7) | (c >> (sizeof(unsigned long) * 8 - 7));
+    c ^= r->reason_id;
+    c = (c << 7) | (c >> (sizeof(unsigned long) * 8 - 7));
     c ^= r->esr;
     c = (c << 7) | (c >> (sizeof(unsigned long) * 8 - 7));
     c ^= r->elr;
@@ -92,13 +98,79 @@ static unsigned int retained_record_valid(void) {
     if (r->kind != KERNEL_RETAINED_KIND_PANIC && r->kind != KERNEL_RETAINED_KIND_FAULT) {
         return 0;
     }
+    if (r->category > KERNEL_RETAINED_CATEGORY_INTERNAL) {
+        return 0;
+    }
     if (len > RETAINED_REASON_CAPACITY) {
         return 0;
     }
     return r->checksum == retained_checksum(r);
 }
 
+static int cstr_equal(const char *a, const char *b) {
+    if (a == 0 || b == 0) {
+        return 0;
+    }
+    while (*a != '\0' && *b != '\0') {
+        if (*a != *b) {
+            return 0;
+        }
+        a++;
+        b++;
+    }
+    return *a == '\0' && *b == '\0';
+}
+
+unsigned int kernel_panic_reason_id_for(const char *reason) {
+    if (cstr_equal(reason, "panic-test")) {
+        return KERNEL_RETAINED_REASON_PANIC_TEST;
+    }
+    if (cstr_equal(reason, "sync-fault")) {
+        return KERNEL_RETAINED_REASON_SYNC_FAULT;
+    }
+    if (cstr_equal(reason, "heap-invalid-free") ||
+        cstr_equal(reason, "heap-invalid-free-test-survived")) {
+        return KERNEL_RETAINED_REASON_HEAP_INVALID_FREE;
+    }
+    if (cstr_equal(reason, "heap-double-free") ||
+        cstr_equal(reason, "heap-double-free-test-alloc") ||
+        cstr_equal(reason, "heap-double-free-test-survived")) {
+        return KERNEL_RETAINED_REASON_HEAP_DOUBLE_FREE;
+    }
+    if (cstr_equal(reason, "memory-map-overlap")) {
+        return KERNEL_RETAINED_REASON_MEMORY_MAP_OVERLAP;
+    }
+    if (cstr_equal(reason, "kernel-object-registry-full")) {
+        return KERNEL_RETAINED_REASON_KERNEL_OBJECT_REGISTRY_FULL;
+    }
+    if (cstr_equal(reason, "kernel-task-registry-bad-id")) {
+        return KERNEL_RETAINED_REASON_KERNEL_TASK_REGISTRY_BAD_ID;
+    }
+    return KERNEL_RETAINED_REASON_UNKNOWN;
+}
+
+unsigned int kernel_panic_category_for_reason_id(unsigned int reason_id) {
+    switch (reason_id) {
+    case KERNEL_RETAINED_REASON_PANIC_TEST:
+        return KERNEL_RETAINED_CATEGORY_COMMAND;
+    case KERNEL_RETAINED_REASON_SYNC_FAULT:
+        return KERNEL_RETAINED_CATEGORY_FAULT;
+    case KERNEL_RETAINED_REASON_HEAP_INVALID_FREE:
+    case KERNEL_RETAINED_REASON_HEAP_DOUBLE_FREE:
+        return KERNEL_RETAINED_CATEGORY_HEAP;
+    case KERNEL_RETAINED_REASON_MEMORY_MAP_OVERLAP:
+        return KERNEL_RETAINED_CATEGORY_MEMORY;
+    case KERNEL_RETAINED_REASON_KERNEL_OBJECT_REGISTRY_FULL:
+    case KERNEL_RETAINED_REASON_KERNEL_TASK_REGISTRY_BAD_ID:
+        return KERNEL_RETAINED_CATEGORY_REGISTRY;
+    default:
+        return KERNEL_RETAINED_CATEGORY_INTERNAL;
+    }
+}
+
 static void retained_write(unsigned long kind,
+                           unsigned long category,
+                           unsigned long reason_id,
                            unsigned long esr,
                            unsigned long elr,
                            unsigned long far,
@@ -111,6 +183,8 @@ static void retained_write(unsigned long kind,
     r->checksum = 0;
     r->sequence = next_sequence;
     r->kind = kind;
+    r->category = category;
+    r->reason_id = reason_id;
     r->esr = esr;
     r->elr = elr;
     r->far = far;
@@ -240,6 +314,20 @@ unsigned int kernel_retained_kind(void) {
     return (unsigned int)retained()->kind;
 }
 
+unsigned int kernel_retained_category(void) {
+    if (!retained_record_valid()) {
+        return KERNEL_RETAINED_CATEGORY_NONE;
+    }
+    return (unsigned int)retained()->category;
+}
+
+unsigned int kernel_retained_reason_id(void) {
+    if (!retained_record_valid()) {
+        return KERNEL_RETAINED_REASON_UNKNOWN;
+    }
+    return (unsigned int)retained()->reason_id;
+}
+
 unsigned long kernel_retained_sequence(void) {
     if (!retained_record_valid()) {
         return 0;
@@ -289,6 +377,8 @@ void kernel_retained_clear(void) {
     r->checksum = 0;
     r->sequence = 0;
     r->kind = KERNEL_RETAINED_KIND_NONE;
+    r->category = KERNEL_RETAINED_CATEGORY_NONE;
+    r->reason_id = KERNEL_RETAINED_REASON_UNKNOWN;
     r->esr = 0;
     r->elr = 0;
     r->far = 0;
@@ -301,25 +391,59 @@ void kernel_retained_clear(void) {
 }
 
 void kernel_retained_write_panic(const char *reason) {
-    retained_write(KERNEL_RETAINED_KIND_PANIC, 0, 0, 0, reason);
+    unsigned int reason_id = kernel_panic_reason_id_for(reason);
+    unsigned int category = kernel_panic_category_for_reason_id(reason_id);
+    retained_write(KERNEL_RETAINED_KIND_PANIC, category, reason_id, 0, 0, 0, reason);
 }
 
 void kernel_retained_write_fault(unsigned long esr, unsigned long elr, unsigned long far) {
-    retained_write(KERNEL_RETAINED_KIND_FAULT, esr, elr, far, "sync-fault");
+    retained_write(KERNEL_RETAINED_KIND_FAULT, KERNEL_RETAINED_CATEGORY_FAULT, KERNEL_RETAINED_REASON_SYNC_FAULT, esr, elr, far, "sync-fault");
 }
 
-void kernel_panic_with_detail(const char *reason, unsigned long esr, unsigned long elr, unsigned long far) {
+static void panic_uart_put_uint(unsigned int value) {
+    char buf[10];
+    unsigned int i = 0;
+
+    if (value == 0) {
+        panic_uart_putc('0');
+        return;
+    }
+    while (value != 0 && i < sizeof(buf)) {
+        buf[i++] = (char)('0' + (value % 10U));
+        value /= 10U;
+    }
+    while (i > 0) {
+        panic_uart_putc(buf[--i]);
+    }
+}
+
+void kernel_panic_with_taxonomy(const char *reason,
+                                unsigned int category,
+                                unsigned int reason_id,
+                                unsigned long esr,
+                                unsigned long elr,
+                                unsigned long far) {
     irq_disable();
     panic_seen = 1;
-    retained_write(KERNEL_RETAINED_KIND_PANIC, esr, elr, far, reason);
+    retained_write(KERNEL_RETAINED_KIND_PANIC, category, reason_id, esr, elr, far, reason);
     panic_uart_puts("kernel panic reason=");
     panic_uart_puts(reason);
+    panic_uart_puts(" category=");
+    panic_uart_put_uint(category);
+    panic_uart_puts(" reason_id=");
+    panic_uart_put_uint(reason_id);
     panic_uart_puts("\n");
     panic_uart_drain();
     watchdog_reset_now();
     for (;;) {
         wait_for_interrupt();
     }
+}
+
+void kernel_panic_with_detail(const char *reason, unsigned long esr, unsigned long elr, unsigned long far) {
+    unsigned int reason_id = kernel_panic_reason_id_for(reason);
+    unsigned int category = kernel_panic_category_for_reason_id(reason_id);
+    kernel_panic_with_taxonomy(reason, category, reason_id, esr, elr, far);
 }
 
 void kernel_panic_with_far(const char *reason, unsigned long far) {

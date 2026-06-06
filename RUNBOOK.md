@@ -111,11 +111,27 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V21 marker, `rtv2 fast/slow/long` zero-lines,
+AetherKernel banner plus Runtime V25 marker, `rtv2 fast/slow/long` zero-lines,
 the expanded `shell ready` command list, and shell probes for `status`,
-`bootcert`, `canceltest`, `taskcheck`, `channeltest`, `mmu`, `bootcheck`,
-`stress`, `soak`, `kobjects`, `tasks2`, `mailboxes`, `sendtest`,
-`supervisor`, `health`, `capcheck`, and `events`.
+`protocol`, request-wrapped `status`, `bootcert`, `canceltest`, `taskcheck`, `channeltest`, `mmu`, `poolcheck`,
+`pools`, `heapfrag`, `poolstats`, `bootcheck`, `stress`, `soak`, `kobjects`,
+`drivers`, `drivercheck`, `tasks2`, `mailboxes`, `sendtest`, `supervisor`,
+`health`, `capcheck`, and `events`.
+
+For repeated proof runs, Runtime V26 host soak harness wraps the same boot path
+and records request-wrapped summaries after each cycle:
+
+```bash
+AETHER_SOAK_CYCLES=12 ./soak-loop.sh /Users/hansaxelsson/aether-tftp
+```
+
+The harness leaves the TFTP provider lifecycle to you. It runs `net-iterate.sh`,
+then sends `req id=<n> cmd=status`, `bootcert`, `stress`, `soak`, and `events`
+through `serial-probe.sh`, appending `soak summary cycle=...` lines to
+`${AETHER_SOAK_LOG:-/tmp/aether-soak.log}`. The hardware proof for this repo
+used 3 cycles and ended with `soak result ok=1 cycles=3 completed=3`; the
+certificate line remained `bootcert ok=1 version=25 ... events_lost=0` because
+V26 is a host harness over the Runtime V25 kernel image.
 
 The first reset after adding this workflow is still physical if the currently
 running SD image predates the serial reset hook. For that first proof, use the
@@ -156,8 +172,12 @@ runtime v18: cooperative cancellation tokens
 runtime v19: structured aether task spawn
 runtime v20: bounded async channels
 runtime v21: mmu ownership boundary
+runtime v22: guarded typed pools
+runtime v23: allocator and pool pressure telemetry
+runtime v24: fixed driver registry
+runtime v25: scriptable command protocol v2
 handlecheck ok=1 handle_selftest=1 cap_selftest=1
-shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
+shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
 ```
 
 The current kernel image services UART RX through PL011 receive interrupts into
@@ -167,6 +187,8 @@ commands can be sent from the Mac:
 
 ```bash
 ./serial-command.sh status
+./serial-command.sh protocol
+./serial-command.sh --request-id 25 status
 ./serial-command.sh heap
 ./serial-command.sh queues
 ./serial-command.sh tasks
@@ -186,6 +208,10 @@ commands can be sent from the Mac:
 ./serial-command.sh retained
 ./serial-command.sh memmap
 ./serial-command.sh mmu
+./serial-command.sh pools
+./serial-command.sh poolcheck
+./serial-command.sh heapfrag
+./serial-command.sh poolstats
 ./serial-command.sh frames
 ./serial-command.sh heapcheck
 ./serial-command.sh framecheck
@@ -306,15 +332,113 @@ bootcert ok=1 version=21 memmap=1 heap=1 frames=1 mmu=1 channels=1 taskspawns=1 
 mmu ok=1 regions=4 entries=512 block_size=0x40000000 tcr=0x0000000000803519 mair=0x00000000000000ff selftest=1
 ```
 
+Runtime V22 guarded typed pools add fixed C-owned pool storage beside the heap:
+
+```text
+bootcert ok=1 version=22 memmap=1 heap=1 frames=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+poolcheck ok=1 pools=3/4 selftest=1 used=0 high_water=8 allocs=9 frees=9 failed=1 bad_frees=1 double_frees=1 last_error=0
+pools count=3 capacity=4 selftest=1
+```
+
+Runtime V23 allocator/pool pressure telemetry adds heap fragmentation counters
+and aggregate pool pressure counters:
+
+```text
+bootcert ok=1 version=23 memmap=1 heap=1 frames=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+heapfrag ok=1 selftest=1 pressure=1 total=4194304 free=4184112 largest_free=4184112 smallest_free=4184112 free_blocks=1 allocated_blocks=25 fragmentation_permil=0 pressure_peak=62928 pressure_leak=0 pressure_free_blocks=1 pressure_largest_free=4184112
+poolstats ok=1 pools=3/4 total_slots=24 used_slots=0 high_water_slots=8 failed_allocs=1 bad_frees=1 double_frees=1 selftest=1
+```
+
+Runtime V24 fixed driver registry adds a stable driver object surface for UART0,
+CNTP, GIC, and watchdog:
+
+```text
+bootcert ok=1 version=24 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+drivers count=4 capacity=4 selftest=1
+drivercheck ok=1 count=4/4 uart_irq=16 timer_irq=689 gic_total=705 watchdog_resets=0 unknown_irq=0 selftest=1
+```
+
+Runtime V25 scriptable command protocol v2 adds request-wrapped shell calls for
+agent control while preserving direct human commands:
+
+```text
+protocol version=2 request=req id_field=id cmd_field=cmd begin_end=1 errors=1 max_line=80
+bootcert ok=1 version=25 protocol=1 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+resp id=25 ok=1 cmd=status end
+```
+
+Runtime V26 host soak harness records repeated boot and self-test summaries from
+the Mac side:
+
+```text
+soak summary cycle=3 command=bootcert id=2622 line=bootcert ok=1 version=25 protocol=1 ... events_lost=0
+soak summary cycle=3 command=stress id=2623 line=stress ok=1 heap=1 frames=1 heap_leak=0 frame_leak=0
+soak summary cycle=3 command=soak id=2624 line=soak ok=1 rounds=3 failures=0 heap_leak=0 frame_leak=0
+soak summary cycle=3 command=events id=2625 line=events count=26 capacity=64 lost=0 sequence=26 selftest=1
+soak result ok=1 cycles=3 completed=3 log=/tmp/aether-soak-v26.log
+```
+
+Runtime V27 panic taxonomy and symbolic retained records add stable numeric
+panic/fault IDs beside the reason text:
+
+```text
+bootcert ok=1 version=27 taxonomy=1 protocol=1 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=1 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+retained valid=1 kind=panic kind_id=1 category=1 reason_id=1 seq=1 esr=0x0 elr=0x0 far=0x0 reason=panic-test
+retained valid=1 kind=fault kind_id=2 category=2 reason_id=2 seq=1 esr=0xf20000a5 elr=0x92968 far=0x0 reason=sync-fault
+symbol address=0x92968 symbol_name=_kernel_trigger_sync_fault symbol_addr=0x92968 symbol_offset=0x0 macho=.build/release/Application
+```
+
+Runtime V28 Swift runtime dependency audit exposes the current Swift runtime
+boundary from both the kernel shell and the host Mach-O audit:
+
+```text
+bootcert ok=1 version=28 runtime=1 taxonomy=1 protocol=1 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+runtime ok=1 version=28 swift=6.3.2 source_hooks=10 linked_hooks=2 heap_shims=5 linked_heap_shims=3 required_symbols=5 audit=1
+runtime-audit ok=1 version=28 source_hooks=10 linked_hooks=2 heap_shims=5 linked_heap_shims=3 required_symbols=5 present=5 missing=none macho=.build/release/Application
+```
+
+Runtime V29 agent-oriented control session keeps the V25 request envelope and
+adds an `agent` command plus host `agent-session.sh` harness for scriptable
+health classification:
+
+```text
+bootcert ok=1 version=29 agent=1 runtime=1 taxonomy=1 protocol=1 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+agent ok=1 version=29 health=green bootcert=1 runtime=1 protocol=2 agent=1 events_lost=0 heap_free=... ready=... delayed=... sleepers=...
+agent-session ok=1 version=29 health=green bootcert=1 runtime=1 stress=1 soak=1 events_lost=0 log=/tmp/aether-agent-session.log
+```
+
+Runtime V30 Swift-native kernel substrate certificate keeps the V25 request
+envelope and adds a `certificate` command plus host `certificate-loop.sh`
+harness for repeated milestone proof:
+
+```text
+bootcert ok=1 version=30 certificate=1 agent=1 runtime=1 taxonomy=1 protocol=1 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+certificate ok=1 version=30 substrate=1 bootcert=1 agent=1 runtime=1 protocol=2 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 swift=6.3.2 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
+certificate-loop ok=1 version=30 cycles=3 completed=3 substrate=1 bootcert=1 agent=1 runtime=1 events_lost=0 log=/tmp/aether-certificate-loop.log
+```
+
 `serial-probe.sh` sends one command and waits for a matching response line:
 
 ```bash
 ./serial-probe.sh status '^status uptime_ms=.*timer_mask='
-./serial-probe.sh bootcert '^bootcert ok=1 version=21 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
+./serial-probe.sh protocol '^protocol version=2 .*begin_end=1 .*errors=1'
+./serial-probe.sh 'req id=25 cmd=status' '^resp id=25 ok=1 cmd=status end'
+./serial-probe.sh bootcert '^bootcert ok=1 version=30 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
+./serial-probe.sh runtime '^runtime ok=1 version=28 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5'
+./serial-probe.sh agent '^agent ok=1 version=29 health=green .*bootcert=1 .*runtime=1 .*protocol=2 .*events_lost=0'
+./serial-probe.sh 'req id=29 cmd=agent' '^resp id=29 ok=1 cmd=agent end'
+./serial-probe.sh certificate '^certificate ok=1 version=30 substrate=1 .*bootcert=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0'
+./serial-probe.sh 'req id=30 cmd=certificate' '^resp id=30 ok=1 cmd=certificate end'
 ./serial-probe.sh canceltest '^canceltest ok=1 .*completed=1'
 ./serial-probe.sh taskcheck '^taskcheck ok=1 .*spawns='
 ./serial-probe.sh channeltest '^channeltest ok=1 .*received=1'
 ./serial-probe.sh mmu '^mmu ok=1 .*regions=4 .*block_size=0x40000000'
+./serial-probe.sh poolcheck '^poolcheck ok=1 .*bad_frees=1 .*double_frees=1'
+./serial-probe.sh pools '^pools count=.* capacity=.* selftest=1'
+./serial-probe.sh heapfrag '^heapfrag ok=1 .*fragmentation_permil=.*pressure_largest_free='
+./serial-probe.sh poolstats '^poolstats ok=1 .*total_slots=.*failed_allocs='
+./serial-probe.sh drivers '^drivers count=4 capacity=4 selftest=1'
+./serial-probe.sh drivercheck '^drivercheck ok=1 .*uart_irq=.*timer_irq=.*watchdog_resets='
 ./serial-probe.sh bootcheck '^bootcheck ok=1 .*frame_free='
 ./serial-probe.sh kobjects '^kobjects count=.* active=.* handle_selftest=1 .*cap_selftest=1'
 ./serial-probe.sh tasks2 '^tasks2 count=.* task index=.*fast'
@@ -332,6 +456,10 @@ Pi, and then the next boot can report the prior event via `retained`. Do not
 use them as part of the normal iteration proof unless you are deliberately
 testing retained panic/fault reporting. `heap-invalid-free-test` and
 `heap-double-free-test` are also destructive allocator guard probes.
+Runtime V27 proof used `panic-test` and `fault-test`; the panic record reported
+`retained valid=1 kind=panic kind_id=1 category=1 reason_id=1`, the fault record
+reported `kind_id=2 category=2 reason_id=2`, and the retained fault ELR mapped
+with `symbol address=0x92968 symbol_name=_kernel_trigger_sync_fault`.
 
 ## 4. Serial Monitor on macOS
 Open a terminal on macOS to monitor the serial output:
@@ -350,8 +478,8 @@ Open a terminal on macOS to monitor the serial output:
 ## 5. Boot & Expected Output
 1. Insert the SD card back into the Raspberry Pi 4B.
 2. Connect the Raspberry Pi's USB-C power supply.
-3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, Runtime V4 through V21 markers, repeating `rtv2 fast/slow/long` lines, `bootcheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, and `shell ready`.
-4. **Liveness Check:** Current liveness is the serial Runtime V21 cadence output plus UART shell diagnostic responses, especially `bootcert ok=1 version=21`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, and `mmu ok=1`. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
+3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, Runtime V4 through V30 markers, repeating `rtv2 fast/slow/long` lines, `bootcheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, `poolstats ok=1`, `drivers count=4 capacity=4 selftest=1`, `drivercheck ok=1`, `protocol version=2`, `agent ok=1 version=29 health=green`, `certificate ok=1 version=30 substrate=1`, and `shell ready`.
+4. **Liveness Check:** Current liveness is the serial Runtime V30 cadence output plus UART shell diagnostic responses, especially `bootcert ok=1 version=30 certificate=1 agent=1 runtime=1`, `certificate ok=1 version=30 substrate=1`, `certificate-loop ok=1 version=30`, `agent ok=1 version=29 health=green`, `agent-session ok=1 version=29 health=green`, `protocol version=2`, `resp id=30 ok=1 cmd=certificate end`, `drivercheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, and `poolstats ok=1`. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
 
 ## 6. Troubleshooting
 * **No output:**

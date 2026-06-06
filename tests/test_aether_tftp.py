@@ -65,6 +65,15 @@ def test_resolve_request_path_rejects_traversal(tmp_path: pathlib.Path) -> None:
     assert aether_tftp.resolve_request_path(root, "/../secret") is None
 
 
+def test_make_logger_appends_to_log_file(tmp_path: pathlib.Path) -> None:
+    log_file = tmp_path / "aether-tftp.log"
+    logger = aether_tftp.make_logger(log_file)
+
+    logger("aether-tftp test line")
+
+    assert log_file.read_text() == "aether-tftp test line\n"
+
+
 def test_transfer_sockets_default_to_wildcard_bind(tmp_path: pathlib.Path) -> None:
     server = aether_tftp.ReadOnlyTFTPServer(root=tmp_path, host="10.42.0.1", port=0)
 
@@ -113,6 +122,31 @@ def test_readonly_tftp_server_transfers_512_byte_blocks(tmp_path: pathlib.Path) 
     finally:
         client.close()
         server.close()
+
+
+def test_send_file_uses_512_byte_blocks_without_blksize_negotiation(tmp_path: pathlib.Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    payload = bytes([i % 251 for i in range(600)])
+    path = root / "kernel8.img"
+    path.write_bytes(payload)
+    client = ("10.42.0.2", 49154)
+    transfer = ScriptedSocket([(ack(1), client), (ack(2), client)])
+    server = aether_tftp.ReadOnlyTFTPServer(
+        root=root,
+        host="127.0.0.1",
+        port=0,
+        block_size=1468,
+        timeout_s=1.0,
+        log=lambda _line: None,
+    )
+
+    server._send_file(transfer, client, path, "kernel8.img")
+
+    payloads = [packet[4:] for packet, _client in transfer.sent]
+    assert len(payloads) == 2
+    assert payloads[0] == payload[:512]
+    assert payloads[1] == payload[512:]
 
 
 def test_single_port_mode_replies_from_listener_port(tmp_path: pathlib.Path) -> None:
@@ -267,7 +301,7 @@ def test_handle_rrq_reopens_transfer_socket_across_duplicate_retry(tmp_path: pat
         def _send_oack(self, transfer, client, filename, options):  # type: ignore[no-untyped-def]
             return True, client
 
-        def _send_file(self, transfer, client, path, filename):  # type: ignore[no-untyped-def]
+        def _send_file(self, transfer, client, path, filename, *, block_size=512):  # type: ignore[no-untyped-def]
             self.calls += 1
             if self.calls == 1:
                 return aether_tftp.TransferRestart(

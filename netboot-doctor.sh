@@ -121,7 +121,7 @@ dns_start="$(file_size "$DNSMASQ_LOG")"
 
 echo
 echo "ACTION: reset or power-cycle the Pi once now."
-echo "I am watching for: TFTP sends $PREFIX/kernel8.img + serial prints fresh Runtime V21 shell markers."
+echo "I am watching for: TFTP sends $PREFIX/kernel8.img + serial prints fresh Runtime V30 shell markers."
 echo "Timeout: ${TIMEOUT_S}s"
 
 deadline=$((SECONDS + TIMEOUT_S))
@@ -149,8 +149,16 @@ while [ "$SECONDS" -lt "$deadline" ]; do
     && printf '%s' "$serial_delta" | grep -q "runtime v19: structured aether task spawn" \
     && printf '%s' "$serial_delta" | grep -q "runtime v20: bounded async channels" \
     && printf '%s' "$serial_delta" | grep -q "runtime v21: mmu ownership boundary" \
+    && printf '%s' "$serial_delta" | grep -q "runtime v22: guarded typed pools" \
+    && printf '%s' "$serial_delta" | grep -q "runtime v23: allocator and pool pressure telemetry" \
+    && printf '%s' "$serial_delta" | grep -q "runtime v24: fixed driver registry" \
+    && printf '%s' "$serial_delta" | grep -q "runtime v25: scriptable command protocol v2" \
+    && printf '%s' "$serial_delta" | grep -q "runtime v27: panic taxonomy and symbolic retained records" \
+    && printf '%s' "$serial_delta" | grep -q "runtime v28: swift runtime dependency audit" \
+    && printf '%s' "$serial_delta" | grep -q "runtime v29: agent-oriented control session" \
+    && printf '%s' "$serial_delta" | grep -q "runtime v30: swift-native kernel substrate certificate" \
     && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
-    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
+    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
     echo "netboot bring-up verified"
     echo "--- TFTP delta ---"
     printf '%s\n' "$dns_delta" | tail -n 80

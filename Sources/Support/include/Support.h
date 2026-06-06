@@ -126,6 +126,10 @@ unsigned long heap_allocated_bytes(void);
 unsigned long heap_high_water_bytes(void);
 unsigned long heap_failed_alloc_count(void);
 int heap_integrity_check(void);
+unsigned long heap_free_block_count(void);
+unsigned long heap_allocated_block_count(void);
+unsigned long heap_smallest_free_bytes(void);
+unsigned long heap_fragmentation_permil(void);
 
 // Runtime V8 heap guardrails. These are stable machine-checkable reason codes:
 // shell output and tests should not depend on allocator internals.
@@ -149,6 +153,9 @@ int heap_guard_selftest(void);
 int heap_pressure_selftest(void);
 unsigned long heap_pressure_last_peak_bytes(void);
 unsigned long heap_pressure_last_leak_bytes(void);
+unsigned long heap_pressure_last_free_block_count(void);
+unsigned long heap_pressure_last_largest_free_bytes(void);
+int heap_fragmentation_selftest(void);
 void heap_guard_invalid_free_test(void);
 void heap_guard_double_free_test(void);
 
@@ -156,6 +163,24 @@ unsigned int executor_ready_count(void);
 unsigned int executor_ready_capacity(void);
 unsigned int executor_delayed_count(void);
 unsigned int executor_delayed_capacity(void);
+
+// Runtime V28 Swift runtime dependency audit. These constants split the source
+// surface Aether owns from the subset that the current linked Swift runtime
+// actually pulls into the Mach-O image.
+#define KERNEL_RUNTIME_AUDIT_VERSION 28U
+#define KERNEL_RUNTIME_OWNED_HOOK_COUNT 10U
+#define KERNEL_RUNTIME_LINKED_HOOK_COUNT 2U
+#define KERNEL_RUNTIME_HEAP_SHIM_COUNT 5U
+#define KERNEL_RUNTIME_LINKED_HEAP_SHIM_COUNT 3U
+#define KERNEL_RUNTIME_AUDIT_REQUIRED_SYMBOL_COUNT 5U
+
+unsigned int kernel_runtime_audit_version(void);
+unsigned int kernel_runtime_source_hook_count(void);
+unsigned int kernel_runtime_linked_hook_count(void);
+unsigned int kernel_runtime_heap_shim_count(void);
+unsigned int kernel_runtime_linked_heap_shim_count(void);
+unsigned int kernel_runtime_required_symbol_count(void);
+unsigned int kernel_runtime_audit_selftest(void);
 
 // Runtime V12 kernel object and cooperative task registries. These are fixed
 // tables: they give the Swift demo runtime names, counters, and object handles
@@ -207,6 +232,32 @@ unsigned int kernel_object_handle_last_error(void);
 int kernel_object_registry_selftest(void);
 int kernel_object_handle_selftest(void);
 int kernel_object_capcheck_selftest(void);
+
+// Runtime V24 fixed driver registry. This is a bounded metadata layer for the
+// kernel's current MMIO/IRQ drivers; it registers driver objects and exposes
+// stats without changing the drivers' actual hot paths.
+#define KERNEL_DRIVER_ID_UART0    0U
+#define KERNEL_DRIVER_ID_CNTP     1U
+#define KERNEL_DRIVER_ID_GIC      2U
+#define KERNEL_DRIVER_ID_WATCHDOG 3U
+
+#define KERNEL_DRIVER_STATE_READY 1U
+
+void kernel_driver_registry_init(void);
+unsigned int kernel_driver_count(void);
+unsigned int kernel_driver_capacity(void);
+unsigned int kernel_driver_object_id(unsigned int driver_id);
+unsigned long kernel_driver_handle(unsigned int driver_id);
+unsigned int kernel_driver_name_len(unsigned int driver_id);
+unsigned int kernel_driver_name_byte(unsigned int driver_id, unsigned int offset);
+unsigned int kernel_driver_state(unsigned int driver_id);
+unsigned int kernel_driver_intid(unsigned int driver_id);
+unsigned long kernel_driver_base(unsigned int driver_id);
+unsigned int kernel_driver_caps(unsigned int driver_id);
+unsigned long kernel_driver_irq_count(unsigned int driver_id);
+unsigned long kernel_driver_error_count(unsigned int driver_id);
+unsigned long kernel_driver_operation_count(unsigned int driver_id);
+int kernel_driver_registry_selftest(void);
 
 // Runtime V16 fixed kernel event log. The log is a bounded ring of recent
 // machine-checkable events for humans and host agents; overflow keeps the newest
@@ -334,6 +385,44 @@ unsigned int kernel_cancel_state(unsigned int token);
 unsigned int kernel_cancel_owner_task(unsigned int token);
 int kernel_cancel_selftest(void);
 
+// Runtime V22 fixed guarded typed pools. These pools are C-owned bounded slabs
+// with guard words, generation counters, and stable error/counter surfaces.
+#define KERNEL_POOL_SELFTEST_ID 0U
+
+#define KERNEL_POOL_ERROR_NONE        0U
+#define KERNEL_POOL_ERROR_FULL        1U
+#define KERNEL_POOL_ERROR_BAD_POOL    2U
+#define KERNEL_POOL_ERROR_BAD_FREE    3U
+#define KERNEL_POOL_ERROR_DOUBLE_FREE 4U
+#define KERNEL_POOL_ERROR_GUARD       5U
+
+void kernel_pool_init(void);
+unsigned int kernel_pool_count(void);
+unsigned int kernel_pool_capacity(void);
+unsigned int kernel_pool_name_len(unsigned int pool_id);
+unsigned int kernel_pool_name_byte(unsigned int pool_id, unsigned int offset);
+unsigned int kernel_pool_slot_size(unsigned int pool_id);
+unsigned int kernel_pool_slot_capacity(unsigned int pool_id);
+unsigned int kernel_pool_used(unsigned int pool_id);
+unsigned int kernel_pool_high_water(unsigned int pool_id);
+unsigned int kernel_pool_generation(unsigned int pool_id);
+unsigned int kernel_pool_total_slot_count(void);
+unsigned int kernel_pool_used_slot_count(void);
+unsigned int kernel_pool_high_water_slot_count(void);
+unsigned long kernel_pool_alloc_count(unsigned int pool_id);
+unsigned long kernel_pool_free_count(unsigned int pool_id);
+unsigned long kernel_pool_failed_alloc_count(unsigned int pool_id);
+unsigned long kernel_pool_bad_free_count(unsigned int pool_id);
+unsigned long kernel_pool_double_free_count(unsigned int pool_id);
+unsigned long kernel_pool_failed_alloc_total(void);
+unsigned long kernel_pool_bad_free_total(void);
+unsigned long kernel_pool_double_free_total(void);
+unsigned int kernel_pool_last_error(unsigned int pool_id);
+void *kernel_pool_alloc(unsigned int pool_id);
+int kernel_pool_free(unsigned int pool_id, void *ptr);
+int kernel_pool_selftest(void);
+int kernel_pool_pressure_selftest(void);
+
 // Runtime V7 memory ownership. V7 keeps the existing heap fixed and introduces
 // an explicit low-memory map plus a 4 KiB physical frame allocator above it.
 #define KERNEL_PAGE_SIZE   4096UL
@@ -386,6 +475,23 @@ unsigned int kernel_frame_guard_probe_last_ok(void);
 #define KERNEL_RETAINED_KIND_PANIC  1U
 #define KERNEL_RETAINED_KIND_FAULT  2U
 
+#define KERNEL_RETAINED_CATEGORY_NONE     0U
+#define KERNEL_RETAINED_CATEGORY_COMMAND  1U
+#define KERNEL_RETAINED_CATEGORY_FAULT    2U
+#define KERNEL_RETAINED_CATEGORY_HEAP     3U
+#define KERNEL_RETAINED_CATEGORY_MEMORY   4U
+#define KERNEL_RETAINED_CATEGORY_REGISTRY 5U
+#define KERNEL_RETAINED_CATEGORY_INTERNAL 6U
+
+#define KERNEL_RETAINED_REASON_UNKNOWN                      0U
+#define KERNEL_RETAINED_REASON_PANIC_TEST                   1U
+#define KERNEL_RETAINED_REASON_SYNC_FAULT                   2U
+#define KERNEL_RETAINED_REASON_HEAP_INVALID_FREE            3U
+#define KERNEL_RETAINED_REASON_HEAP_DOUBLE_FREE             4U
+#define KERNEL_RETAINED_REASON_MEMORY_MAP_OVERLAP           5U
+#define KERNEL_RETAINED_REASON_KERNEL_OBJECT_REGISTRY_FULL  6U
+#define KERNEL_RETAINED_REASON_KERNEL_TASK_REGISTRY_BAD_ID  7U
+
 void kernel_irq_record(unsigned int intid);
 unsigned long kernel_irq_total_count(void);
 unsigned long kernel_irq_cntp_count(void);
@@ -402,6 +508,8 @@ unsigned long kernel_fault_far(void);
 unsigned int kernel_panic_seen(void);
 unsigned int kernel_retained_valid(void);
 unsigned int kernel_retained_kind(void);
+unsigned int kernel_retained_category(void);
+unsigned int kernel_retained_reason_id(void);
 unsigned long kernel_retained_sequence(void);
 unsigned long kernel_retained_esr(void);
 unsigned long kernel_retained_elr(void);
@@ -411,9 +519,12 @@ unsigned int kernel_retained_reason_byte(unsigned int index);
 void kernel_retained_clear(void);
 void kernel_retained_write_panic(const char *reason);
 void kernel_retained_write_fault(unsigned long esr, unsigned long elr, unsigned long far);
+unsigned int kernel_panic_reason_id_for(const char *reason);
+unsigned int kernel_panic_category_for_reason_id(unsigned int reason_id);
 void kernel_panic(const char *reason);
 void kernel_panic_with_far(const char *reason, unsigned long far);
 void kernel_panic_with_detail(const char *reason, unsigned long esr, unsigned long elr, unsigned long far);
+void kernel_panic_with_taxonomy(const char *reason, unsigned int category, unsigned int reason_id, unsigned long esr, unsigned long elr, unsigned long far);
 void kernel_panic_test(void);
 void kernel_trigger_sync_fault(void);
 
@@ -461,3 +572,7 @@ void watchdog_reset_now(void);
 void watchdog_arm_seconds(unsigned int seconds);
 void watchdog_pet_seconds(unsigned int seconds);
 void watchdog_disable(void);
+unsigned long watchdog_reset_count(void);
+unsigned long watchdog_arm_count(void);
+unsigned long watchdog_pet_count(void);
+unsigned long watchdog_disable_count(void);

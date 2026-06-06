@@ -5,8 +5,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 COMMANDS_V9 = (
-    "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,"
-    "faults,retained,retained-clear,memmap,mmu,frames,heapcheck,framecheck,"
+    "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,memcheck,"
+    "faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,"
     "stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"
 )
 
@@ -87,7 +87,7 @@ def test_uart_shell_v9_stress_command_exists() -> None:
         " frame_peak=",
         " heap_leak=",
         " frame_leak=",
-        'shellBufferEquals("stress")',
+        'shellBufferSliceEquals(commandStart, commandLen, "stress")',
     ):
         assert marker in shell
 

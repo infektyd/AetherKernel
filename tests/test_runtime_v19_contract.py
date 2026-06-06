@@ -4,9 +4,9 @@ import pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V19 = (
-    "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,"
-    "supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,"
-    "retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,"
+    "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,"
+    "supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,memcheck,faults,retained,"
+    "retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,"
     "bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
     "heap-double-free-test,panic-test,fault-test,reboot"
 )
@@ -65,7 +65,7 @@ def test_runtime_v19_boot_marker_and_task_event_are_wired() -> None:
     app = read_repo("Sources/Application/Application.swift")
 
     assert "runtime v19: structured aether task spawn" in app
-    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 21, 0, 0)" in app
+    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 30, 0, 0)" in app
     assert "kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19" in app
 
 
@@ -85,7 +85,7 @@ def test_uart_shell_v19_taskcheck_and_tasks2_metadata_exist() -> None:
         "kernel_task_completion_count(",
         "kernel_task_parent_id(",
         "kernel_task_handle(",
-        'shellBufferEquals("taskcheck")',
+        'shellBufferSliceEquals(commandStart, commandLen, "taskcheck")',
     ):
         assert marker in shell
 
@@ -94,9 +94,9 @@ def test_runtime_v19_bootcert_includes_task_spawn_health() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
     net_iterate = read_repo("net-iterate.sh")
 
-    assert " version=21" in shell
+    assert " version=29" in shell
     assert " taskspawns=" in shell
-    assert "^bootcert ok=1 version=21 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0" in net_iterate
+    assert "^bootcert ok=1 version=30 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0" in net_iterate
 
 
 def test_runtime_v19_netboot_gates_and_shell_probe_exist() -> None:
@@ -110,6 +110,6 @@ def test_runtime_v19_netboot_gates_and_shell_probe_exist() -> None:
     for marker in (
         "probe shell: taskcheck",
         "^taskcheck ok=1 .*spawns=",
-        "stale pre-V21 SD fallback",
+        "stale pre-V30 SD fallback",
     ):
         assert marker in net_iterate

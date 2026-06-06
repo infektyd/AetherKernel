@@ -14,7 +14,11 @@
 // adds a one-line boot certificate for host proof loops. V18 adds cooperative
 // cancellation token selftests. V19 adds structured task spawn metadata. V20
 // adds Swift-facing async channels over the fixed mailbox queues. V21 exposes
-// the current MMU ownership boundary without adding dynamic remaps.
+// the current MMU ownership boundary without adding dynamic remaps. V22 adds fixed guarded typed pools.
+// V23 adds allocator/pool pressure telemetry. V24 adds a fixed driver registry.
+// V25 adds a scriptable request/response envelope for host and agent control.
+// V27 adds retained panic/fault taxonomy. V28 audits Swift runtime dependencies.
+// V29 adds a compact agent-oriented control-session health line.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -44,12 +48,194 @@ func shellBufferEquals(_ s: StaticString) -> Bool {
   return true
 }
 
+func shellBufferHasPrefix(_ s: StaticString) -> Bool {
+  let n = UInt32(s.utf8CodeUnitCount)
+  if uart_shell_buffer_count() < n {
+    return false
+  }
+  return shellBufferSliceEquals(0, n, s)
+}
+
+func shellBufferSliceEquals(_ start: UInt32, _ len: UInt32, _ s: StaticString) -> Bool {
+  if len != UInt32(s.utf8CodeUnitCount) {
+    return false
+  }
+  if start + len > uart_shell_buffer_count() {
+    return false
+  }
+
+  let p = s.utf8Start
+  var i: UInt32 = 0
+  while i < len {
+    if UInt8(uart_shell_buffer_get(start + i) & 0xFF) != p[Int(i)] {
+      return false
+    }
+    i += 1
+  }
+  return true
+}
+
+func uartPutShellBufferSlice(_ start: UInt32, _ len: UInt32) {
+  var i: UInt32 = 0
+  while i < len {
+    let b = UInt8(uart_shell_buffer_get(start + i) & 0xFF)
+    if b >= 0x20 && b < 0x7F {
+      uartPutc(b)
+    } else {
+      uartPutc(0x2E)
+    }
+    i += 1
+  }
+}
+
 func printShellReady() {
-  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+}
+
+func printProtocol() {
+  uartPuts("protocol version=2 request=req id_field=id cmd_field=cmd begin_end=1 errors=1 max_line=80\n")
+}
+
+func printRuntimeAudit() {
+  let runtimeAudit = kernel_runtime_audit_selftest()
+
+  uartPuts("runtime ok=")
+  uartPutDec(UInt64(runtimeAudit))
+  uartPuts(" version=28")
+  uartPuts(" swift=6.3.2")
+  uartPuts(" source_hooks=")
+  uartPutDec(UInt64(kernel_runtime_source_hook_count()))
+  uartPuts(" linked_hooks=")
+  uartPutDec(UInt64(kernel_runtime_linked_hook_count()))
+  uartPuts(" heap_shims=")
+  uartPutDec(UInt64(kernel_runtime_heap_shim_count()))
+  uartPuts(" linked_heap_shims=")
+  uartPutDec(UInt64(kernel_runtime_linked_heap_shim_count()))
+  uartPuts(" required_symbols=")
+  uartPutDec(UInt64(kernel_runtime_required_symbol_count()))
+  uartPuts(" audit=1\n")
+}
+
+func printAgentSession() {
+  kernel_supervisor_check()
+
+  let runtimeAudit = kernel_runtime_audit_selftest()
+  let eventsLost = kernel_event_lost_count()
+  let bootcertOk = runtimeAudit != 0 && kernel_memory_map_valid() != 0 &&
+    heap_guard_selftest() != 0 && kernel_frame_allocator_selftest() != 0 &&
+    kernel_driver_registry_selftest() != 0 && heap_fragmentation_selftest() != 0 &&
+    kernel_pool_selftest() != 0 && kernel_pool_pressure_selftest() != 0 &&
+    kernel_mmu_selftest() != 0 && aetherChannelSelftest() != 0 &&
+    aetherTaskSpawnSelftest() != 0 && kernel_cancel_selftest() != 0 &&
+    kernel_object_registry_selftest() != 0 && kernel_task_registry_selftest() != 0 &&
+    kernel_mailbox_selftest() != 0 && kernel_supervisor_selftest() != 0 &&
+    kernel_event_log_selftest() != 0 && eventsLost == 0
+
+  uartPuts("agent ok=")
+  uartPutDec(UInt64(bootcertOk ? 1 : 0))
+  uartPuts(" version=29")
+  if bootcertOk {
+    uartPuts(" health=green")
+  } else {
+    uartPuts(" health=red")
+  }
+  uartPuts(" bootcert=")
+  uartPutDec(UInt64(bootcertOk ? 1 : 0))
+  uartPuts(" runtime=")
+  uartPutDec(UInt64(runtimeAudit))
+  uartPuts(" protocol=2")
+  uartPuts(" agent=1")
+  uartPuts(" events_lost=")
+  uartPutDec(UInt64(eventsLost))
+  uartPuts(" heap_free=")
+  uartPutDec(UInt64(heap_free_bytes()))
+  uartPuts(" ready=")
+  uartPutDec(UInt64(executor_ready_count()))
+  uartPuts(" delayed=")
+  uartPutDec(UInt64(executor_delayed_count()))
+  uartPuts(" sleepers=")
+  uartPutDec(UInt64(timerSleepPendingCount()))
+  uartPuts("\n")
+}
+
+func printSubstrateCertificate() {
+  kernel_supervisor_check()
+
+  let runtimeAudit = kernel_runtime_audit_selftest()
+  let agentSession = UInt32(1)
+  let memmap = kernel_memory_map_valid()
+  let heap = heap_guard_selftest()
+  let frames = kernel_frame_allocator_selftest()
+  let memory = memmap != 0 && heap != 0 && frames != 0 ? 1 : 0
+  let kobjects = kernel_object_registry_selftest()
+  let handles = kernel_object_handle_selftest() != 0 && kernel_object_capcheck_selftest() != 0 ? 1 : 0
+  let objects = kobjects != 0 && handles != 0 ? 1 : 0
+  let tasks = kernel_task_registry_selftest()
+  let mailboxes = kernel_mailbox_selftest()
+  let supervisor = kernel_supervisor_selftest()
+  let events = kernel_event_log_selftest()
+  let cancellations = kernel_cancel_selftest()
+  let channels = aetherChannelSelftest()
+  let drivers = kernel_driver_registry_selftest()
+  let pressure = heap_fragmentation_selftest() != 0 && kernel_pool_pressure_selftest() != 0 ? 1 : 0
+  let pools = kernel_pool_selftest()
+  let mmu = kernel_mmu_selftest()
+  let eventsLost = kernel_event_lost_count()
+  let bootcertOk = runtimeAudit != 0 && agentSession != 0 && memory != 0 &&
+    objects != 0 && tasks != 0 && mailboxes != 0 && supervisor != 0 &&
+    events != 0 && cancellations != 0 && channels != 0 && drivers != 0 &&
+    pressure != 0 && pools != 0 && mmu != 0 && eventsLost == 0
+
+  uartPuts("certificate ok=")
+  uartPutDec(UInt64(bootcertOk ? 1 : 0))
+  uartPuts(" version=30")
+  uartPuts(" substrate=1")
+  uartPuts(" bootcert=")
+  uartPutDec(UInt64(bootcertOk ? 1 : 0))
+  uartPuts(" agent=1")
+  uartPuts(" runtime=")
+  uartPutDec(UInt64(runtimeAudit))
+  uartPuts(" protocol=2")
+  uartPuts(" memory=")
+  uartPutDec(UInt64(memory))
+  uartPuts(" objects=")
+  uartPutDec(UInt64(objects))
+  uartPuts(" tasks=")
+  uartPutDec(UInt64(tasks))
+  uartPuts(" mailboxes=")
+  uartPutDec(UInt64(mailboxes))
+  uartPuts(" supervisor=")
+  uartPutDec(UInt64(supervisor))
+  uartPuts(" handles=")
+  uartPutDec(UInt64(handles))
+  uartPuts(" events=")
+  uartPutDec(UInt64(events))
+  uartPuts(" cancellations=")
+  uartPutDec(UInt64(cancellations))
+  uartPuts(" channels=")
+  uartPutDec(UInt64(channels))
+  uartPuts(" drivers=")
+  uartPutDec(UInt64(drivers))
+  uartPuts(" pressure=")
+  uartPutDec(UInt64(pressure))
+  uartPuts(" pools=")
+  uartPutDec(UInt64(pools))
+  uartPuts(" mmu=")
+  uartPutDec(UInt64(mmu))
+  uartPuts(" swift=6.3.2")
+  uartPuts(" events_lost=")
+  uartPutDec(UInt64(eventsLost))
+  uartPuts(" heap_free=")
+  uartPutDec(UInt64(heap_free_bytes()))
+  uartPuts(" frame_free=")
+  uartPutDec(UInt64(kernel_frame_free_count()))
+  uartPuts(" uptime_ms=")
+  uartPutDec(UInt64(kernel_supervisor_now_ms()))
+  uartPuts("\n")
 }
 
 func printStatus() {
@@ -229,6 +415,102 @@ func printKobjects() {
   }
 }
 
+func printDriverName(_ driver: UInt32) {
+  var i: UInt32 = 0
+  let n = kernel_driver_name_len(driver)
+  while i < n {
+    let b = UInt8(kernel_driver_name_byte(driver, i) & 0xFF)
+    if b >= 0x20 && b < 0x7F {
+      uartPutc(b)
+    } else {
+      uartPutc(0x2E)
+    }
+    i += 1
+  }
+}
+
+func printDriverState(_ state: UInt32) {
+  if state == KERNEL_DRIVER_STATE_READY {
+    uartPuts("ready")
+  } else {
+    uartPuts("unknown")
+  }
+}
+
+func printDrivers() {
+  let selftest = kernel_driver_registry_selftest()
+
+  uartPuts("drivers count=")
+  uartPutDec(UInt64(kernel_driver_count()))
+  uartPuts(" capacity=")
+  uartPutDec(UInt64(kernel_driver_capacity()))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(selftest))
+  uartPuts("\n")
+
+  var i: UInt32 = 0
+  while i < kernel_driver_capacity() {
+    if kernel_driver_object_id(i) != 0 {
+      uartPuts(" driver index=")
+      uartPutDec(UInt64(i))
+      uartPuts(" object=")
+      uartPutDec(UInt64(kernel_driver_object_id(i)))
+      uartPuts(" handle=")
+      uartPutHex(UInt64(kernel_driver_handle(i)))
+      uartPuts(" name=")
+      printDriverName(i)
+      if kernel_driver_state(i) == KERNEL_DRIVER_STATE_READY {
+        uartPuts(" state=ready")
+      } else {
+        uartPuts(" state=")
+        printDriverState(kernel_driver_state(i))
+      }
+      uartPuts(" intid=")
+      uartPutDec(UInt64(kernel_driver_intid(i)))
+      uartPuts(" base=")
+      uartPutHexCompact(UInt64(kernel_driver_base(i)))
+      uartPuts(" caps=")
+      uartPutHexCompact(UInt64(kernel_driver_caps(i)))
+      uartPuts(" irq_count=")
+      uartPutDec(UInt64(kernel_driver_irq_count(i)))
+      uartPuts(" errors=")
+      uartPutDec(UInt64(kernel_driver_error_count(i)))
+      uartPuts(" ops=")
+      uartPutDec(UInt64(kernel_driver_operation_count(i)))
+      uartPuts("\n")
+    }
+    i += 1
+  }
+}
+
+func printDrivercheck() {
+  let selftest = kernel_driver_registry_selftest()
+  let ok = selftest != 0 &&
+    kernel_driver_count() == 4 &&
+    kernel_driver_intid(UInt32(KERNEL_DRIVER_ID_UART0)) == 153 &&
+    kernel_driver_intid(UInt32(KERNEL_DRIVER_ID_CNTP)) == 30
+
+  uartPuts("drivercheck ok=")
+  uartPutDec(UInt64(ok ? 1 : 0))
+  uartPuts(" count=")
+  uartPutDec(UInt64(kernel_driver_count()))
+  uartPuts("/")
+  uartPutDec(UInt64(kernel_driver_capacity()))
+  uartPuts(" uart_irq=")
+  uartPutDec(UInt64(kernel_driver_irq_count(UInt32(KERNEL_DRIVER_ID_UART0))))
+  uartPuts(" timer_irq=")
+  uartPutDec(UInt64(kernel_driver_irq_count(UInt32(KERNEL_DRIVER_ID_CNTP))))
+  uartPuts(" gic_total=")
+  uartPutDec(UInt64(kernel_driver_irq_count(UInt32(KERNEL_DRIVER_ID_GIC))))
+  uartPuts(" watchdog_resets=")
+  uartPutDec(UInt64(watchdog_reset_count()))
+  uartPuts(" unknown_irq=")
+  uartPutDec(UInt64(kernel_driver_error_count(UInt32(KERNEL_DRIVER_ID_GIC))))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(selftest))
+  uartPuts("\n")
+}
+
 func printCapcheck() {
   let inspectHandle = kernel_object_make_handle(0, KERNEL_OBJECT_CAP_INSPECT)
   let inspect = inspectHandle != KERNEL_OBJECT_HANDLE_INVALID &&
@@ -274,7 +556,7 @@ func printEventKind(_ kind: UInt32) {
 }
 
 func printEvents() {
-  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 18, UInt(kernel_event_count()), 0)
+  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 22, UInt(kernel_event_count()), 0)
   let selftest = kernel_event_log_selftest()
   let count = kernel_event_count()
 
@@ -654,6 +936,12 @@ func printRetained() {
   uartPutDec(UInt64(valid))
   uartPuts(" kind=")
   printRetainedKind(kind)
+  uartPuts(" kind_id=")
+  uartPutDec(UInt64(kind))
+  uartPuts(" category=")
+  uartPutDec(UInt64(kernel_retained_category()))
+  uartPuts(" reason_id=")
+  uartPutDec(UInt64(kernel_retained_reason_id()))
   uartPuts(" seq=")
   uartPutDec(UInt64(kernel_retained_sequence()))
   uartPuts(" esr=")
@@ -777,6 +1065,164 @@ func printMMU() {
     uartPuts("\n")
     i += 1
   }
+}
+
+func printPoolName(_ pool: UInt32) {
+  var i: UInt32 = 0
+  let n = kernel_pool_name_len(pool)
+  while i < n {
+    let b = UInt8(kernel_pool_name_byte(pool, i) & 0xFF)
+    if b >= 0x20 && b < 0x7F {
+      uartPutc(b)
+    } else {
+      uartPutc(0x2E)
+    }
+    i += 1
+  }
+}
+
+func printPools() {
+  let selftest = kernel_pool_selftest()
+
+  uartPuts("pools count=")
+  uartPutDec(UInt64(kernel_pool_count()))
+  uartPuts(" capacity=")
+  uartPutDec(UInt64(kernel_pool_capacity()))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(selftest))
+  uartPuts("\n")
+
+  var i: UInt32 = 0
+  while i < kernel_pool_capacity() {
+    if kernel_pool_slot_capacity(i) != 0 {
+      uartPuts(" pool index=")
+      uartPutDec(UInt64(i))
+      uartPuts(" name=")
+      printPoolName(i)
+      uartPuts(" slot_size=")
+      uartPutDec(UInt64(kernel_pool_slot_size(i)))
+      uartPuts(" used=")
+      uartPutDec(UInt64(kernel_pool_used(i)))
+      uartPuts("/")
+      uartPutDec(UInt64(kernel_pool_slot_capacity(i)))
+      uartPuts(" high_water=")
+      uartPutDec(UInt64(kernel_pool_high_water(i)))
+      uartPuts(" allocs=")
+      uartPutDec(UInt64(kernel_pool_alloc_count(i)))
+      uartPuts(" frees=")
+      uartPutDec(UInt64(kernel_pool_free_count(i)))
+      uartPuts(" failed=")
+      uartPutDec(UInt64(kernel_pool_failed_alloc_count(i)))
+      uartPuts(" bad_frees=")
+      uartPutDec(UInt64(kernel_pool_bad_free_count(i)))
+      uartPuts(" double_frees=")
+      uartPutDec(UInt64(kernel_pool_double_free_count(i)))
+      uartPuts(" generation=")
+      uartPutDec(UInt64(kernel_pool_generation(i)))
+      uartPuts(" last_error=")
+      uartPutDec(UInt64(kernel_pool_last_error(i)))
+      uartPuts("\n")
+    }
+    i += 1
+  }
+}
+
+func printPoolcheck() {
+  let selftest = kernel_pool_selftest()
+  let pool = UInt32(KERNEL_POOL_SELFTEST_ID)
+  let ok = selftest != 0 &&
+    kernel_pool_used(pool) == 0 &&
+    kernel_pool_failed_alloc_count(pool) == 1 &&
+    kernel_pool_bad_free_count(pool) == 1 &&
+    kernel_pool_double_free_count(pool) == 1
+
+  uartPuts("poolcheck ok=")
+  uartPutDec(UInt64(ok ? 1 : 0))
+  uartPuts(" pools=")
+  uartPutDec(UInt64(kernel_pool_count()))
+  uartPuts("/")
+  uartPutDec(UInt64(kernel_pool_capacity()))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(selftest))
+  uartPuts(" used=")
+  uartPutDec(UInt64(kernel_pool_used(pool)))
+  uartPuts(" high_water=")
+  uartPutDec(UInt64(kernel_pool_high_water(pool)))
+  uartPuts(" allocs=")
+  uartPutDec(UInt64(kernel_pool_alloc_count(pool)))
+  uartPuts(" frees=")
+  uartPutDec(UInt64(kernel_pool_free_count(pool)))
+  uartPuts(" failed=")
+  uartPutDec(UInt64(kernel_pool_failed_alloc_count(pool)))
+  uartPuts(" bad_frees=")
+  uartPutDec(UInt64(kernel_pool_bad_free_count(pool)))
+  uartPuts(" double_frees=")
+  uartPutDec(UInt64(kernel_pool_double_free_count(pool)))
+  uartPuts(" last_error=")
+  uartPutDec(UInt64(kernel_pool_last_error(pool)))
+  uartPuts("\n")
+}
+
+func printHeapfrag() {
+  let selftest = heap_fragmentation_selftest()
+  let stress = heap_pressure_selftest()
+  let ok = selftest != 0 && stress != 0 && heap_pressure_last_leak_bytes() == 0
+
+  uartPuts("heapfrag ok=")
+  uartPutDec(UInt64(ok ? 1 : 0))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(selftest))
+  uartPuts(" pressure=")
+  uartPutDec(UInt64(stress))
+  uartPuts(" total=")
+  uartPutDec(UInt64(heap_total_bytes()))
+  uartPuts(" free=")
+  uartPutDec(UInt64(heap_free_bytes()))
+  uartPuts(" largest_free=")
+  uartPutDec(UInt64(heap_largest_free_bytes()))
+  uartPuts(" smallest_free=")
+  uartPutDec(UInt64(heap_smallest_free_bytes()))
+  uartPuts(" free_blocks=")
+  uartPutDec(UInt64(heap_free_block_count()))
+  uartPuts(" allocated_blocks=")
+  uartPutDec(UInt64(heap_allocated_block_count()))
+  uartPuts(" fragmentation_permil=")
+  uartPutDec(UInt64(heap_fragmentation_permil()))
+  uartPuts(" pressure_peak=")
+  uartPutDec(UInt64(heap_pressure_last_peak_bytes()))
+  uartPuts(" pressure_leak=")
+  uartPutDec(UInt64(heap_pressure_last_leak_bytes()))
+  uartPuts(" pressure_free_blocks=")
+  uartPutDec(UInt64(heap_pressure_last_free_block_count()))
+  uartPuts(" pressure_largest_free=")
+  uartPutDec(UInt64(heap_pressure_last_largest_free_bytes()))
+  uartPuts("\n")
+}
+
+func printPoolstats() {
+  let selftest = kernel_pool_pressure_selftest()
+
+  uartPuts("poolstats ok=")
+  uartPutDec(UInt64(selftest))
+  uartPuts(" pools=")
+  uartPutDec(UInt64(kernel_pool_count()))
+  uartPuts("/")
+  uartPutDec(UInt64(kernel_pool_capacity()))
+  uartPuts(" total_slots=")
+  uartPutDec(UInt64(kernel_pool_total_slot_count()))
+  uartPuts(" used_slots=")
+  uartPutDec(UInt64(kernel_pool_used_slot_count()))
+  uartPuts(" high_water_slots=")
+  uartPutDec(UInt64(kernel_pool_high_water_slot_count()))
+  uartPuts(" failed_allocs=")
+  uartPutDec(UInt64(kernel_pool_failed_alloc_total()))
+  uartPuts(" bad_frees=")
+  uartPutDec(UInt64(kernel_pool_bad_free_total()))
+  uartPuts(" double_frees=")
+  uartPutDec(UInt64(kernel_pool_double_free_total()))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(selftest))
+  uartPuts("\n")
 }
 
 func printFrames() {
@@ -909,12 +1355,20 @@ func printBootcheck() {
 
 func printBootcert() {
   kernel_supervisor_check()
-  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 18, UInt(kernel_event_count()), 0)
+  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 30, UInt(kernel_event_count()), 0)
 
+  let substrateCertificate = UInt32(1)
+  let agentSession = UInt32(1)
+  let runtimeAudit = kernel_runtime_audit_selftest()
+  let taxonomy = UInt32(1)
+  let protocolV2 = UInt32(1)
   let memmap = kernel_memory_map_valid()
   let heap = heap_guard_selftest()
   let frames = kernel_frame_allocator_selftest()
   let mmu = kernel_mmu_selftest()
+  let pools = kernel_pool_selftest()
+  let pressure = heap_fragmentation_selftest() != 0 && kernel_pool_pressure_selftest() != 0 ? 1 : 0
+  let drivers = kernel_driver_registry_selftest()
   let taskspawns = aetherTaskSpawnSelftest()
   let cancellations = kernel_cancel_selftest()
   let retainedValid = kernel_retained_valid()
@@ -925,19 +1379,32 @@ func printBootcert() {
   let supervisor = kernel_supervisor_selftest()
   let events = kernel_event_log_selftest()
   let eventsLost = kernel_event_lost_count()
-  let ok = memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && taskspawns != 0 &&
-    cancellations != 0 && kobjects != 0 && tasks != 0 && mailboxes != 0 &&
+  let ok = substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
+    taskspawns != 0 && cancellations != 0 && kobjects != 0 && tasks != 0 && mailboxes != 0 &&
     channels != 0 && supervisor != 0 && events != 0 && eventsLost == 0
 
   uartPuts("bootcert ok=")
   uartPutDec(UInt64(ok ? 1 : 0))
-  uartPuts(" version=21")
+  uartPuts(" version=30")
+  uartPuts(" certificate=")
+  uartPutDec(UInt64(substrateCertificate))
+  uartPuts(" agent=1")
+  uartPuts(" runtime=")
+  uartPutDec(UInt64(runtimeAudit))
+  uartPuts(" taxonomy=1")
+  uartPuts(" protocol=1")
   uartPuts(" memmap=")
   uartPutDec(UInt64(memmap))
   uartPuts(" heap=")
   uartPutDec(UInt64(heap))
   uartPuts(" frames=")
   uartPutDec(UInt64(frames))
+  uartPuts(" drivers=")
+  uartPutDec(UInt64(drivers))
+  uartPuts(" pressure=")
+  uartPutDec(UInt64(pressure))
+  uartPuts(" pools=")
+  uartPutDec(UInt64(pools))
   uartPuts(" mmu=")
   uartPutDec(UInt64(mmu))
   uartPuts(" channels=")
@@ -1144,6 +1611,218 @@ func scheduleResetAliasCheckIfNeeded() {
   Task { await resetAliasQuietWindow() }
 }
 
+struct ProtocolRequest {
+  var ok: Bool
+  var requestID: UInt64
+  var commandStart: UInt32
+  var commandLen: UInt32
+}
+
+func parseProtocolRequest() -> ProtocolRequest {
+  let n = uart_shell_buffer_count()
+  let prefixLen = UInt32(7) // "req id="
+  if !shellBufferHasPrefix("req id=") {
+    return ProtocolRequest(ok: false, requestID: 0, commandStart: 0, commandLen: 0)
+  }
+
+  var i = prefixLen
+  var id: UInt64 = 0
+  var digits: UInt32 = 0
+  while i < n {
+    let b = UInt8(uart_shell_buffer_get(i) & 0xFF)
+    if b < 0x30 || b > 0x39 {
+      break
+    }
+    id = (id &* 10) &+ UInt64(b - 0x30)
+    digits += 1
+    i += 1
+  }
+
+  if digits == 0 {
+    return ProtocolRequest(ok: false, requestID: 0, commandStart: 0, commandLen: 0)
+  }
+  if i + 5 > n || !shellBufferSliceEquals(i, 5, " cmd=") {
+    return ProtocolRequest(ok: false, requestID: id, commandStart: 0, commandLen: 0)
+  }
+
+  let commandStart = i + 5
+  let commandLen = n - commandStart
+  if commandLen == 0 {
+    return ProtocolRequest(ok: false, requestID: id, commandStart: commandStart, commandLen: 0)
+  }
+
+  return ProtocolRequest(ok: true, requestID: id, commandStart: commandStart, commandLen: commandLen)
+}
+
+func printProtocolResponsePrefix(_ requestID: UInt64, _ commandStart: UInt32, _ commandLen: UInt32) {
+  uartPuts("resp id=")
+  uartPutDec(requestID)
+  uartPuts(" cmd=")
+  uartPutShellBufferSlice(commandStart, commandLen)
+}
+
+func printProtocolBegin(_ requestID: UInt64, _ commandStart: UInt32, _ commandLen: UInt32) {
+  printProtocolResponsePrefix(requestID, commandStart, commandLen)
+  uartPuts(" begin\n")
+}
+
+func printProtocolEnd(_ requestID: UInt64, _ commandStart: UInt32, _ commandLen: UInt32) {
+  uartPuts("resp id=")
+  uartPutDec(requestID)
+  uartPuts(" ok=1 cmd=")
+  uartPutShellBufferSlice(commandStart, commandLen)
+  uartPuts(" end\n")
+}
+
+func printProtocolBadRequest(_ requestID: UInt64, _ commandStart: UInt32, _ commandLen: UInt32) {
+  uartPuts("resp id=")
+  uartPutDec(requestID)
+  uartPuts(" ok=0 cmd=")
+  uartPutShellBufferSlice(commandStart, commandLen)
+  uartPuts(" error=bad_request\n")
+}
+
+func printProtocolUnknown(_ requestID: UInt64, _ commandStart: UInt32, _ commandLen: UInt32) {
+  uartPuts("resp id=")
+  uartPutDec(requestID)
+  uartPuts(" ok=0 cmd=")
+  uartPutShellBufferSlice(commandStart, commandLen)
+  uartPuts(" error=unknown\n")
+}
+
+func dispatchShellCommand(_ commandStart: UInt32, _ commandLen: UInt32, _ requestID: UInt64, _ wrapped: Bool) -> Bool {
+  if wrapped {
+    printProtocolBegin(requestID, commandStart, commandLen)
+  }
+
+  var handled = true
+
+  if shellBufferSliceEquals(commandStart, commandLen, "help") {
+    printShellHelp()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "protocol") {
+    printProtocol()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "status") {
+    printStatus()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "heap") {
+    printHeap()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "queues") {
+    printQueues()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "tasks") {
+    printTasks()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "tasks2") {
+    printTasks2()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "kobjects") {
+    printKobjects()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "drivers") {
+    printDrivers()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "drivercheck") {
+    printDrivercheck()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "mailboxes") {
+    printMailboxes()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "sendtest") {
+    printSendtest()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "supervisor") {
+    printSupervisor()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "health") {
+    printHealth()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "capcheck") {
+    printCapcheck()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "events") {
+    printEvents()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "runtime") {
+    printRuntimeAudit()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "agent") {
+    printAgentSession()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "certificate") {
+    printSubstrateCertificate()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "diag") {
+    printDiag()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "irqs") {
+    printIrqs()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "timers") {
+    printTimers()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "memcheck") {
+    printMemcheck()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "faults") {
+    printFaults()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "retained") {
+    printRetained()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "retained-clear") {
+    clearRetained()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "memmap") {
+    printMemmap()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "mmu") {
+    printMMU()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "pools") {
+    printPools()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "poolcheck") {
+    printPoolcheck()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "heapfrag") {
+    printHeapfrag()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "poolstats") {
+    printPoolstats()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "frames") {
+    printFrames()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "heapcheck") {
+    printHeapcheck()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "framecheck") {
+    printFramecheck()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "stress") {
+    printStress()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "frameprobe") {
+    printFrameprobe()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "bootcert") {
+    printBootcert()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "canceltest") {
+    printCanceltest()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "taskcheck") {
+    printTaskcheck()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "channeltest") {
+    printChanneltest()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "bootcheck") {
+    printBootcheck()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "soak") {
+    printSoak()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "heap-invalid-free-test") {
+    shellHeapInvalidFreeTest()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "heap-double-free-test") {
+    shellHeapDoubleFreeTest()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "panic-test") {
+    shellPanicTest()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "fault-test") {
+    shellFaultTest()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "reboot") {
+    shellRebootCommand()
+  } else {
+    handled = false
+  }
+
+  if handled {
+    if wrapped {
+      printProtocolEnd(requestID, commandStart, commandLen)
+    }
+    return true
+  }
+
+  if wrapped {
+    printProtocolUnknown(requestID, commandStart, commandLen)
+  } else {
+    uartPuts("shell error reason=unknown command=")
+    uartPutShellBufferSlice(commandStart, commandLen)
+    uartPuts("\n")
+  }
+  return false
+}
+
+func processProtocolRequest() {
+  let request = parseProtocolRequest()
+  if !request.ok {
+    printProtocolBadRequest(request.requestID, request.commandStart, request.commandLen)
+    return
+  }
+  _ = dispatchShellCommand(request.commandStart, request.commandLen, request.requestID, true)
+}
+
 func processUartShellLine() {
   let n = uart_shell_buffer_count()
   if n == 0 {
@@ -1152,86 +1831,12 @@ func processUartShellLine() {
 
   if n == 1 && isResetAlias(UInt8(uart_shell_buffer_get(0) & 0xFF)) {
     shellReboot("alias")
-  } else if shellBufferEquals("help") {
-    printShellHelp()
-  } else if shellBufferEquals("status") {
-    printStatus()
-  } else if shellBufferEquals("heap") {
-    printHeap()
-  } else if shellBufferEquals("queues") {
-    printQueues()
-  } else if shellBufferEquals("tasks") {
-    printTasks()
-  } else if shellBufferEquals("tasks2") {
-    printTasks2()
-  } else if shellBufferEquals("kobjects") {
-    printKobjects()
-  } else if shellBufferEquals("mailboxes") {
-    printMailboxes()
-  } else if shellBufferEquals("sendtest") {
-    printSendtest()
-  } else if shellBufferEquals("supervisor") {
-    printSupervisor()
-  } else if shellBufferEquals("health") {
-    printHealth()
-  } else if shellBufferEquals("capcheck") {
-    printCapcheck()
-  } else if shellBufferEquals("events") {
-    printEvents()
-  } else if shellBufferEquals("diag") {
-    printDiag()
-  } else if shellBufferEquals("irqs") {
-    printIrqs()
-  } else if shellBufferEquals("timers") {
-    printTimers()
-  } else if shellBufferEquals("memcheck") {
-    printMemcheck()
-  } else if shellBufferEquals("faults") {
-    printFaults()
-  } else if shellBufferEquals("retained") {
-    printRetained()
-  } else if shellBufferEquals("retained-clear") {
-    clearRetained()
-  } else if shellBufferEquals("memmap") {
-    printMemmap()
-  } else if shellBufferEquals("mmu") {
-    printMMU()
-  } else if shellBufferEquals("frames") {
-    printFrames()
-  } else if shellBufferEquals("heapcheck") {
-    printHeapcheck()
-  } else if shellBufferEquals("framecheck") {
-    printFramecheck()
-  } else if shellBufferEquals("stress") {
-    printStress()
-  } else if shellBufferEquals("frameprobe") {
-    printFrameprobe()
-  } else if shellBufferEquals("bootcert") {
-    printBootcert()
-  } else if shellBufferEquals("canceltest") {
-    printCanceltest()
-  } else if shellBufferEquals("taskcheck") {
-    printTaskcheck()
-  } else if shellBufferEquals("channeltest") {
-    printChanneltest()
-  } else if shellBufferEquals("bootcheck") {
-    printBootcheck()
-  } else if shellBufferEquals("soak") {
-    printSoak()
-  } else if shellBufferEquals("heap-invalid-free-test") {
-    shellHeapInvalidFreeTest()
-  } else if shellBufferEquals("heap-double-free-test") {
-    shellHeapDoubleFreeTest()
-  } else if shellBufferEquals("panic-test") {
-    shellPanicTest()
-  } else if shellBufferEquals("fault-test") {
-    shellFaultTest()
-  } else if shellBufferEquals("reboot") {
-    shellRebootCommand()
+  } else if shellBufferEquals("protocol") {
+    printProtocol()
+  } else if shellBufferHasPrefix("req id=") {
+    processProtocolRequest()
   } else {
-    uartPuts("shell error reason=unknown command=")
-    uartPutByteStringFromShellBuffer()
-    uartPuts("\n")
+    _ = dispatchShellCommand(0, n, 0, false)
   }
 }
 

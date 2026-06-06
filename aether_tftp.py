@@ -77,6 +77,17 @@ def endpoint_text(endpoint: tuple[str, int]) -> str:
     return f"{endpoint[0]}:{endpoint[1]}"
 
 
+def make_logger(log_file: pathlib.Path | None = None) -> Callable[[str], None]:
+    def log(line: str) -> None:
+        print(line, flush=True)
+        if log_file is not None:
+            with log_file.open("a", encoding="utf-8") as file:
+                file.write(line)
+                file.write("\n")
+
+    return log
+
+
 def packet_summary(packet: bytes) -> str:
     if len(packet) < 2:
         return "op=short"
@@ -219,12 +230,13 @@ class ReadOnlyTFTPServer:
                 transfer.settimeout(self.timeout_s)
                 transfer.bind((self.transfer_host, 0))
             try:
+                block_size = self._block_size_for_request(request)
                 accepted_options = self._accepted_options(request, size)
                 if accepted_options:
                     ok, client = self._send_oack(transfer, client, request.filename, accepted_options)
                     if not ok:
                         return
-                restart = self._send_file(transfer, client, path, request.filename)
+                restart = self._send_file(transfer, client, path, request.filename, block_size=block_size)
                 if restart is None:
                     return
                 request = restart.request
@@ -257,6 +269,9 @@ class ReadOnlyTFTPServer:
             accepted["tsize"] = str(size)
         return accepted
 
+    def _block_size_for_request(self, request: TFTPRequest) -> int:
+        return self.block_size if "blksize" in request.options else 512
+
     def _send_oack(self, transfer: socket.socket, client: tuple[str, int], filename: str, options: dict[str, str]) -> tuple[bool, tuple[str, int]]:
         packet = oack_packet(options)
         for attempt in range(1, 6):
@@ -288,12 +303,20 @@ class ReadOnlyTFTPServer:
         self.log(f"aether-tftp timeout file={filename} block=0 sent=0")
         return False, client
 
-    def _send_file(self, transfer: socket.socket, client: tuple[str, int], path: pathlib.Path, filename: str) -> TransferRestart | None:
+    def _send_file(
+        self,
+        transfer: socket.socket,
+        client: tuple[str, int],
+        path: pathlib.Path,
+        filename: str,
+        *,
+        block_size: int = 512,
+    ) -> TransferRestart | None:
         block = 1
         total = 0
         with path.open("rb") as file:
             while True:
-                chunk = file.read(self.block_size)
+                chunk = file.read(block_size)
                 packet = data_packet(block, chunk)
                 for attempt in range(1, 6):
                     try:
@@ -325,7 +348,7 @@ class ReadOnlyTFTPServer:
                     return
 
                 total += len(chunk)
-                if len(chunk) < self.block_size:
+                if len(chunk) < block_size:
                     self.log(f"aether-tftp complete file={filename} bytes={total}")
                     return
                 block = (block + 1) & 0xFFFF
@@ -346,6 +369,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--block-size", type=positive_int, default=int(os.environ.get("AETHER_TFTP_BLOCK_SIZE", "512")))
     parser.add_argument("--timeout", type=float, default=float(os.environ.get("AETHER_TFTP_TIMEOUT", "2.0")))
     parser.add_argument("--single-port", action="store_true", default=os.environ.get("AETHER_TFTP_SINGLE_PORT", "0") == "1")
+    default_log_file = os.environ.get("AETHER_TFTP_LOG")
+    parser.add_argument(
+        "--log-file",
+        type=pathlib.Path,
+        default=pathlib.Path(default_log_file) if default_log_file else None,
+    )
     args = parser.parse_args(argv)
 
     server = ReadOnlyTFTPServer(
@@ -355,7 +384,7 @@ def main(argv: list[str] | None = None) -> int:
         block_size=args.block_size,
         timeout_s=args.timeout,
         single_port=args.single_port,
-        log=lambda line: print(line, flush=True),
+        log=make_logger(args.log_file),
     )
     try:
         server.serve()

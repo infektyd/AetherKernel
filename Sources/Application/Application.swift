@@ -180,11 +180,19 @@ struct Application {
     // cancellation tokens. Runtime V19 adds the Aether-owned task spawn wrapper.
     // Runtime V20 adds Swift-facing async channels over fixed mailboxes. Runtime
     // V21 exposes the current MMU ownership boundary without dynamic remaps.
+    // Runtime V22 adds guarded C-owned typed pools beside the heap.
+    // Runtime V23 adds allocator/pool pressure telemetry.
+    // Runtime V24 adds a minimal fixed driver registry.
+    // Runtime V25 adds a scriptable ASCII command protocol v2.
+    // Runtime V27 adds panic/fault taxonomy and symbolic retained records.
+    // Runtime V28 adds a Swift runtime dependency audit.
     kernel_memory_init()
+    kernel_pool_init()
     kernel_cancel_init()
     kernel_event_log_init()
-    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 21, 0, 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 30, 0, 0)
     kernel_object_registry_init()
+    kernel_driver_registry_init()
     kernel_task_registry_init()
     kernel_supervisor_init()
     kernel_mailbox_registry_init()
@@ -213,10 +221,26 @@ struct Application {
     uartPuts("runtime v19: structured aether task spawn\n")
     uartPuts("runtime v20: bounded async channels\n")
     uartPuts("runtime v21: mmu ownership boundary\n")
+    uartPuts("runtime v22: guarded typed pools\n")
+    uartPuts("runtime v23: allocator and pool pressure telemetry\n")
+    uartPuts("runtime v24: fixed driver registry\n")
+    uartPuts("runtime v25: scriptable command protocol v2\n")
+    uartPuts("runtime v27: panic taxonomy and symbolic retained records\n")
+    uartPuts("runtime v28: swift runtime dependency audit\n")
+    uartPuts("runtime v29: agent-oriented control session\n")
+    uartPuts("runtime v30: swift-native kernel substrate certificate\n")
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(kernel_cancel_selftest()), 0)
     kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19, UInt(aetherTaskSpawnSelftest()), UInt(kernel_task_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20, UInt(aetherChannelSelftest()), UInt(kernel_mailbox_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 21, UInt(kernel_mmu_selftest()), 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 25, 2, 1)
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 27, UInt(kernel_retained_valid()), UInt(kernel_retained_reason_id()))
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 28, UInt(kernel_runtime_audit_selftest()), UInt(kernel_runtime_required_symbol_count()))
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 29, 1, UInt(kernel_event_lost_count()))
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 30, 1, UInt(kernel_event_lost_count()))
     let handleSelftest = kernel_object_handle_selftest()
     let capSelftest = kernel_object_capcheck_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_HANDLE, UInt(handleSelftest), UInt(capSelftest), 0)

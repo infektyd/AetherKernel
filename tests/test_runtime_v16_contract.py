@@ -4,9 +4,9 @@ import pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V16 = (
-    "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,"
-    "supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,"
-    "retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,"
+    "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,"
+    "supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,memcheck,faults,retained,"
+    "retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,"
     "bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,"
     "fault-test,reboot"
 )
@@ -93,7 +93,7 @@ def test_uart_shell_v16_events_command_and_responses_exist() -> None:
         " a0=",
         " a1=",
         " a2=",
-        'shellBufferEquals("events")',
+        'shellBufferSliceEquals(commandStart, commandLen, "events")',
     ):
         assert marker in shell
 
@@ -109,6 +109,6 @@ def test_runtime_v16_netboot_gates_and_shell_probe_exist() -> None:
     for marker in (
         "probe shell: events",
         "^events count=.* lost=0 .*selftest=1",
-        "stale pre-V21 SD fallback",
+        "stale pre-V30 SD fallback",
     ):
         assert marker in net_iterate

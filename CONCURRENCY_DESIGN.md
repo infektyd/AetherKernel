@@ -19,7 +19,129 @@ and was hardware-verified 2026-06-05. Runtime V19 adds structured Aether task
 spawn metadata and was hardware-verified 2026-06-05. Runtime V20 adds bounded
 Swift-facing async channels over fixed mailbox queues and was hardware-verified
 2026-06-05. Runtime V21 adds read-only MMU ownership introspection and was
-hardware-verified 2026-06-05.
+hardware-verified 2026-06-05. Runtime V22 adds guarded typed pools beside the
+heap and was hardware-verified 2026-06-05. Runtime V23 adds allocator/pool
+pressure telemetry and was hardware-verified 2026-06-06. Runtime V24 adds a
+fixed driver registry and was hardware-verified 2026-06-06. Runtime V25 adds
+scriptable command protocol v2 and was hardware-verified 2026-06-06. Runtime
+V26 host soak harness was hardware-verified 2026-06-06 as a host-side repeated
+proof loop. Runtime V27 panic taxonomy and symbolic retained records were
+hardware-verified 2026-06-06. Runtime V28 Swift runtime dependency audit was
+hardware-verified 2026-06-06. Runtime V29 agent-oriented control session was
+hardware-verified 2026-06-06. Runtime V30 Swift-native kernel substrate
+certificate was hardware-verified 2026-06-06.
+
+> ## Runtime V30 Swift-native kernel substrate certificate ground truth (2026-06-06)
+> V30 keeps the V25 request envelope, keeps the V29 `agent` session, and adds a
+> `certificate` command plus `certificate-loop.sh` host proof harness. The live
+> Pi proof passed a normal `net-iterate.sh` run and a 3-cycle certificate loop.
+> Proof lines included `runtime v30: swift-native kernel substrate certificate`,
+> `bootcert ok=1 version=30 certificate=1 agent=1 runtime=1 taxonomy=1 ... events_lost=0`,
+> `certificate ok=1 version=30 substrate=1 bootcert=1 agent=1 runtime=1 memory=1
+> objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1
+> channels=1 drivers=1 pressure=1 pools=1 mmu=1 ... events_lost=0`, and
+> `certificate-loop ok=1 version=30 cycles=3 completed=3 substrate=1 bootcert=1
+> agent=1 runtime=1 events_lost=0`.
+
+> ## Runtime V29 agent-oriented control session ground truth (2026-06-06)
+> V29 keeps the V25 request envelope and adds an `agent` command for a compact
+> machine-checkable control-session summary. The hardware proof passed a normal
+> `net-iterate.sh` run and a clean `set -e` 3-cycle netboot + `agent-session.sh`
+> loop. Proof lines included `runtime v29: agent-oriented control session`,
+> `bootcert ok=1 version=29 agent=1 runtime=1 taxonomy=1 ... events_lost=0`,
+> `agent ok=1 version=29 health=green bootcert=1 runtime=1 protocol=2 agent=1 events_lost=0`,
+> and `agent-session ok=1 version=29 health=green bootcert=1 runtime=1 stress=1 soak=1 events_lost=0`.
+
+> ## Runtime V28 Swift runtime dependency audit ground truth (2026-06-06)
+> V28 turns the Swift runtime boundary into a checked contract. The kernel shell
+> reports `runtime ok=1 version=28 swift=6.3.2 source_hooks=10 linked_hooks=2
+> heap_shims=5 linked_heap_shims=3 required_symbols=5 audit=1`; the boot
+> certificate reports `bootcert ok=1 version=28 runtime=1 taxonomy=1 ... events_lost=0`;
+> and host `./runtime-audit.sh .build/release/Application` reports
+> `runtime-audit ok=1 version=28 ... missing=none`. The linked-hook count is
+> intentionally smaller than the source-owned hook count because only
+> load-bearing symbols present in the built Mach-O are required by the host nm
+> audit.
+
+> ## Runtime V27 panic taxonomy and symbolic retained records ground truth (2026-06-06)
+> V27 keeps the retained-record storage model from V6, but adds stable numeric
+> `kind_id`, `category`, and `reason_id` fields so host tools and future agents
+> do not need to parse free-form reason text. `bootcert` now reports taxonomy
+> support with `bootcert ok=1 version=27 taxonomy=1 ... events_lost=0`.
+> Hardware proof: a normal `net-iterate.sh` run passed, `panic-test` rebooted
+> and `retained` reported `retained valid=1 kind=panic kind_id=1 category=1 reason_id=1
+> ... reason=panic-test`, `fault-test` rebooted and `retained`
+> reported `kind=fault kind_id=2 category=2 reason_id=2 esr=0xf20000a5
+> elr=0x92968 ... reason=sync-fault`, `symbolicate-retained.sh` returned
+> `symbol address=0x92968 symbol_name=_kernel_trigger_sync_fault ...`, and a
+> clean `set -e` 3-cycle netboot loop passed.
+
+> ## Runtime V26 host soak harness ground truth (2026-06-06)
+> V26 does not bump the kernel boot certificate or add a new kernel marker. It
+> adds `soak-loop.sh`, a host-side repeatability harness that runs
+> `net-iterate.sh`, then uses the V25 request protocol to collect `status`,
+> `bootcert`, `stress`, `soak`, and `events` summaries into a log. The TFTP
+> provider lifecycle stays external. Hardware proof: `AETHER_SOAK_CYCLES=3
+> ./soak-loop.sh /Users/hansaxelsson/aether-tftp` passed all cycles. Proof
+> lines included `soak summary cycle=3 command=bootcert id=2622 line=bootcert
+> ok=1 version=25 ... events_lost=0`, `soak summary cycle=3 command=stress ...
+> heap_leak=0 frame_leak=0`, `soak summary cycle=3 command=soak ...
+> failures=0 heap_leak=0 frame_leak=0`, `soak summary cycle=3 command=events
+> ... lost=0 ... selftest=1`, and
+> `soak result ok=1 cycles=3 completed=3 log=/tmp/aether-soak-v26.log`.
+
+> ## Runtime V25 scriptable command protocol v2 ground truth (2026-06-06)
+> V25 does not change the scheduler, driver model, or shell command meanings.
+> It adds an ASCII request/response envelope for agent control while preserving
+> direct human commands and the `r`/`R` reset aliases. The protocol command
+> reports the current wire contract, request-wrapped commands use
+> `req id=<n> cmd=<command>`, and responses emit stable begin/end or error
+> lines. `bootcert` reports `protocol=1`. Hardware proof: a single
+> `net-iterate.sh` run passed, followed by a clean `set -e` 3-cycle loop.
+> Proof lines included `runtime v25: scriptable command protocol v2`,
+> `protocol version=2 request=req id_field=id cmd_field=cmd begin_end=1
+> errors=1 max_line=80`, `bootcert ok=1 version=25 protocol=1 ... drivers=1
+> pressure=1 pools=1 ... events_lost=0`, and
+> `resp id=25 ok=1 cmd=status end`.
+
+> ## Runtime V24 fixed driver registry ground truth (2026-06-06)
+> V24 does not add a dynamic device model or rewrite driver hot paths. It adds
+> `kernel_driver.c`, a fixed C-owned registry for UART0, CNTP, GIC, and
+> watchdog. Each driver gets a kernel object handle plus stable name, state,
+> INTID, base address, capabilities, IRQ count, error count, and operation
+> count surfaces. The UART shell adds `drivers` and `drivercheck`; `bootcert`
+> reports `drivers=1`. Hardware proof: a single `net-iterate.sh` run passed,
+> followed by a clean `set -e` 3-cycle loop. Proof lines included
+> `runtime v24: fixed driver registry`, `bootcert ok=1 version=24 ...
+> drivers=1 pressure=1 pools=1 ... events_lost=0`, `drivers count=4 capacity=4 selftest=1`,
+> and `drivercheck ok=1 ... uart_irq=16 timer_irq=689
+> gic_total=705 watchdog_resets=0 unknown_irq=0 selftest=1`.
+
+> ## Runtime V23 allocator/pool pressure telemetry ground truth (2026-06-06)
+> V23 does not replace the heap, change pool ownership, or add dynamic remaps.
+> It adds read-only heap fragmentation counters over the existing boundary-tag
+> allocator: free block count, allocated block count, smallest/largest free
+> block, fragmentation permille, and pressure-run snapshots. It also adds
+> aggregate pool pressure counters over the fixed V22 pool records. The UART
+> shell adds `heapfrag` and `poolstats`; `bootcert` reports `pressure=1`.
+> Hardware proof: a single `net-iterate.sh` run passed, followed by a clean
+> `set -e` 3-cycle loop. Proof lines included `runtime v23: allocator and pool
+> pressure telemetry`, `bootcert ok=1 version=23 ... pressure=1 pools=1 ...
+> events_lost=0`, `heapfrag ok=1 ... fragmentation_permil=0 ...
+> pressure_largest_free=4184112`, and `poolstats ok=1 ... total_slots=24 ...
+> failed_allocs=1`.
+
+> ## Runtime V22 guarded typed pools ground truth (2026-06-05)
+> V22 does not replace the heap or add dynamic remaps. It adds
+> `kernel_pool.c`, a fixed C-owned typed pool substrate with 4 pool descriptors,
+> 8 slots per pool, guard words, generation counters, high-water telemetry, and
+> deterministic selftests for overflow, bad-free, and double-free handling. The
+> UART shell adds `pools` and `poolcheck`; `bootcert` reports `pools=1`.
+> Hardware proof: a single `net-iterate.sh` run passed, followed by a clean
+> `set -e` 3-cycle loop. Proof lines included `runtime v22: guarded typed
+> pools`, `bootcert ok=1 version=22 ... pools=1 ... mmu=1 ... events_lost=0`,
+> `poolcheck ok=1 ... bad_frees=1 double_frees=1`, and `pools count=3
+> capacity=4 selftest=1`.
 
 > ## Runtime V21 ground truth (2026-06-05)
 > V21 does not add dynamic remapping. It records the current EL1 stage-1 MMU

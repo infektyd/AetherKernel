@@ -51,12 +51,16 @@ def test_panic_and_fault_paths_write_retained_record_before_watchdog_reset() -> 
     exceptions = read_repo("Sources/Application/Exceptions.swift")
 
     assert "void kernel_panic_with_detail(const char *reason, unsigned long esr, unsigned long elr, unsigned long far)" in diagnostics
-    assert "retained_write(KERNEL_RETAINED_KIND_PANIC, esr, elr, far, reason)" in diagnostics
+    assert "kernel_panic_with_taxonomy(reason, category, reason_id, esr, elr, far)" in diagnostics
     assert "void kernel_panic_with_far(const char *reason, unsigned long far)" in diagnostics
     assert "kernel_panic_with_detail(reason, 0, 0, far)" in diagnostics
-    assert diagnostics.index("retained_write(KERNEL_RETAINED_KIND_PANIC, esr, elr, far, reason)") < diagnostics.index("watchdog_reset_now()")
+    panic_body = diagnostics[
+        diagnostics.index("void kernel_panic_with_taxonomy"):
+        diagnostics.index("void kernel_panic_with_detail")
+    ]
+    assert panic_body.index("retained_write(KERNEL_RETAINED_KIND_PANIC, category, reason_id, esr, elr, far, reason)") < panic_body.index("watchdog_reset_now()")
     assert "kernel_panic_with_far(reason, 0)" in diagnostics
-    assert "retained_write(KERNEL_RETAINED_KIND_FAULT, esr, elr, far" in diagnostics
+    assert "retained_write(KERNEL_RETAINED_KIND_FAULT, KERNEL_RETAINED_CATEGORY_FAULT, KERNEL_RETAINED_REASON_SYNC_FAULT" in diagnostics
     assert "kernel_retained_write_fault(UInt(esr), UInt(elr), UInt(far))" in exceptions
     assert exceptions.index("kernel_retained_write_fault") < exceptions.index("watchdog_reset_now()")
 
@@ -78,7 +82,7 @@ def test_uart_shell_v6_retained_commands_and_response_prefixes_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
 
     for marker in (
-        "commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,supervisor,health,capcheck,events,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot",
+        "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot",
         "retained valid=",
         " kind=",
         " seq=",
