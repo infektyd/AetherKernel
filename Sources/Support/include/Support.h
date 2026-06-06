@@ -163,6 +163,7 @@ unsigned int executor_delayed_capacity(void);
 #define KERNEL_OBJECT_KIND_TASK    1U
 #define KERNEL_OBJECT_KIND_DRIVER  2U
 #define KERNEL_OBJECT_KIND_RUNTIME 3U
+#define KERNEL_OBJECT_KIND_MAILBOX 4U
 
 #define KERNEL_OBJECT_FLAG_ACTIVE  1U
 
@@ -195,6 +196,31 @@ unsigned int kernel_task_period_ms(unsigned int task_id);
 unsigned int kernel_task_name_len(unsigned int task_id);
 unsigned int kernel_task_name_byte(unsigned int task_id, unsigned int offset);
 int kernel_task_registry_selftest(void);
+
+// Runtime V13 fixed mailboxes. Each mailbox is a bounded UInt64 FIFO with
+// counters and stable error codes; later Swift-facing channels build on this.
+#define KERNEL_MAILBOX_ERROR_NONE   0U
+#define KERNEL_MAILBOX_ERROR_FULL   1U
+#define KERNEL_MAILBOX_ERROR_EMPTY  2U
+#define KERNEL_MAILBOX_ERROR_BAD_ID 3U
+
+void kernel_mailbox_registry_init(void);
+unsigned int kernel_mailbox_register(unsigned int mailbox_id, const unsigned char *name, unsigned int name_len);
+unsigned int kernel_mailbox_count(void);
+unsigned int kernel_mailbox_capacity(void);
+unsigned int kernel_mailbox_queue_capacity(void);
+unsigned int kernel_mailbox_object_id(unsigned int mailbox_id);
+unsigned int kernel_mailbox_depth(unsigned int mailbox_id);
+unsigned long kernel_mailbox_sent_count(unsigned int mailbox_id);
+unsigned long kernel_mailbox_received_count(unsigned int mailbox_id);
+unsigned long kernel_mailbox_drop_count(unsigned int mailbox_id);
+unsigned int kernel_mailbox_last_error(unsigned int mailbox_id);
+int kernel_mailbox_send_u64(unsigned int mailbox_id, unsigned long value);
+int kernel_mailbox_recv_u64(unsigned int mailbox_id, unsigned long *out);
+void kernel_mailbox_clear(unsigned int mailbox_id);
+unsigned int kernel_mailbox_name_len(unsigned int mailbox_id);
+unsigned int kernel_mailbox_name_byte(unsigned int mailbox_id, unsigned int offset);
+int kernel_mailbox_selftest(void);
 
 // Runtime V7 memory ownership. V7 keeps the existing heap fixed and introduces
 // an explicit low-memory map plus a 4 KiB physical frame allocator above it.

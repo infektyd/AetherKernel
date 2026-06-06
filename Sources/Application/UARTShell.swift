@@ -8,7 +8,8 @@
 // and frame allocator inspection. V8 adds allocator guard/status self-checks.
 // V9 adds bounded heap/frame pressure tests. V10 adds explicit guard probes.
 // V11 adds boot and soak invariant checks for host-side proof loops. V12 adds a
-// fixed kernel object table and cooperative task registry.
+// fixed kernel object table and cooperative task registry. V13 adds bounded
+// mailbox message queues.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -39,11 +40,11 @@ func shellBufferEquals(_ s: StaticString) -> Bool {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printStatus() {
@@ -131,6 +132,8 @@ func printKernelObjectKind(_ kind: UInt32) {
     uartPuts("driver")
   } else if kind == KERNEL_OBJECT_KIND_RUNTIME {
     uartPuts("runtime")
+  } else if kind == KERNEL_OBJECT_KIND_MAILBOX {
+    uartPuts("mailbox")
   } else {
     uartPuts("unknown")
   }
@@ -240,6 +243,81 @@ func printTasks2() {
     }
     i += 1
   }
+}
+
+func printMailboxName(_ mailbox: UInt32) {
+  var i: UInt32 = 0
+  let n = kernel_mailbox_name_len(mailbox)
+  while i < n {
+    let b = UInt8(kernel_mailbox_name_byte(mailbox, i) & 0xFF)
+    if b >= 0x20 && b < 0x7F {
+      uartPutc(b)
+    } else {
+      uartPutc(0x2E)
+    }
+    i += 1
+  }
+}
+
+func printMailboxes() {
+  uartPuts("mailboxes count=")
+  uartPutDec(UInt64(kernel_mailbox_count()))
+  uartPuts(" capacity=")
+  uartPutDec(UInt64(kernel_mailbox_capacity()))
+  uartPuts(" queue_capacity=")
+  uartPutDec(UInt64(kernel_mailbox_queue_capacity()))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(kernel_mailbox_selftest()))
+  uartPuts("\n")
+
+  var i: UInt32 = 0
+  while i < kernel_mailbox_capacity() {
+    if kernel_mailbox_object_id(i) != 0 {
+      uartPuts(" mailbox index=")
+      uartPutDec(UInt64(i))
+      uartPuts(" object=")
+      uartPutDec(UInt64(kernel_mailbox_object_id(i)))
+      uartPuts(" name=")
+      printMailboxName(i)
+      uartPuts(" depth=")
+      uartPutDec(UInt64(kernel_mailbox_depth(i)))
+      uartPuts(" sent=")
+      uartPutDec(UInt64(kernel_mailbox_sent_count(i)))
+      uartPuts(" received=")
+      uartPutDec(UInt64(kernel_mailbox_received_count(i)))
+      uartPuts(" drops=")
+      uartPutDec(UInt64(kernel_mailbox_drop_count(i)))
+      uartPuts(" last_error=")
+      uartPutDec(UInt64(kernel_mailbox_last_error(i)))
+      uartPuts("\n")
+    }
+    i += 1
+  }
+}
+
+func printSendtest() {
+  let testValue: UInt = 0x132d
+  var receivedValue: UInt = 0
+
+  kernel_mailbox_clear(MAILBOX_SELFTEST_ID)
+  let sent = kernel_mailbox_send_u64(MAILBOX_SELFTEST_ID, testValue)
+  let received = kernel_mailbox_recv_u64(MAILBOX_SELFTEST_ID, &receivedValue)
+  let selftest = kernel_mailbox_selftest()
+  let ok = sent != 0 && received != 0 && selftest != 0 && receivedValue == testValue
+
+  uartPuts("sendtest ok=")
+  uartPutDec(UInt64(ok ? 1 : 0))
+  uartPuts(" mailbox=")
+  uartPutDec(UInt64(MAILBOX_SELFTEST_ID))
+  uartPuts(" sent=")
+  uartPutDec(UInt64(sent))
+  uartPuts(" received=")
+  uartPutDec(UInt64(received))
+  uartPuts(" value=")
+  uartPutHex(UInt64(receivedValue))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(selftest))
+  uartPuts("\n")
 }
 
 func printDiag() {
@@ -706,6 +784,10 @@ func processUartShellLine() {
     printTasks2()
   } else if shellBufferEquals("kobjects") {
     printKobjects()
+  } else if shellBufferEquals("mailboxes") {
+    printMailboxes()
+  } else if shellBufferEquals("sendtest") {
+    printSendtest()
   } else if shellBufferEquals("diag") {
     printDiag()
   } else if shellBufferEquals("irqs") {

@@ -6,7 +6,7 @@
 #
 # Builds and stages kernel8.img/config.txt, sends the serial reset command, and
 # watches dnsmasq + serial logs for proof that the Pi fetched over TFTP,
-# booted the staged image, brought up the Runtime V12 shell, and proves a small
+# booted the staged image, brought up the Runtime V13 shell, and proves a small
 # command set through ./serial-probe.sh.
 #===----------------------------------------------------------------------===#
 set -euo pipefail
@@ -95,7 +95,7 @@ if [ "${AETHER_NETITERATE_DRY_RUN:-0}" = "1" ]; then
   echo "expect TFTP prefix: $PREFIX/"
   echo "attempts: $RETRIES"
   echo "timeout per attempt: ${TIMEOUT_S}s"
-  echo "shell probes: ./serial-probe.sh status bootcheck stress soak kobjects tasks2"
+  echo "shell probes: ./serial-probe.sh status bootcheck stress soak kobjects tasks2 mailboxes sendtest"
   exit 0
 fi
 
@@ -145,7 +145,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -q "runtime v10: explicit guard probes" \
       && printf '%s' "$serial_delta" | grep -q "runtime v11: boot and soak invariants" \
       && printf '%s' "$serial_delta" | grep -q "runtime v12: kernel object table + task registry" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
+      && printf '%s' "$serial_delta" | grep -q "runtime v13: bounded mailbox message queues" \
+      && printf '%s' "$serial_delta" | grep -q "rtv13 mail tx 0x0000000000000000" \
+      && printf '%s' "$serial_delta" | grep -q "rtv13 mail rx 0x0000000000000000" \
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
       echo "netboot iteration verified on attempt ${attempt}/${RETRIES}"
       if [ "${AETHER_NETITERATE_SKIP_SHELL_PROBES:-0}" != "1" ]; then
         # probe shell: status
@@ -160,6 +163,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "kobjects" "^kobjects count=.* active="
         # probe shell: tasks2
         probe_shell "tasks2" "^tasks2 count=.* task index=.*fast"
+        # probe shell: mailboxes
+        probe_shell "mailboxes" "^mailboxes count=.* queue_capacity="
+        # probe shell: sendtest
+        probe_shell "sendtest" "^sendtest ok=1 .*received=1"
       fi
       echo "--- dnsmasq delta ---"
       printf '%s\n' "$dns_delta" | tail -n 80
@@ -169,8 +176,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
     fi
 
     if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v12: kernel object table + task registry"; then
-      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V12 SD fallback image detected"
+      && ! printf '%s' "$serial_delta" | grep -q "runtime v13: bounded mailbox message queues"; then
+      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V13 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
       last_dns_delta="$dns_delta"
@@ -189,7 +196,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
 
   if [ "$attempt" -lt "$RETRIES" ]; then
     if [ "$sd_fallback_seen" = "1" ]; then
-      echo "retrying after stale pre-V12 SD fallback..."
+      echo "retrying after stale pre-V13 SD fallback..."
     fi
     echo "--- dnsmasq delta from failed attempt ---"
     printf '%s\n' "$last_dns_delta" | tail -n 40
@@ -205,8 +212,8 @@ done
 echo "netboot iteration did not verify after ${RETRIES} attempt(s)"
 print_tftp_diagnostics "$last_dns_delta"
 if printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v12: kernel object table + task registry"; then
-  echo "final result: stale pre-V12 SD fallback image booted, but staged network image is not proven."
+  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v13: bounded mailbox message queues"; then
+  echo "final result: stale pre-V13 SD fallback image booted, but staged network image is not proven."
   final_exit=3
 else
   final_exit=1

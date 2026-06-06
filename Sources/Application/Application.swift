@@ -12,14 +12,33 @@ import _Concurrency
 nonisolated(unsafe) var runtimeFastCount: UInt64 = 0
 nonisolated(unsafe) var runtimeSlowCount: UInt64 = 0
 nonisolated(unsafe) var runtimeLongCount: UInt64 = 0
+nonisolated(unsafe) var runtimeMailboxSent: UInt64 = 0
+nonisolated(unsafe) var runtimeMailboxReceived: UInt64 = 0
 
 let TASK_FAST_ID: UInt32 = 0
 let TASK_SLOW_ID: UInt32 = 1
 let TASK_LONG_ID: UInt32 = 2
 let TASK_SHELL_ID: UInt32 = 3
+let TASK_MAIL_TX_ID: UInt32 = 4
+let TASK_MAIL_RX_ID: UInt32 = 5
+
+let MAILBOX_DEMO_ID: UInt32 = 0
+let MAILBOX_SELFTEST_ID: UInt32 = 1
 
 func registerKernelTask(_ taskID: UInt32, _ name: StaticString, _ periodMS: UInt32) {
   _ = kernel_task_register(taskID, name.utf8Start, UInt32(name.utf8CodeUnitCount), periodMS)
+}
+
+func registerKernelMailbox(_ mailboxID: UInt32, _ name: StaticString) {
+  _ = kernel_mailbox_register(mailboxID, name.utf8Start, UInt32(name.utf8CodeUnitCount))
+}
+
+func mailboxReceiveU64(_ mailboxID: UInt32) async -> UInt64 {
+  var value: UInt = 0
+  while kernel_mailbox_recv_u64(mailboxID, &value) == 0 {
+    await timerSleepMillis(25)
+  }
+  return UInt64(value)
 }
 
 @main
@@ -74,6 +93,43 @@ struct Application {
     registerKernelTask(TASK_SLOW_ID, "slow", 1000)
     registerKernelTask(TASK_LONG_ID, "long", 2000)
     registerKernelTask(TASK_SHELL_ID, "shell", 0)
+    registerKernelTask(TASK_MAIL_TX_ID, "mail-tx", 750)
+    registerKernelTask(TASK_MAIL_RX_ID, "mail-rx", 0)
+  }
+
+  static func registerRuntimeMailboxes() {
+    registerKernelMailbox(MAILBOX_DEMO_ID, "demo")
+    registerKernelMailbox(MAILBOX_SELFTEST_ID, "selftest")
+  }
+
+  static func mailboxProducer() async {
+    var n: UInt64 = 0
+    while true {
+      kernel_task_mark_state(TASK_MAIL_TX_ID, KERNEL_TASK_STATE_RUNNING)
+      if kernel_mailbox_send_u64(MAILBOX_DEMO_ID, UInt(n)) != 0 {
+        runtimeMailboxSent = n
+        kernel_task_record_tick(TASK_MAIL_TX_ID)
+        uartPuts("rtv13 mail tx ")
+        uartPutHex(n)
+        uartPuts("\n")
+        n &+= 1
+      }
+      kernel_task_mark_state(TASK_MAIL_TX_ID, KERNEL_TASK_STATE_WAITING)
+      await timerSleepMillis(750)
+    }
+  }
+
+  static func mailboxConsumer() async {
+    while true {
+      kernel_task_mark_state(TASK_MAIL_RX_ID, KERNEL_TASK_STATE_WAITING)
+      let value = await mailboxReceiveU64(MAILBOX_DEMO_ID)
+      kernel_task_mark_state(TASK_MAIL_RX_ID, KERNEL_TASK_STATE_RUNNING)
+      runtimeMailboxReceived = value
+      kernel_task_record_tick(TASK_MAIL_RX_ID)
+      uartPuts("rtv13 mail rx ")
+      uartPutHex(value)
+      uartPuts("\n")
+    }
   }
 
   static func main() {
@@ -94,9 +150,12 @@ struct Application {
     // V8 adds allocator guardrails, Runtime V9 adds bounded pressure tests,
     // Runtime V10 adds explicit guard probes, and Runtime V11 adds boot/soak
     // invariant checks. Runtime V12 adds fixed kernel object/task registries.
+    // Runtime V13 adds bounded mailbox message queues.
     kernel_memory_init()
     kernel_object_registry_init()
     kernel_task_registry_init()
+    kernel_mailbox_registry_init()
+    registerRuntimeMailboxes()
     registerRuntimeTasks()
     uart_rx_irq_init()
     gicInitRuntimeIRQs()
@@ -111,10 +170,13 @@ struct Application {
     uartPuts("runtime v10: explicit guard probes\n")
     uartPuts("runtime v11: boot and soak invariants\n")
     uartPuts("runtime v12: kernel object table + task registry\n")
+    uartPuts("runtime v13: bounded mailbox message queues\n")
     printBootcheck()
     Task { await fastHeartbeat() }
     Task { await slowHeartbeat() }
     Task { await longHeartbeat() }
+    Task { await mailboxProducer() }
+    Task { await mailboxConsumer() }
     startUartShellTask()
     irq_enable()
     swift_task_asyncMainDrainQueue()

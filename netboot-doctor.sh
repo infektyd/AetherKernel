@@ -112,7 +112,7 @@ dns_start="$(file_size "$DNSMASQ_LOG")"
 
 echo
 echo "ACTION: reset or power-cycle the Pi once now."
-echo "I am watching for: dnsmasq sends $PREFIX/kernel8.img + serial prints fresh Runtime V12 shell markers."
+echo "I am watching for: dnsmasq sends $PREFIX/kernel8.img + serial prints fresh Runtime V13 shell markers."
 echo "Timeout: ${TIMEOUT_S}s"
 
 deadline=$((SECONDS + TIMEOUT_S))
@@ -131,7 +131,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
     && printf '%s' "$serial_delta" | grep -q "runtime v10: explicit guard probes" \
     && printf '%s' "$serial_delta" | grep -q "runtime v11: boot and soak invariants" \
     && printf '%s' "$serial_delta" | grep -q "runtime v12: kernel object table + task registry" \
-    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
+    && printf '%s' "$serial_delta" | grep -q "runtime v13: bounded mailbox message queues" \
+    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
     echo "netboot bring-up verified"
     echo "--- dnsmasq delta ---"
     printf '%s\n' "$dns_delta" | tail -n 80

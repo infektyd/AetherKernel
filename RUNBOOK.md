@@ -117,7 +117,7 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V12 marker, `rtv2 fast/slow/long` zero-lines,
+AetherKernel banner plus Runtime V13 marker, `rtv2 fast/slow/long` zero-lines,
 the expanded `shell ready` command list, and shell probes for `status`,
 `bootcheck`, `stress`, `soak`, `kobjects`, and `tasks2`.
 
@@ -140,7 +140,7 @@ reset step is handled by:
 
 The expected serial flow is bootloader `TFTP_GET` lines, then the AetherKernel
 banner, padded `CurrentEL`, repeating `rtv2 fast/slow/long` cadences, the
-Runtime V5 through V12 markers, and:
+Runtime V5 through V13 markers, and:
 
 ```text
 runtime v5: diagnostics shell
@@ -151,7 +151,8 @@ runtime v9: bounded memory pressure self-tests
 runtime v10: explicit guard probes
 runtime v11: boot and soak invariants
 runtime v12: kernel object table + task registry
-shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
+runtime v13: bounded mailbox message queues
+shell ready commands=help,status,heap,queues,tasks,tasks2,kobjects,mailboxes,sendtest,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,frames,heapcheck,framecheck,stress,frameprobe,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
 ```
 
 The current kernel image services UART RX through PL011 receive interrupts into
@@ -216,6 +217,15 @@ kobjects count=7 capacity=16 active=7 selftest=1
 tasks2 count=4 capacity=8 selftest=1 task index=0 name=fast
 ```
 
+Runtime V13 adds fixed mailbox queues and demo message exchange:
+
+```text
+rtv13 mail tx 0x0000000000000000
+rtv13 mail rx 0x0000000000000000
+mailboxes count=2 capacity=4 queue_capacity=8 selftest=1
+sendtest ok=1 mailbox=1 sent=1 received=1 value=0x000000000000132d selftest=1
+```
+
 `serial-probe.sh` sends one command and waits for a matching response line:
 
 ```bash
@@ -223,6 +233,8 @@ tasks2 count=4 capacity=8 selftest=1 task index=0 name=fast
 ./serial-probe.sh bootcheck '^bootcheck ok=1 .*frame_free='
 ./serial-probe.sh kobjects '^kobjects count=.* active='
 ./serial-probe.sh tasks2 '^tasks2 count=.* task index=.*fast'
+./serial-probe.sh mailboxes '^mailboxes count=.* queue_capacity='
+./serial-probe.sh sendtest '^sendtest ok=1 .*received=1'
 ```
 
 `panic-test` and `fault-test` are intentionally destructive: each writes a

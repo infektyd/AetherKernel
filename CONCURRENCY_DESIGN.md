@@ -8,16 +8,26 @@ Runtime V7 memory map and frame allocator invariants were hardware-verified 2026
 Runtime V8 allocator/frame guardrails were hardware-verified 2026-06-05.
 Runtime V9 bounded pressure tests, Runtime V10 guard probes, and Runtime V11 boot/soak
 invariants were hardware-verified 2026-06-05. Runtime V12 adds a fixed C-owned
-kernel object table and cooperative task registry; hardware verification is pending
-until serial proves `kobjects` and `tasks2`.
+kernel object table and cooperative task registry and was hardware-verified 2026-06-05.
+Runtime V13 adds bounded mailbox queues; hardware verification is pending until serial
+proves `rtv13 mail tx/rx`, `mailboxes`, and `sendtest`.
 
-> ## Runtime V12 ground truth (pending hardware proof)
+> ## Runtime V13 ground truth (pending hardware proof)
+> V13 introduces fixed C-owned UInt64 mailbox queues. Each mailbox registers as a
+> kernel object and tracks depth, sent, received, drop, and stable error counters.
+> The Swift demo adds producer/consumer async tasks that exchange values through
+> mailbox 0 and print `rtv13 mail tx` / `rtv13 mail rx` lines. `sendtest` uses a
+> reserved selftest mailbox so the command is deterministic even while the demo
+> mailbox is active. Do not mark V13 hardware-verified until `net-iterate.sh`
+> proves the marker, demo tx/rx lines, `mailboxes`, and `sendtest`.
+
+> ## Runtime V12 ground truth (2026-06-05)
 > V12 introduces bounded kernel object and task registries without allocator use in
 > the registry path. The object table names runtime, driver, and task records; the
 > task table tracks object id, state, tick count, and period for the current async
 > demo tasks plus the UART shell task. Shell commands `kobjects` and `tasks2` expose
-> the tables in machine-checkable form. Do not mark V12 hardware-verified until
-> `net-iterate.sh` proves those commands on the Pi.
+> the tables in machine-checkable form. Hardware proof: `kobjects count=7 capacity=16
+> active=7 selftest=1` and `tasks2 count=4 capacity=8 selftest=1 task index=0 name=fast`.
 
 > ## Runtime V11 ground truth (2026-06-05)
 > V11 adds cheap boot and soak invariants over the V8-V10 memory foundation. Startup and shell
