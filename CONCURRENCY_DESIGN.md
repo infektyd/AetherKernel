@@ -29,7 +29,22 @@ proof loop. Runtime V27 panic taxonomy and symbolic retained records were
 hardware-verified 2026-06-06. Runtime V28 Swift runtime dependency audit was
 hardware-verified 2026-06-06. Runtime V29 agent-oriented control session was
 hardware-verified 2026-06-06. Runtime V30 Swift-native kernel substrate
-certificate was hardware-verified 2026-06-06.
+certificate was hardware-verified 2026-06-06. Runtime V31 preemptive scheduler
+substrate was hardware-verified 2026-06-06.
+
+> ## Runtime V31 preemptive scheduler substrate ground truth (2026-06-06)
+> V31 keeps the V25 request envelope and V30 certificate surface, then adds a
+> fixed C-owned scheduler timer client plus a `sched` command. This is the first
+> preemptive layer over the cooperative executor: the IRQ path records scheduler
+> ticks/preemption accounting before the existing sleep and executor timer
+> clients run. The live Pi proof passed a normal `net-iterate.sh` run and a clean
+> 3-cycle live netboot repeat. Proof lines included `runtime v31: preemptive
+> scheduler substrate`, `bootcert ok=1 version=31 scheduler=1 certificate=1
+> agent=1 runtime=1 ... events_lost=0`, `certificate ok=1 version=31 substrate=1
+> bootcert=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`, and
+> `sched ok=1 version=31 active=1 cores=1 core=0 interval_ticks=2700000
+> ticks=152 irq_ticks=152 preemptions=152 runqueue=0/8 enqueues=4 dequeues=4
+> selftest=1`.
 
 > ## Runtime V30 Swift-native kernel substrate certificate ground truth (2026-06-06)
 > V30 keeps the V25 request envelope, keeps the V29 `agent` session, and adds a

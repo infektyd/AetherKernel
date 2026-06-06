@@ -106,7 +106,8 @@ void executor_on_timer_irq(void);
 // Swift continuation sleeps and the Swift executor's delayed jobs.
 #define KERNEL_TIMER_CLIENT_SLEEP    0U
 #define KERNEL_TIMER_CLIENT_EXECUTOR 1U
-#define KERNEL_TIMER_CLIENT_COUNT    2U
+#define KERNEL_TIMER_CLIENT_SCHEDULER 2U
+#define KERNEL_TIMER_CLIENT_COUNT    3U
 
 unsigned long kernel_timer_now(void);
 void kernel_timer_set_deadline(unsigned int client, unsigned long deadlineTicks);
@@ -181,6 +182,29 @@ unsigned int kernel_runtime_heap_shim_count(void);
 unsigned int kernel_runtime_linked_heap_shim_count(void);
 unsigned int kernel_runtime_required_symbol_count(void);
 unsigned int kernel_runtime_audit_selftest(void);
+
+// Runtime V31 preemptive scheduler substrate. V31 keeps actual Swift job
+// execution on the existing cooperative executor, but adds a periodic CNTP IRQ
+// scheduler tick, fixed core-0 accounting, and a bounded run queue surface that
+// later SMP slices can extend without changing the proof contract.
+#define KERNEL_SCHEDULER_VERSION 31U
+#define KERNEL_SCHEDULER_CORE_CAPACITY 1U
+#define KERNEL_SCHEDULER_RUNQUEUE_CAPACITY 8U
+
+void kernel_scheduler_init(void);
+void kernel_scheduler_start(unsigned long interval_ticks);
+void kernel_scheduler_on_timer_irq(void);
+unsigned int kernel_scheduler_active(void);
+unsigned int kernel_scheduler_core_count(void);
+unsigned int kernel_scheduler_runqueue_capacity(void);
+unsigned int kernel_scheduler_runqueue_count(unsigned int core_id);
+unsigned long kernel_scheduler_tick_count(unsigned int core_id);
+unsigned long kernel_scheduler_irq_tick_count(unsigned int core_id);
+unsigned long kernel_scheduler_preempt_count(unsigned int core_id);
+unsigned long kernel_scheduler_enqueue_count(unsigned int core_id);
+unsigned long kernel_scheduler_dequeue_count(unsigned int core_id);
+unsigned long kernel_scheduler_interval_ticks(void);
+int kernel_scheduler_selftest(void);
 
 // Runtime V12 kernel object and cooperative task registries. These are fixed
 // tables: they give the Swift demo runtime names, counters, and object handles

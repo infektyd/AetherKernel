@@ -8,7 +8,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V28 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
-    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,"
+    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,diag,irqs,timers,"
     "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,"
     "heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,"
     "canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
@@ -80,7 +80,7 @@ def test_runtime_v28_application_shell_and_bootcert_surface_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
 
     for marker in (
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 30, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 31, 0, 0)",
         "runtime v28: swift runtime dependency audit",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 28,",
     ):
@@ -151,8 +151,8 @@ def test_runtime_v28_netboot_gates_exist() -> None:
     for marker in (
         "probe shell: runtime",
         "^runtime ok=1 version=28 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5",
-        "^bootcert ok=1 version=30 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0",
-        "stale pre-V30 SD fallback",
+        "^bootcert ok=1 version=31 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "stale pre-V31 SD fallback",
     ):
         assert marker in net_iterate
 

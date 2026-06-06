@@ -3,7 +3,7 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V30 Swift-native kernel substrate certificate hardware-verified on real Raspberry Pi 4B**
+> Status: **Runtime V31 preemptive scheduler substrate hardware-verified on real Raspberry Pi 4B**
 > (2026-06-06) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
@@ -32,7 +32,14 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 > agent=1 runtime=1 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1
 > events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 ... events_lost=0`,
 > and `certificate-loop ok=1 version=30 cycles=3 completed=3 substrate=1 bootcert=1
-> agent=1 runtime=1 events_lost=0`.
+> agent=1 runtime=1 events_lost=0`. Runtime V31 added the fixed C-owned
+> preemptive scheduler substrate over the existing cooperative executor and proved
+> `bootcert ok=1 version=31 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`,
+> `certificate ok=1 version=31 substrate=1 bootcert=1 scheduler=1 agent=1 runtime=1
+> ... events_lost=0`, and `sched ok=1 version=31 active=1 cores=1 core=0
+> interval_ticks=2700000 ticks=... irq_ticks=... preemptions=... runqueue=0/8
+> enqueues=4 dequeues=4 selftest=1` across live netboot proof and a clean 3-cycle
+> repeat.
 
 ## What works (verified)
 
@@ -74,6 +81,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V28 Swift runtime dependency audit | ✅ | hardware run printed `runtime v28: swift runtime dependency audit`; `bootcert ok=1 version=28 runtime=1 taxonomy=1 ... events_lost=0`; `runtime ok=1 version=28 swift=6.3.2 source_hooks=10 linked_hooks=2 heap_shims=5 linked_heap_shims=3 required_symbols=5 audit=1`; host `runtime-audit ok=1 ... missing=none` |
 | Runtime V29 agent-oriented control session | ✅ | hardware run printed `runtime v29: agent-oriented control session`; `bootcert ok=1 version=29 agent=1 runtime=1 taxonomy=1 ... events_lost=0`; `agent ok=1 version=29 health=green bootcert=1 runtime=1 protocol=2 agent=1 events_lost=0`; `agent-session ok=1 version=29 health=green ... events_lost=0`; clean `set -e` 3-cycle netboot + agent-session loop passed |
 | Runtime V30 Swift-native kernel substrate certificate | ✅ | hardware run printed `runtime v30: swift-native kernel substrate certificate`; `bootcert ok=1 version=30 certificate=1 agent=1 runtime=1 taxonomy=1 ... events_lost=0`; `certificate ok=1 version=30 substrate=1 bootcert=1 agent=1 runtime=1 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 ... events_lost=0`; `certificate-loop ok=1 version=30 cycles=3 completed=3 ... events_lost=0` |
+| Runtime V31 preemptive scheduler substrate | ✅ | hardware run printed `runtime v31: preemptive scheduler substrate`; `bootcert ok=1 version=31 scheduler=1 certificate=1 agent=1 runtime=1 ... events_lost=0`; `certificate ok=1 version=31 substrate=1 bootcert=1 scheduler=1 agent=1 runtime=1 ... events_lost=0`; `sched ok=1 version=31 active=1 cores=1 core=0 interval_ticks=2700000 ticks=152 irq_ticks=152 preemptions=152 runqueue=0/8 enqueues=4 dequeues=4 selftest=1`; clean 3-cycle live netboot repeat passed |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -430,6 +438,20 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     drivers=1 pressure=1 pools=1 mmu=1 ... events_lost=0`, and
     `certificate-loop.sh` reported `certificate-loop ok=1 version=30 cycles=3
     completed=3 substrate=1 bootcert=1 agent=1 runtime=1 events_lost=0`.
+
+  - **Runtime V31 preemptive scheduler substrate.** ✅ hardware-verified.
+    The C substrate now owns a fixed scheduler timer client and bounded core-0
+    run queue surface above the cooperative executor. The IRQ handler records
+    CNTP-driven scheduler ticks and preemption accounting before servicing the
+    existing sleep/executor timer clients, and the UART shell exposes a one-line
+    `sched` proof command. Hardware proof: `net-iterate.sh` passed on real Pi 4,
+    `bootcert` reported `bootcert ok=1 version=31 scheduler=1 certificate=1
+    agent=1 runtime=1 ... events_lost=0`, the shell `certificate` command
+    returned `certificate ok=1 version=31 substrate=1 bootcert=1 scheduler=1
+    agent=1 runtime=1 ... events_lost=0`, and `sched` returned
+    `sched ok=1 version=31 active=1 cores=1 core=0 interval_ticks=2700000
+    ticks=152 irq_ticks=152 preemptions=152 runqueue=0/8 enqueues=4 dequeues=4
+    selftest=1`. A clean 3-cycle live netboot repeat passed.
 
 ## Provenance
 

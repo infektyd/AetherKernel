@@ -8,7 +8,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V29 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
-    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,"
+    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,diag,irqs,timers,"
     "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,"
     "heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,"
     "canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
@@ -40,7 +40,7 @@ def test_runtime_v29_application_shell_and_bootcert_surface_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
 
     for marker in (
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 30, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 31, 0, 0)",
         "runtime v29: agent-oriented control session",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 29,",
     ):
@@ -117,8 +117,8 @@ def test_runtime_v29_netboot_gates_and_agent_probe_exist() -> None:
         "^agent ok=1 version=29 health=green .*bootcert=1 .*runtime=1 .*protocol=2 .*events_lost=0",
         "probe shell: req-agent",
         "^resp id=29 ok=1 cmd=agent end",
-        "^bootcert ok=1 version=30 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0",
-        "stale pre-V30 SD fallback",
+        "^bootcert ok=1 version=31 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "stale pre-V31 SD fallback",
     ):
         assert marker in net_iterate
 

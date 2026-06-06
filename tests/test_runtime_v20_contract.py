@@ -5,7 +5,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V20 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,"
-    "supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,memcheck,faults,retained,"
+    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,"
     "bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
     "heap-double-free-test,panic-test,fault-test,reboot"
@@ -42,7 +42,7 @@ def test_runtime_v20_demo_mailbox_tasks_use_channel_wrapper() -> None:
         "channel.send(n)",
         "await channel.receive()",
         "runtime v20: bounded async channels",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 30, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 31, 0, 0)",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20",
     ):
         assert marker in app
@@ -76,7 +76,7 @@ def test_runtime_v20_bootcert_includes_channel_health() -> None:
 
     assert " version=29" in shell
     assert " channels=" in shell
-    assert "^bootcert ok=1 version=30 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0" in net_iterate
+    assert "^bootcert ok=1 version=31 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0" in net_iterate
 
 
 def test_runtime_v20_netboot_gates_and_shell_probe_exist() -> None:
@@ -90,6 +90,6 @@ def test_runtime_v20_netboot_gates_and_shell_probe_exist() -> None:
     for marker in (
         "probe shell: channeltest",
         "^channeltest ok=1 .*received=1",
-        "stale pre-V30 SD fallback",
+        "stale pre-V31 SD fallback",
     ):
         assert marker in net_iterate

@@ -19,6 +19,7 @@
 // V25 adds a scriptable request/response envelope for host and agent control.
 // V27 adds retained panic/fault taxonomy. V28 audits Swift runtime dependencies.
 // V29 adds a compact agent-oriented control-session health line.
+// V31 adds a preemptive scheduler tick substrate.
 //===----------------------------------------------------------------------===//
 import Support
 import _Concurrency
@@ -89,11 +90,11 @@ func uartPutShellBufferSlice(_ start: UInt32, _ len: UInt32) {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printProtocol() {
@@ -166,6 +167,7 @@ func printSubstrateCertificate() {
   kernel_supervisor_check()
 
   let runtimeAudit = kernel_runtime_audit_selftest()
+  let scheduler = kernel_scheduler_selftest()
   let agentSession = UInt32(1)
   let memmap = kernel_memory_map_valid()
   let heap = heap_guard_selftest()
@@ -185,17 +187,19 @@ func printSubstrateCertificate() {
   let pools = kernel_pool_selftest()
   let mmu = kernel_mmu_selftest()
   let eventsLost = kernel_event_lost_count()
-  let bootcertOk = runtimeAudit != 0 && agentSession != 0 && memory != 0 &&
+  let bootcertOk = runtimeAudit != 0 && scheduler != 0 && agentSession != 0 && memory != 0 &&
     objects != 0 && tasks != 0 && mailboxes != 0 && supervisor != 0 &&
     events != 0 && cancellations != 0 && channels != 0 && drivers != 0 &&
     pressure != 0 && pools != 0 && mmu != 0 && eventsLost == 0
 
   uartPuts("certificate ok=")
   uartPutDec(UInt64(bootcertOk ? 1 : 0))
-  uartPuts(" version=30")
+  uartPuts(" version=31")
   uartPuts(" substrate=1")
   uartPuts(" bootcert=")
   uartPutDec(UInt64(bootcertOk ? 1 : 0))
+  uartPuts(" scheduler=")
+  uartPutDec(UInt64(scheduler))
   uartPuts(" agent=1")
   uartPuts(" runtime=")
   uartPutDec(UInt64(runtimeAudit))
@@ -235,6 +239,45 @@ func printSubstrateCertificate() {
   uartPutDec(UInt64(kernel_frame_free_count()))
   uartPuts(" uptime_ms=")
   uartPutDec(UInt64(kernel_supervisor_now_ms()))
+  uartPuts("\n")
+}
+
+func printScheduler() {
+  let selftest = kernel_scheduler_selftest()
+  let core: UInt32 = 0
+  let active = kernel_scheduler_active()
+  let ticks = kernel_scheduler_tick_count(core)
+  let irqTicks = kernel_scheduler_irq_tick_count(core)
+  let preemptions = kernel_scheduler_preempt_count(core)
+  let runqueue = kernel_scheduler_runqueue_count(core)
+  let capacity = kernel_scheduler_runqueue_capacity()
+
+  uartPuts("sched ok=")
+  uartPutDec(UInt64(selftest != 0 && active != 0 ? 1 : 0))
+  uartPuts(" version=31")
+  uartPuts(" active=")
+  uartPutDec(UInt64(active))
+  uartPuts(" cores=")
+  uartPutDec(UInt64(kernel_scheduler_core_count()))
+  uartPuts(" core=0")
+  uartPuts(" interval_ticks=")
+  uartPutDec(UInt64(kernel_scheduler_interval_ticks()))
+  uartPuts(" ticks=")
+  uartPutDec(UInt64(ticks))
+  uartPuts(" irq_ticks=")
+  uartPutDec(UInt64(irqTicks))
+  uartPuts(" preemptions=")
+  uartPutDec(UInt64(preemptions))
+  uartPuts(" runqueue=")
+  uartPutDec(UInt64(runqueue))
+  uartPuts("/")
+  uartPutDec(UInt64(capacity))
+  uartPuts(" enqueues=")
+  uartPutDec(UInt64(kernel_scheduler_enqueue_count(core)))
+  uartPuts(" dequeues=")
+  uartPutDec(UInt64(kernel_scheduler_dequeue_count(core)))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(selftest))
   uartPuts("\n")
 }
 
@@ -1355,8 +1398,9 @@ func printBootcheck() {
 
 func printBootcert() {
   kernel_supervisor_check()
-  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 30, UInt(kernel_event_count()), 0)
+  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 31, UInt(kernel_event_count()), 0)
 
+  let scheduler = kernel_scheduler_selftest()
   let substrateCertificate = UInt32(1)
   let agentSession = UInt32(1)
   let runtimeAudit = kernel_runtime_audit_selftest()
@@ -1379,13 +1423,15 @@ func printBootcert() {
   let supervisor = kernel_supervisor_selftest()
   let events = kernel_event_log_selftest()
   let eventsLost = kernel_event_lost_count()
-  let ok = substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
+  let ok = scheduler != 0 && substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
     taskspawns != 0 && cancellations != 0 && kobjects != 0 && tasks != 0 && mailboxes != 0 &&
     channels != 0 && supervisor != 0 && events != 0 && eventsLost == 0
 
   uartPuts("bootcert ok=")
   uartPutDec(UInt64(ok ? 1 : 0))
-  uartPuts(" version=30")
+  uartPuts(" version=31")
+  uartPuts(" scheduler=")
+  uartPutDec(UInt64(scheduler))
   uartPuts(" certificate=")
   uartPutDec(UInt64(substrateCertificate))
   uartPuts(" agent=1")
@@ -1735,6 +1781,8 @@ func dispatchShellCommand(_ commandStart: UInt32, _ commandLen: UInt32, _ reques
     printAgentSession()
   } else if shellBufferSliceEquals(commandStart, commandLen, "certificate") {
     printSubstrateCertificate()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "sched") {
+    printScheduler()
   } else if shellBufferSliceEquals(commandStart, commandLen, "diag") {
     printDiag()
   } else if shellBufferSliceEquals(commandStart, commandLen, "irqs") {

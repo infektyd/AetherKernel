@@ -8,7 +8,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V27 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
-    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,diag,irqs,timers,"
+    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,diag,irqs,timers,"
     "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,"
     "heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,"
     "canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
@@ -77,7 +77,7 @@ def test_runtime_v27_application_shell_and_bootcert_surface_exist() -> None:
 
     for marker in (
         "Runtime V27 adds panic/fault taxonomy and symbolic retained records.",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 30, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 31, 0, 0)",
         "runtime v27: panic taxonomy and symbolic retained records",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 27,",
     ):
@@ -137,8 +137,8 @@ def test_runtime_v27_netboot_gates_exist() -> None:
         assert COMMANDS_V27 in source
 
     for marker in (
-        "^bootcert ok=1 version=30 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0",
-        "stale pre-V30 SD fallback",
+        "^bootcert ok=1 version=31 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "stale pre-V31 SD fallback",
     ):
         assert marker in net_iterate
 

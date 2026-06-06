@@ -124,7 +124,7 @@ mkdir -p "$(dirname "$SESSION_LOG")"
 log_line "agent-session start version=29 serial_log=$SERIAL_LOG log=$SESSION_LOG"
 
 probe_request "$((ID_BASE + 1))" "agent" "^agent ok=1 version=29 health=green .*bootcert=1 .*runtime=1 .*protocol=2 .*events_lost=0"
-probe_request "$((ID_BASE + 2))" "bootcert" "^bootcert ok=1 version=30 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0"
+probe_request "$((ID_BASE + 2))" "bootcert" "^bootcert ok=1 version=31 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0"
 probe_request "$((ID_BASE + 3))" "runtime" "^runtime ok=1 version=28 .*audit=1"
 probe_request "$((ID_BASE + 4))" "stress" "^stress ok=1 .*heap_leak=0 frame_leak=0"
 probe_request "$((ID_BASE + 5))" "soak" "^soak ok=1 .*failures=0 .*heap_leak=0 frame_leak=0"
