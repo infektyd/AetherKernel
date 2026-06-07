@@ -233,6 +233,7 @@ int kernel_spinlock_selftest(void);
 // signals when timer-fed secondary work is enqueued.
 // V39 records cross-core scheduler handoff issues and completion
 // acknowledgements for those C-only secondary jobs.
+// Runtime V44 bounded SMP concurrency soak protocol.
 // Runtime V43 secondary scheduler priority/preemption protocol.
 // Runtime V42 secondary scheduler load-balancing protocol.
 // V40 proves bounded per-core queue backpressure: full queues reject overflow,
@@ -243,7 +244,10 @@ int kernel_spinlock_selftest(void);
 // overloaded peer queue, execute them locally, and record queue fairness. V43
 // adds bounded high/low priority lanes on secondary queues and proves
 // preemptive yield when high-priority work arrives behind low-priority tokens.
-#define KERNEL_SCHEDULER_VERSION 43U
+// V44 proves bounded concurrency soak rounds while SMP dispatch and timer-fed
+// secondary workers stay active and every per-core queue drains back to zero.
+#define KERNEL_SCHEDULER_VERSION 44U
+#define KERNEL_SCHEDULER_CONCURRENCY_SOAK_ROUNDS 3U
 #define KERNEL_SCHEDULER_CORE_CAPACITY 4U
 #define KERNEL_SCHEDULER_RUNQUEUE_CAPACITY 8U
 #define KERNEL_SCHEDULER_DISPATCH_TOKEN_BASE 0x3400U
@@ -269,6 +273,7 @@ void kernel_scheduler_enable_secondary_handoffs(void);
 void kernel_scheduler_enable_secondary_work_stealing(void);
 void kernel_scheduler_enable_load_balancing(void);
 void kernel_scheduler_enable_priority_lanes(void);
+void kernel_scheduler_enable_concurrency_soak(void);
 unsigned int kernel_scheduler_active(void);
 unsigned int kernel_scheduler_smp_dispatch_enabled(void);
 unsigned int kernel_scheduler_secondary_workers_enabled(void);
@@ -279,6 +284,7 @@ unsigned int kernel_scheduler_secondary_handoffs_enabled(void);
 unsigned int kernel_scheduler_secondary_work_stealing_enabled(void);
 unsigned int kernel_scheduler_load_balancing_enabled(void);
 unsigned int kernel_scheduler_priority_lanes_enabled(void);
+unsigned int kernel_scheduler_concurrency_soak_enabled(void);
 unsigned int kernel_scheduler_core_count(void);
 unsigned int kernel_scheduler_runqueue_capacity(void);
 unsigned int kernel_scheduler_runqueue_count(unsigned int core_id);
@@ -388,6 +394,13 @@ int kernel_scheduler_backpressure_selftest(void);
 int kernel_scheduler_work_steal_selftest(void);
 int kernel_scheduler_fairness_selftest(void);
 int kernel_scheduler_priority_selftest(void);
+unsigned long kernel_scheduler_concurrency_soak_round_total(void);
+unsigned long kernel_scheduler_concurrency_soak_completion_total(void);
+unsigned long kernel_scheduler_concurrency_soak_failure_total(void);
+unsigned long kernel_scheduler_concurrency_soak_dispatch_total(void);
+unsigned long kernel_scheduler_concurrency_soak_core_completion_total(unsigned int core_id);
+int kernel_scheduler_concurrency_soak_selftest(void);
+int kernel_scheduler_concurrency_soak_proven(void);
 int kernel_scheduler_timer_worker_feed_proven(void);
 int kernel_scheduler_secondary_worker_proven(void);
 int kernel_scheduler_secondary_job_proven(void);

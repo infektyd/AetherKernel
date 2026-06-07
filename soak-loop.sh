@@ -107,13 +107,15 @@ run_cycle_probes() {
   id=$((base + 1))
   probe_request "$cycle" "$id" "status" "^status uptime_ms=.*timer_mask="
   id=$((base + 2))
-  probe_request "$cycle" "$id" "bootcert" "^bootcert ok=1 version=43 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*events_lost=0"
+  probe_request "$cycle" "$id" "bootcert" "^bootcert ok=1 version=44 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*events_lost=0"
   id=$((base + 3))
   probe_request "$cycle" "$id" "stress" "^stress ok=1 .*heap_leak=0 frame_leak=0"
   id=$((base + 4))
   probe_request "$cycle" "$id" "soak" "^soak ok=1 .*failures=0 .*heap_leak=0 frame_leak=0"
   id=$((base + 5))
   probe_request "$cycle" "$id" "events" "^events count=.* lost=0 .*selftest=1"
+  id=$((base + 6))
+  probe_request "$cycle" "$id" "sched12" "^sched12 ok=1 version=44 .*concurrency=1 .*rounds=3 .*completions=3 .*failures=0"
 }
 
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
@@ -142,6 +144,7 @@ if [ "${AETHER_SOAK_DRY_RUN:-0}" = "1" ]; then
   echo "probe: req id=$((ID_BASE + 3)) cmd=stress"
   echo "probe: req id=$((ID_BASE + 4)) cmd=soak"
   echo "probe: req id=$((ID_BASE + 5)) cmd=events"
+  echo "probe: req id=$((ID_BASE + 6)) cmd=sched12"
   exit 0
 fi
 

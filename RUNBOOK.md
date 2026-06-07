@@ -569,6 +569,15 @@ certificate ok=1 version=43 substrate=1 bootcert=1 priority=1 fairness=1 stealin
 sched11 ok=1 version=43 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 preemptions=2 yields=2 completions=4 low=2 high=2 imbalance=4 total=0 capacity=8 low_core1=2 low_core2=0 low_core3=0 high_core1=2 high_core2=0 high_core3=0 preempt_core1=2 preempt_core2=0 preempt_core3=0 yield_core1=2 yield_core2=0 yield_core3=0 selftest=1
 ```
 
+Runtime V44 bounded SMP concurrency soak protocol keeps SMP dispatch and timer-fed
+secondary workers active while proving three bounded soak rounds drain every
+per-core queue back to zero. Hardware proof is pending; host gate expects:
+
+```text
+bootcert ok=1 version=44 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 events_lost=0
+sched12 ok=1 version=44 concurrency=1 rounds=3 completions=3 failures=0 dispatches=1 total=0 capacity=8 soak_core1=1 soak_core2=1 soak_core3=1 selftest=1
+```
+
 Runtime V37 timer-fed secondary C scheduler jobs keep Swift execution on core
 0, turn V36's timer-fed secondary worker tokens into typed C-only scheduler
 jobs, and report execution/completion/checksum telemetry from secondary cores

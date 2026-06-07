@@ -6,7 +6,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V41 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
-    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,cores,locks,runqueues,diag,irqs,timers,"
+    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,"
     "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,"
     "heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,"
     "canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
@@ -24,7 +24,7 @@ def test_runtime_v41_work_steal_contract_exists() -> None:
 
     for marker in (
         "Runtime V41 secondary scheduler work-stealing protocol",
-        "#define KERNEL_SCHEDULER_VERSION 43U",
+        "#define KERNEL_SCHEDULER_VERSION 44U",
         "#define KERNEL_SCHEDULER_STEAL_TOKEN_BASE 0x5000U",
         "unsigned long kernel_scheduler_steal_attempt_count(unsigned int core_id);",
         "unsigned long kernel_scheduler_steal_success_count(unsigned int core_id);",
@@ -65,7 +65,7 @@ def test_runtime_v41_application_boot_marker_and_selftest_exist() -> None:
 
     for marker in (
         "Runtime V41 adds bounded secondary scheduler work stealing.",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 43, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 44, 0, 0)",
         "runtime v41: secondary scheduler work stealing",
         "let runtimeV41 = kernel_scheduler_work_steal_selftest()",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 41, UInt(runtimeV41), UInt(kernel_scheduler_steal_total()))",
@@ -126,8 +126,8 @@ def test_runtime_v41_netboot_gates_and_sched9_probe_exist() -> None:
         "^sched9 ok=1 version=41 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*steals=[1-9][0-9]* .*completions=[1-9][0-9]* .*total=0 .*capacity=8 .*source_core1=[1-9][0-9]* .*source_core2=[0-9][0-9]* .*source_core3=[0-9][0-9]* .*dest_core1=0 .*dest_core2=[1-9][0-9]* .*dest_core3=[1-9][0-9]* .*attempts_core1=[0-9][0-9]* .*attempts_core2=[1-9][0-9]* .*attempts_core3=[1-9][0-9]* .*selftest=1",
         "probe shell: req-sched9",
         "^resp id=42 ok=1 cmd=sched9 end",
-        "^bootcert ok=1 version=43 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
-        "^certificate ok=1 version=43 substrate=1 .*bootcert=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
+        "^bootcert ok=1 version=44 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "^certificate ok=1 version=44 substrate=1 .*bootcert=1 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
         "stale pre-V43 SD fallback",
     ):
         assert marker in net_iterate

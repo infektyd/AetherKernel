@@ -5,7 +5,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V20 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,"
-    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,"
+    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,"
     "bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
     "heap-double-free-test,panic-test,fault-test,reboot"
@@ -42,7 +42,7 @@ def test_runtime_v20_demo_mailbox_tasks_use_channel_wrapper() -> None:
         "channel.send(n)",
         "await channel.receive()",
         "runtime v20: bounded async channels",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 43, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 44, 0, 0)",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20",
     ):
         assert marker in app
@@ -76,7 +76,7 @@ def test_runtime_v20_bootcert_includes_channel_health() -> None:
 
     assert " version=40" in shell
     assert " channels=" in shell
-    assert "^bootcert ok=1 version=43 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0" in net_iterate
+    assert "^bootcert ok=1 version=44 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0" in net_iterate
 
 
 def test_runtime_v20_netboot_gates_and_shell_probe_exist() -> None:

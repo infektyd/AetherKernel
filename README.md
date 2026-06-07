@@ -175,6 +175,9 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 > priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1
 > preemptions=2 yields=2 completions=4 total=0 capacity=8 low_core1=2
 > high_core1=2 preempt_core1=2 yield_core1=2 selftest=1`.
+> Runtime V44 bounded SMP concurrency soak protocol is pending hardware proof.
+> Host gate expects `bootcert ok=1 version=44 concurrency=1` and
+> `sched12 ok=1 version=44 concurrency=1 rounds=3 completions=3 failures=0`.
 
 ## What works (verified)
 

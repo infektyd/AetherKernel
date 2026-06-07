@@ -5,7 +5,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V17 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,"
-    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,"
+    "supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,"
     "retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,"
     "bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,"
     "panic-test,fault-test,reboot"
@@ -20,7 +20,7 @@ def test_runtime_v17_boot_marker_exists() -> None:
     app = read_repo("Sources/Application/Application.swift")
 
     assert "runtime v17: deterministic boot certificate" in app
-    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 43, 0, 0)" in app
+    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 44, 0, 0)" in app
 
 
 def test_uart_shell_v17_bootcert_command_and_fields_exist() -> None:
@@ -80,7 +80,7 @@ def test_runtime_v17_netboot_gates_and_shell_probe_exist() -> None:
 
     for marker in (
         "probe shell: bootcert",
-        "^bootcert ok=1 version=43 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "^bootcert ok=1 version=44 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
         "stale pre-V43 SD fallback",
     ):
         assert marker in net_iterate

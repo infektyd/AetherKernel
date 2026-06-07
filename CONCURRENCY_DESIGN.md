@@ -43,8 +43,17 @@ was hardware-verified 2026-06-06. Runtime V40 scheduler backpressure protocol
 was hardware-verified 2026-06-06. Runtime V41 secondary scheduler
 work-stealing protocol was hardware-verified 2026-06-06. Runtime V42 secondary
 scheduler load-balancing protocol was hardware-verified 2026-06-06. Runtime V43
-secondary scheduler priority/preemption protocol is hardware-accepted on the live
-Pi bench.
+secondary scheduler priority/preemption protocol was hardware-verified 2026-06-07.
+Runtime V44 bounded SMP concurrency soak protocol is host-implemented and pending
+live Pi proof.
+
+> ## Runtime V44 bounded SMP concurrency soak protocol ground truth (pending)
+> V44 keeps Swift execution on core 0 and proves three bounded concurrency soak
+> rounds while SMP dispatch and timer-fed secondary workers stay active. Each round
+> feeds worker tokens into secondary queues, signals secondary cores, and requires
+> every queue to drain back to zero before the next round starts. Host gate expects
+> `runtime v44: bounded smp concurrency soak`, `bootcert ok=1 version=44 concurrency=1`,
+> and `sched12 ok=1 version=44 concurrency=1 rounds=3 completions=3 failures=0`.
 
 > ## Runtime V43 secondary scheduler priority/preemption protocol ground truth (2026-06-07)
 > V43 keeps Swift execution on core 0 and adds bounded high-priority scheduler
