@@ -253,6 +253,15 @@ _el0_test_stub:
 1:  b       1b
 _el0_test_stub_end:
 
+.global _syscall_test_stub
+.global _syscall_test_stub_end
+_syscall_test_stub:
+    mov     x0, #1
+    mov     x1, #0x48
+    svc     #0
+1:  b       1b
+_syscall_test_stub_end:
+
 .section __DATA,__data
 .balign 8
 .global _kernel_el1_saved_sp

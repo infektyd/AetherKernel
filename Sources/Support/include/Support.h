@@ -865,6 +865,19 @@ int kernel_vmm_el0_selftest(void);
 extern void el0_test_stub(void);
 extern void el0_test_stub_end(void);
 
+// Runtime V48: syscall ABI via SVC (svc immediate = KERNEL_SVC_SYSCALL_IMM).
+#define KERNEL_SVC_SYSCALL_IMM 1
+unsigned int kernel_syscall_abi_version(void);
+unsigned int kernel_syscall_table_size(void);
+int kernel_syscall_table_valid(void);
+void kernel_syscall_handle_svc(user_context_t *ctx);
+int kernel_syscall_selftest(void);
+unsigned long kernel_syscall_last_num_read(void);
+unsigned long kernel_syscall_last_ret_read(void);
+int kernel_syscall_last_dispatched_read(void);
+extern void syscall_test_stub(void);
+extern void syscall_test_stub_end(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

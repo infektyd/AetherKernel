@@ -603,9 +603,13 @@ void kernel_el0_sync_handler(user_context_t *ctx) {
     unsigned long ec = (esr >> 26) & 0x3fUL;
     
     if (ec == 0x15) { // SVC
-        el0_test_result_x0 = ctx->regs[0];
-        el0_test_result_x1 = ctx->regs[1];
-        el0_test_result_handled = 1;
+        if (ctx->regs[0] < (unsigned long)kernel_syscall_table_size()) {
+            kernel_syscall_handle_svc(ctx);
+        } else {
+            el0_test_result_x0 = ctx->regs[0];
+            el0_test_result_x1 = ctx->regs[1];
+            el0_test_result_handled = 1;
+        }
     } else {
         debug_uart_puts("EL0 sync exception EC=");
         debug_uart_puthex(ec);
