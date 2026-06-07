@@ -1,11 +1,15 @@
-// Runtime V48: versioned syscall ABI via SVC from EL0.
+// Runtime V48/V52: versioned syscall ABI via SVC from EL0.
 #include "Support.h"
 
 #define KERNEL_SYSCALL_ABI_VERSION 48
-#define KERNEL_SYSCALL_TABLE_SIZE 4
+#define KERNEL_SYSCALL_TABLE_SIZE 5
 
 #define KERNEL_SYSCALL_SYS_EXIT 0
 #define KERNEL_SYSCALL_SYS_PING 1
+// KERNEL_SYSCALL_SYS_WRITE = 2 is defined in Support.h
+
+#define UART0_DR 0xFE201000UL
+#define UART0_FR 0xFE201018UL
 
 typedef unsigned long (*kernel_syscall_fn_t)(user_context_t *ctx);
 
@@ -33,9 +37,25 @@ static unsigned long kernel_syscall_sys_ping(user_context_t *ctx) {
     return (arg1 << 16) | 0x2026UL;
 }
 
+// sys_write(2): write up to 256 bytes from user buffer to UART.
+static unsigned long kernel_syscall_sys_write(user_context_t *ctx) {
+    unsigned long buf_va = ctx->regs[1];
+    unsigned long len    = ctx->regs[2];
+    if (len > 256) len = 256;
+    unsigned char kbuf[256];
+    long n = kernel_copy_from_user(kbuf, buf_va, len);
+    if (n <= 0) return (unsigned long)-14; // EFAULT
+    for (long i = 0; i < n; i++) {
+        while (mmio_read32(UART0_FR) & (1U << 5)) {}
+        mmio_write32(UART0_DR, (unsigned int)kbuf[i]);
+    }
+    return (unsigned long)n;
+}
+
 static kernel_syscall_fn_t kernel_syscall_table[KERNEL_SYSCALL_TABLE_SIZE] = {
     kernel_syscall_sys_exit,
     kernel_syscall_sys_ping,
+    kernel_syscall_sys_write,
     0,
     0,
 };

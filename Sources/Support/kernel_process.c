@@ -89,6 +89,24 @@ int kernel_process_capacity(void) {
     return KPROC_CAPACITY;
 }
 
+unsigned long kernel_process_get_pt(unsigned long pid) {
+    for (int i = 0; i < KPROC_CAPACITY; i++) {
+        if (kproc_table[i].state != KPROC_STATE_FREE &&
+            kproc_table[i].id == (unsigned int)pid)
+            return kproc_table[i].pt_pa;
+    }
+    return 0;
+}
+
+unsigned int kernel_process_get_asid(unsigned long pid) {
+    for (int i = 0; i < KPROC_CAPACITY; i++) {
+        if (kproc_table[i].state != KPROC_STATE_FREE &&
+            kproc_table[i].id == (unsigned int)pid)
+            return kproc_table[i].asid;
+    }
+    return 0;
+}
+
 int kernel_process_selftest(void) {
     unsigned long pids[KPROC_CAPACITY];
     int created = 0;

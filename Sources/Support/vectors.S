@@ -273,6 +273,20 @@ _usermode_fault_stub:
 1:  b       1b                   // never reached
 _usermode_fault_stub_end:
 
+// Runtime V52: User EL0 stub that calls sys_write to output "Hi\n" and then
+// spins.  The kernel catches the SVC via _kernel_el1_saved_sp and returns to
+// EL1 before the spin, so the b . is never reached.
+.global _user_hello_stub
+.global _user_hello_stub_end
+_user_hello_stub:
+    adr     x1, 1f          // x1 = user VA of the string (PC-relative)
+    mov     x2, #3          // len = 3 ("Hi\n")
+    mov     x0, #2          // sys_write
+    svc     #0              // trap to EL1; kernel returns here
+    b       .               // never reached
+1:  .ascii  "Hi\n"
+_user_hello_stub_end:
+
 .section __DATA,__data
 .balign 8
 .global _kernel_el1_saved_sp

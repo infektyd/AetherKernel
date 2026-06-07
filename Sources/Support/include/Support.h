@@ -868,6 +868,7 @@ extern void el0_test_stub_end(void);
 
 // Runtime V48: syscall ABI via SVC (svc immediate = KERNEL_SVC_SYSCALL_IMM).
 #define KERNEL_SVC_SYSCALL_IMM 1
+#define KERNEL_SYSCALL_SYS_WRITE 2
 unsigned int kernel_syscall_abi_version(void);
 unsigned int kernel_syscall_table_size(void);
 int kernel_syscall_table_valid(void);
@@ -898,6 +899,13 @@ int kernel_process_destroy(unsigned long pid);
 int kernel_process_count(void);
 int kernel_process_capacity(void);
 int kernel_process_selftest(void);
+unsigned long kernel_process_get_pt(unsigned long pid);
+unsigned int kernel_process_get_asid(unsigned long pid);
+
+// Runtime V52: User binary loader — flat blob into fresh address space, run at EL0.
+extern void user_hello_stub(void);
+extern void user_hello_stub_end(void);
+int kernel_loader_selftest(void);
 
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
