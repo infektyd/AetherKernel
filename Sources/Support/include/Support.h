@@ -916,6 +916,12 @@ int kernel_sdhci_probe_selftest(void);
 unsigned long kernel_sdhci_probe_cap0(void);
 unsigned long kernel_sdhci_probe_host_version(void);
 
+// Runtime V55: SD card identification (CMD0/CMD8/ACMD41/CMD2/CMD3).
+int kernel_sdhci_card_init(void);
+int kernel_sdhci_card_init_selftest(void);
+unsigned long kernel_sdhci_card_rca(void);
+unsigned long kernel_sdhci_card_ocr(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

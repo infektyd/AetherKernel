@@ -73,14 +73,15 @@
 #define SDHCI_INT_DEND_ERR      (1u << 22)
 #define SDHCI_INT_ERR_MASK      0xFFFF0000u
 
-// SDHCI command register encoding
-#define CMD_RESP_NONE    0x00
-#define CMD_RESP_136     0x01  // 136-bit response
-#define CMD_RESP_48      0x02  // 48-bit response
-#define CMD_RESP_48B     0x03  // 48-bit response with busy
-#define CMD_CRC_CHK      (1u << 3)
-#define CMD_IXCHK_EN     (1u << 4)
-#define CMD_IS_DATA      (1u << 5)
+// SDHCI command register encoding.
+// Response type goes into bits[17:16] of CMDTM; control bits at [20:19].
+#define CMD_RESP_NONE    0x00000000u
+#define CMD_RESP_136     (1u << 16)    // 136-bit response (R2)
+#define CMD_RESP_48      (2u << 16)    // 48-bit response (R1, R3, R6, R7)
+#define CMD_RESP_48B     (3u << 16)    // 48-bit with busy (R1b)
+#define CMD_CRC_CHK      (1u << 19)    // CRC check enable
+#define CMD_IXCHK_EN     (1u << 20)    // Index check enable
+#define CMD_IS_DATA      (1u << 21)    // Data present select
 #define CMD_TYPE_NORMAL  0x00
 #define CMD_TYPE_ABORT   0x03
 // Full command word: (cmd_idx << 24) | (cmd_type << 22) | flags
@@ -128,4 +129,188 @@ unsigned long kernel_sdhci_probe_cap0(void) {
 unsigned long kernel_sdhci_probe_host_version(void) {
     unsigned int ver_word = mmio_read32(EMMC2_BASE + SDHCI_SLOTISR_VER);
     return (unsigned long)((ver_word >> 16) & 0xFF);
+}
+
+// ============================================================================
+// Runtime V55: Card identification (CMD0/CMD8/ACMD41/CMD2/CMD3)
+// ============================================================================
+
+// Stored card state (populated once by kernel_sdhci_card_init).
+static int          sdhci_card_init_ok = 0;
+static unsigned int sdhci_card_rca     = 0;
+static unsigned int sdhci_card_ocr     = 0;
+static unsigned int sdhci_card_is_hc   = 0; // 1 = SDHC/SDXC (block addressing)
+
+// SD bus power control bits in CONTROL0.
+#define SDHCI_C0_BUS_PWR        (1u << 8)
+#define SDHCI_C0_BUS_VLT_33V    (7u << 9)   // 3.3V
+
+// --- internal helpers -------------------------------------------------------
+
+static int sdhci_hard_reset(void) {
+    mmio_write32(EMMC2_BASE + SDHCI_CONTROL1,
+                 mmio_read32(EMMC2_BASE + SDHCI_CONTROL1) | SDHCI_C1_SRST_HC);
+    return sdhci_wait_bits(SDHCI_CONTROL1, SDHCI_C1_SRST_HC, 0, 100000);
+}
+
+// Set SDHCI divided clock to a target frequency.
+// base_mhz: base clock in MHz (from CAPABILITIES0 bits[15:8]).
+// target_khz: desired SD clock frequency in kHz.
+static int sdhci_set_clock(unsigned int base_mhz, unsigned int target_khz) {
+    unsigned int base_khz = base_mhz * 1000u;
+    unsigned int n = base_khz / (2u * target_khz);
+    if (n == 0) n = 1;
+    if (n > 0x3FFu) n = 0x3FFu;
+
+    // Disable SD clock before changing frequency.
+    unsigned int c1 = mmio_read32(EMMC2_BASE + SDHCI_CONTROL1);
+    c1 &= ~SDHCI_C1_CLK_EN;
+    mmio_write32(EMMC2_BASE + SDHCI_CONTROL1, c1);
+    sdhci_delay_us(20);
+
+    // Program divisor: lower 8 bits → bits[15:8], upper 2 bits → bits[7:6].
+    c1 &= ~0x0000FFE0u;                             // clear old freq + gensel
+    c1 |= ((n & 0xFF) << 8) | (((n >> 8) & 0x3) << 6) | SDHCI_C1_CLK_INTLEN;
+    mmio_write32(EMMC2_BASE + SDHCI_CONTROL1, c1);
+
+    if (!sdhci_wait_bits(SDHCI_CONTROL1, SDHCI_C1_CLK_STABLE, SDHCI_C1_CLK_STABLE, 20000))
+        return 0;
+
+    c1 = mmio_read32(EMMC2_BASE + SDHCI_CONTROL1);
+    c1 |= SDHCI_C1_CLK_EN;
+    mmio_write32(EMMC2_BASE + SDHCI_CONTROL1, c1);
+    sdhci_delay_us(10);
+    return 1;
+}
+
+// Send a command; poll for CMD_DONE or ERROR.
+// resp[4] receives RESP0..RESP3; pass NULL for no-response commands.
+// Returns 1 on success, 0 on error/timeout.
+static int sdhci_send_cmd(unsigned int cmdtm, unsigned int arg, unsigned int resp[4]) {
+    // Wait for CMD line not inhibited.
+    if (!sdhci_wait_bits(SDHCI_STATUS, SDHCI_STATUS_CMD_INHIBIT, 0, 200000))
+        return 0;
+
+    // Clear all interrupt flags before issuing command.
+    mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, 0xFFFFFFFFu);
+
+    mmio_write32(EMMC2_BASE + SDHCI_ARG1,  arg);
+    mmio_write32(EMMC2_BASE + SDHCI_CMDTM, cmdtm);
+
+    // Poll until CMD_DONE or any error bit.
+    unsigned int irpt = 0;
+    for (unsigned int i = 0; i < 200000; i++) {
+        irpt = mmio_read32(EMMC2_BASE + SDHCI_INTERRUPT);
+        if (irpt & (SDHCI_INT_CMD_DONE | SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))
+            break;
+        sdhci_delay_us(1);
+    }
+
+    // Any error → failure.
+    if ((irpt & SDHCI_INT_ERROR) || (irpt & SDHCI_INT_ERR_MASK) ||
+        !(irpt & SDHCI_INT_CMD_DONE)) {
+        mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, 0xFFFFFFFFu);
+        return 0;
+    }
+
+    if (resp) {
+        resp[0] = mmio_read32(EMMC2_BASE + SDHCI_RESP0);
+        resp[1] = mmio_read32(EMMC2_BASE + SDHCI_RESP1);
+        resp[2] = mmio_read32(EMMC2_BASE + SDHCI_RESP2);
+        resp[3] = mmio_read32(EMMC2_BASE + SDHCI_RESP3);
+    }
+
+    mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, SDHCI_INT_CMD_DONE);
+    return 1;
+}
+
+// --- public v55 API ---------------------------------------------------------
+
+int kernel_sdhci_card_init(void) {
+    unsigned int resp[4];
+    unsigned int cap0    = mmio_read32(EMMC2_BASE + SDHCI_CAPABILITIES0);
+    unsigned int base_mhz = (cap0 >> 8) & 0xFF; // base clock MHz from CAP0[15:8]
+    if (base_mhz == 0) base_mhz = 100;           // safe fallback
+
+    // 1. Full host controller reset.
+    if (!sdhci_hard_reset()) return 0;
+
+    // 2. Set timeout and start internal clock at 400 kHz (identification speed).
+    unsigned int c1 = SDHCI_C1_TOUNIT_DIS | SDHCI_C1_CLK_INTLEN;
+    unsigned int n  = (base_mhz * 1000u) / (2u * 400u); // divisor for 400 kHz
+    if (n == 0) n = 1;
+    c1 |= ((n & 0xFF) << 8) | (((n >> 8) & 0x3) << 6);
+    mmio_write32(EMMC2_BASE + SDHCI_CONTROL1, c1);
+    if (!sdhci_wait_bits(SDHCI_CONTROL1, SDHCI_C1_CLK_STABLE, SDHCI_C1_CLK_STABLE, 20000))
+        return 0;
+
+    // Enable SD clock.
+    c1 = mmio_read32(EMMC2_BASE + SDHCI_CONTROL1);
+    c1 |= SDHCI_C1_CLK_EN;
+    mmio_write32(EMMC2_BASE + SDHCI_CONTROL1, c1);
+    sdhci_delay_us(100);
+
+    // 3. Enable 3.3V SD bus power.
+    mmio_write32(EMMC2_BASE + SDHCI_CONTROL0,
+                 SDHCI_C0_BUS_VLT_33V | SDHCI_C0_BUS_PWR);
+    sdhci_delay_us(5000); // 5 ms power-up delay
+
+    // Route interrupts to status register only (no IRQ line).
+    mmio_write32(EMMC2_BASE + SDHCI_IRPT_MASK, 0xFFFFFFFFu);
+    mmio_write32(EMMC2_BASE + SDHCI_IRPT_EN,   0x00000000u);
+
+    // 4. CMD0: GO_IDLE_STATE — no response.
+    sdhci_send_cmd(CMDTM_CMD(0, CMD_RESP_NONE, 0), 0, (void *)0);
+    sdhci_delay_us(2000);
+
+    // 5. CMD8: SEND_IF_COND — verify voltage and SD v2 support.
+    //    Arg: VHS=0x1 (2.7-3.6V), check pattern=0xAA → 0x000001AA.
+    if (!sdhci_send_cmd(CMDTM_CMD(8, CMD_RESP_48, CMD_CRC_CHK | CMD_IXCHK_EN),
+                        0x000001AAu, resp))
+        return 0; // CMD8 timeout → SD v1 or no card; not supported
+    if ((resp[0] & 0xFFFu) != 0x1AAu)
+        return 0; // echo-back mismatch
+
+    // 6. ACMD41 loop: CMD55 + ACMD41 until card power-up complete.
+    //    HCS=1 (bit30) requests SDHC/SDXC card; voltage range 0xFF8000.
+    unsigned int ocr = 0;
+    for (int retry = 0; retry < 500; retry++) {
+        // CMD55: APP_CMD — prepares card for ACMD; RCA=0 before identification.
+        if (!sdhci_send_cmd(CMDTM_CMD(55, CMD_RESP_48, CMD_CRC_CHK | CMD_IXCHK_EN),
+                            0, resp))
+            return 0;
+        // ACMD41: SD_SEND_OP_COND — R3 response (no CRC/index check).
+        if (!sdhci_send_cmd(CMDTM_CMD(41, CMD_RESP_48, 0), 0x40FF8000u, resp))
+            return 0;
+        ocr = resp[0];
+        if (ocr & (1u << 31)) break;  // card power-up complete
+        sdhci_delay_us(2000);
+        if (retry == 499) return 0;   // 1-second timeout
+    }
+    sdhci_card_ocr    = ocr;
+    sdhci_card_is_hc  = (ocr & (1u << 30)) ? 1u : 0u;
+
+    // 7. CMD2: ALL_SEND_CID — 136-bit R2 response (CID, not parsed here).
+    if (!sdhci_send_cmd(CMDTM_CMD(2, CMD_RESP_136, 0), 0, resp))
+        return 0;
+
+    // 8. CMD3: SEND_RELATIVE_ADDR — card publishes its RCA.
+    if (!sdhci_send_cmd(CMDTM_CMD(3, CMD_RESP_48, CMD_CRC_CHK | CMD_IXCHK_EN),
+                        0, resp))
+        return 0;
+    sdhci_card_rca    = (resp[0] >> 16) & 0xFFFFu;
+    sdhci_card_init_ok = 1;
+    return 1;
+}
+
+int kernel_sdhci_card_init_selftest(void) {
+    return sdhci_card_init_ok;
+}
+
+unsigned long kernel_sdhci_card_rca(void) {
+    return (unsigned long)sdhci_card_rca;
+}
+
+unsigned long kernel_sdhci_card_ocr(void) {
+    return (unsigned long)sdhci_card_ocr;
 }
