@@ -19,13 +19,13 @@ This is a multi-year-class goal. It is reached one **hardware-proven increment**
 time — the same cadence that produced V1–V44. Never "boil the ocean": each increment
 must boot on the real Pi 4 and emit a machine-checkable serial marker + bootcert flag.
 
-## Where we are now (V44)
+## Where we are now (V45)
 
 A strong **microkernel-style runtime core**, all hardware-verified:
 - Boot → EL1, PL011 UART, GPIO mux, CNTP timer, GIC-400 IRQ routing, EL1 vectors.
 - Embedded-Swift `async/await` on bare metal (custom C executor), timer-backed sleep.
 - Memory: fixed memory map, 4 KiB frame allocator, guarded heap, typed pools,
-  **static identity-map MMU (no isolation yet)**.
+  **dynamic virtual memory (page tables + TLB)**.
 - Kernel objects: registry, capability-tagged handles, mailboxes, async channels,
   supervisor, event-log ring, cancellation tokens, structured task spawn.
 - SMP: 4-core bring-up, atomics/spinlocks, per-core runqueues, timer-driven dispatch,
@@ -47,7 +47,7 @@ command, proven on metal, exactly like V1–V44.
 
 ### EPIC A — Memory isolation & user mode  (foundation; unlocks "real OS")
 Turn the static identity-map MMU into a real virtual-memory system and run code at EL0.
-- Dynamic page-table management (allocate/map/unmap, TLB maintenance).
+- [x] Dynamic page-table management (allocate/map/unmap, TLB maintenance).
 - Kernel/user address-space split; per-address-space page tables.
 - EL0 entry/exit; save/restore user context through the existing vectors.
 - **Syscall ABI** via `SVC` (a tiny, versioned syscall table with a bootcert flag).
