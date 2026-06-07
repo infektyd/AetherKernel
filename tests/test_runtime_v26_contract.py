@@ -74,10 +74,11 @@ def test_runtime_v26_soak_loop_dry_run_is_scriptable() -> None:
         "serial log: /tmp/aether-serial-test.log",
         "./net-iterate.sh /tmp/aether-root",
         "probe: req id=2601 cmd=status",
-        "probe: req id=2602 cmd=bootcert",
-        "probe: req id=2603 cmd=stress",
-        "probe: req id=2604 cmd=soak",
-        "probe: req id=2605 cmd=events",
+        "probe: req id=2602 cmd=sched12",
+        "probe: req id=2603 cmd=bootcert",
+        "probe: req id=2604 cmd=stress",
+        "probe: req id=2605 cmd=soak",
+        "probe: req id=2606 cmd=events",
     ):
         assert marker in result.stdout
 

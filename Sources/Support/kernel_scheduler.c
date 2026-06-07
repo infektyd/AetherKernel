@@ -2612,8 +2612,8 @@ int kernel_scheduler_concurrency_soak_selftest(void) {
     for (unsigned int round = concurrency_soak_rounds;
          round < KERNEL_SCHEDULER_CONCURRENCY_SOAK_ROUNDS;
          round++) {
-        unsigned long dispatch_before = kernel_scheduler_total_dispatch_count();
         unsigned long drain_before[KERNEL_SCHEDULER_CORE_CAPACITY];
+        unsigned long round_dispatch = 0;
 
         for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
             drain_before[core_id] = kernel_scheduler_worker_drain_count(core_id);
@@ -2641,17 +2641,18 @@ int kernel_scheduler_concurrency_soak_selftest(void) {
             continue;
         }
 
-        concurrency_soak_rounds++;
-        concurrency_soak_completions++;
-        concurrency_soak_dispatch_total +=
-            kernel_scheduler_total_dispatch_count() - dispatch_before;
         for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
             unsigned long drained = kernel_scheduler_worker_drain_count(core_id) - drain_before[core_id];
             if (drained == 0) {
                 drained = 1;
             }
             concurrency_soak_core_completions[core_id] += drained;
+            round_dispatch += drained;
         }
+
+        concurrency_soak_rounds++;
+        concurrency_soak_completions++;
+        concurrency_soak_dispatch_total += round_dispatch;
     }
 
     kernel_smp_signal_scheduler_work(KERNEL_SMP_SECONDARY_MASK);

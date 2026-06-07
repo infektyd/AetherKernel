@@ -128,7 +128,17 @@ while [ "$attempt" -le "$RETRIES" ]; do
   sd_fallback_seen=0
 
   echo "netboot attempt ${attempt}/${RETRIES}: reset Pi, then wait up to ${TIMEOUT_S}s for TFTP fetch + fresh AetherKernel boot..."
-  "$SCRIPT_DIR/serial-reset.sh" "$SERIAL_PORT"
+  if [ -n "${AETHER_POWER_BACKEND:-}" ] && [ "${AETHER_POWER_BACKEND}" != "none" ]; then
+    # Cold power-cycle via external switch — REQUIRED for the Pi bootloader to
+    # re-enter netboot/TFTP mode (a warm serial reset does not re-arm it). This is
+    # what lets unattended runs self-recover with no human at the bench.
+    "$SCRIPT_DIR/power-cycle.sh" cycle || die "power-cycle failed (backend=${AETHER_POWER_BACKEND})"
+  else
+    # Default: warm serial reset. NOTE: this does NOT re-arm netboot mode, so the
+    # Pi must already be in netboot (fresh cold boot). Set AETHER_POWER_BACKEND
+    # (e.g. wemo) for a true unattended cold cycle. See power-cycle.sh.
+    "$SCRIPT_DIR/serial-reset.sh" "$SERIAL_PORT"
+  fi
   if [ -x "$SCRIPT_DIR/serial-capture.sh" ]; then
     "$SCRIPT_DIR/serial-capture.sh" "$SERIAL_PORT" >/dev/null
   fi
@@ -201,18 +211,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "status" "^status uptime_ms=.*timer_mask="
         # probe shell: protocol
         probe_shell "protocol" "^protocol version=2 .*begin_end=1 .*errors=1"
-        # probe shell: bootcert
-        AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
-          probe_shell "bootcert" "^bootcert ok=1 version=44 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0"
-        export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
         # probe shell: runtime
         probe_shell "runtime" "^runtime ok=1 version=28 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5"
         # probe shell: agent
         probe_shell "agent" "^agent ok=1 version=29 health=green .*bootcert=1 .*runtime=1 .*protocol=2 .*events_lost=0"
-        # probe shell: certificate
-        AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
-          probe_shell "certificate" "^certificate ok=1 version=44 substrate=1 .*bootcert=1 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0"
-        export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
         # probe shell: sched
         probe_shell "sched" "^sched ok=1 version=31 .*active=1 .*cores=1 .*core=0 .*ticks=[1-9][0-9]* .*irq_ticks=[1-9][0-9]* .*preemptions=[1-9][0-9]* .*runqueue=0/[1-9][0-9]* .*selftest=1"
         # probe shell: sched2
@@ -232,7 +234,9 @@ while [ "$attempt" -le "$RETRIES" ]; do
         # probe shell: sched9
         probe_shell "sched9" "^sched9 ok=1 version=41 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*steals=[1-9][0-9]* .*completions=[1-9][0-9]* .*total=0 .*capacity=8 .*source_core1=[1-9][0-9]* .*source_core2=[0-9][0-9]* .*source_core3=[0-9][0-9]* .*dest_core1=0 .*dest_core2=[1-9][0-9]* .*dest_core3=[1-9][0-9]* .*attempts_core1=[0-9][0-9]* .*attempts_core2=[1-9][0-9]* .*attempts_core3=[1-9][0-9]* .*selftest=1"
         # probe shell: sched10
-        probe_shell "sched10" "^sched10 ok=1 version=42 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*balances=[1-9][0-9]* .*completions=[1-9][0-9]* .*total=0 .*capacity=8 .*source_core1=[1-9][0-9]* .*source_core2=[0-9][0-9]* .*source_core3=[0-9][0-9]* .*dest_core1=0 .*dest_core2=[1-9][0-9]* .*dest_core3=[1-9][0-9]* .*attempts_core1=[0-9][0-9]* .*attempts_core2=[1-9][0-9]* .*attempts_core3=[1-9][0-9]* .*queue_imbalance=[0-9][0-9]* .*selftest=1"
+        AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
+          probe_shell "sched10" "^sched10 ok=1 version=42 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*balances=[1-9][0-9]* .*completions=[1-9][0-9]* .*total=0 .*capacity=8 .*source_core1=[1-9][0-9]* .*source_core2=[0-9][0-9]* .*source_core3=[0-9][0-9]* .*dest_core1=0 .*dest_core2=[1-9][0-9]* .*dest_core3=[1-9][0-9]* .*attempts_core1=[0-9][0-9]* .*attempts_core2=[1-9][0-9]* .*attempts_core3=[1-9][0-9]* .*queue_imbalance=[0-9][0-9]* .*selftest=1"
+        export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
         # probe shell: cores
         probe_shell "cores" "^cores ok=1 version=32 .*capacity=4 .*online=4 .*mask=0xf .*primary=0 .*release=0xe .*selftest=1 .*core0=1 .*core1=1 .*core2=1 .*core3=1"
         # probe shell: locks
@@ -281,6 +285,14 @@ while [ "$attempt" -le "$RETRIES" ]; do
         # probe shell: req-sched12
         AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
           probe_shell "req id=45 cmd=sched12" "^resp id=45 ok=1 cmd=sched12 end"
+        # probe shell: bootcert
+        AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
+          probe_shell "bootcert" "^bootcert ok=1 version=44 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0"
+        export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
+        # probe shell: certificate
+        AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
+          probe_shell "certificate" "^certificate ok=1 version=44 substrate=1 .*bootcert=1 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0"
+        export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
