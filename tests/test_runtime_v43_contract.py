@@ -70,6 +70,7 @@ def test_runtime_v43_priority_preemption_contract_exists() -> None:
 
     for marker in (
         "priority_lanes_enabled && is_scheduler_priority_token",
+        "KERNEL_SCHEDULER_PRIORITY_TOKEN_BASE | 0x1000U",
         "is_scheduler_steal_token(head_token)",
         "is_scheduler_balance_token(head_token)",
         "kernel_scheduler_try_preempt_priority_work(1)",
@@ -217,8 +218,15 @@ def test_runtime_v43_shell_lane_provenance_helpers_exist() -> None:
         "let smpScheduler = kernel_scheduler_smp_scheduler_proven()",
         "let queues = kernel_scheduler_runqueue_proven()",
         "let smp = kernel_smp_proven()",
+        "let events = kernel_event_log_selftest()",
+        "let priority = kernel_scheduler_priority_proven()",
     ):
         assert marker in shell
+
+    bootcert = shell.split("func printBootcert()")[1].split("func ")[0]
+    events_idx = bootcert.index("let events = kernel_event_log_selftest()")
+    priority_idx = bootcert.index("let priority = kernel_scheduler_priority_proven()")
+    assert events_idx < priority_idx
 
     for forbidden in (
         "let queues = kernel_scheduler_runqueue_selftest()",
