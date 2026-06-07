@@ -211,6 +211,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -q "runtime v42: secondary scheduler load balancing" \
       && printf '%s' "$serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption" \
       && printf '%s' "$serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
       && printf '%s' "$serial_delta" | grep -q "runtime v45: dynamic virtual memory (page tables + TLB)" \
       && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail tx 0x0000000000000000" \
@@ -293,17 +294,17 @@ while [ "$attempt" -le "$RETRIES" ]; do
           probe_shell "req id=44 cmd=sched11" "^resp id=44 ok=1 cmd=sched11 end"
         # probe shell: sched12
         AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
-          probe_shell "sched12" "^sched12 ok=1 version=44 .*concurrency=1 .*rounds=3 .*completions=3 .*failures=0 .*dispatches=[1-9][0-9]* .*total=0 .*capacity=8 .*soak_core1=[1-9][0-9]* .*soak_core2=[1-9][0-9]* .*soak_core3=[1-9][0-9]* .*selftest=1"
+          probe_shell "sched12" "^sched12 ok=1 version=45 .*concurrency=1 .*rounds=3 .*completions=3 .*failures=0 .*dispatches=[1-9][0-9]* .*total=0 .*capacity=8 .*soak_core1=[1-9][0-9]* .*soak_core2=[1-9][0-9]* .*soak_core3=[1-9][0-9]* .*selftest=1"
         # probe shell: req-sched12
         AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
           probe_shell "req id=45 cmd=sched12" "^resp id=45 ok=1 cmd=sched12 end"
         # probe shell: bootcert
         AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
-          probe_shell "bootcert" "^bootcert ok=1 version=44 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0"
+          probe_shell "bootcert" "^bootcert ok=1 version=45 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0"
         export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
         # probe shell: certificate
         AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
-          probe_shell "certificate" "^certificate ok=1 version=44 substrate=1 .*bootcert=1 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0"
+          probe_shell "certificate" "^certificate ok=1 version=45 substrate=1 .*bootcert=1 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*vmm=1 .*events_lost=0"
         export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
@@ -357,6 +358,18 @@ while [ "$attempt" -le "$RETRIES" ]; do
       exit 0
     fi
 
+    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
+      && ! printf '%s' "$serial_delta" | grep -q "runtime v45: dynamic virtual memory (page tables + TLB)"; then
+      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V45 SD fallback image detected"
+      echo "TFTP kernel fetch was not verified; staged network image is not proven."
+      print_tftp_diagnostics "$dns_delta"
+      last_dns_delta="$dns_delta"
+      last_serial_delta="$serial_delta"
+      sd_fallback_seen=1
+      break
+    fi
     if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
       && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption" \
@@ -415,7 +428,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
 
     if [ "$attempt" -lt "$RETRIES" ]; then
       if [ "$sd_fallback_seen" = "1" ]; then
-        if printf '%s' "$last_serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption" \
+        if printf '%s' "$last_serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
+          && ! printf '%s' "$last_serial_delta" | grep -q "runtime v45: dynamic virtual memory (page tables + TLB)"; then
+          echo "retrying after stale pre-V45 SD fallback..."
+        elif printf '%s' "$last_serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption" \
           && ! printf '%s' "$last_serial_delta" | grep -q "runtime v44: bounded smp concurrency soak"; then
           echo "retrying after stale pre-V44 SD fallback..."
         elif printf '%s' "$last_serial_delta" | grep -q "runtime v42: secondary scheduler load balancing" \
@@ -442,6 +458,11 @@ done
 echo "netboot iteration did not verify after ${RETRIES} attempt(s)"
 print_tftp_diagnostics "$last_dns_delta"
 if printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
+  && printf '%s' "$last_serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
+  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v45: dynamic virtual memory (page tables + TLB)"; then
+  echo "final result: stale pre-V45 SD fallback image booted, but staged network image is not proven."
+  final_exit=3
+elif printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
   && printf '%s' "$last_serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption" \
   && ! printf '%s' "$last_serial_delta" | grep -q "runtime v44: bounded smp concurrency soak"; then
   echo "final result: stale pre-V44 SD fallback image booted, but staged network image is not proven."

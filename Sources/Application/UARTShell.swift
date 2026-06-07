@@ -290,6 +290,8 @@ func printSubstrateCertificate() {
   uartPutDec(UInt64(pools))
   uartPuts(" mmu=")
   uartPutDec(UInt64(mmu))
+  uartPuts(" vmm=")
+  uartPutDec(UInt64(vmm))
   uartPuts(" swift=6.3.2")
   uartPuts(" events_lost=")
   uartPutDec(UInt64(eventsLost))
@@ -2183,7 +2185,7 @@ func printBootcert() {
 
   uartPuts("bootcert ok=")
   uartPutDec(UInt64(ok ? 1 : 0))
-  uartPuts(" version=44")
+  uartPuts(" version=45")
   uartPuts(" concurrency=")
   uartPutDec(UInt64(concurrency))
   uartPuts(" priority=")

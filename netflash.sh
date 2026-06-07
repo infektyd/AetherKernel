@@ -66,6 +66,8 @@ DEST="$TFTP_ROOT/$PREFIX"
 
 cp "$KERNEL_IMG" "$DEST/kernel8.img"
 cp "$CONFIG_TXT" "$DEST/config.txt"
+cp "$KERNEL_IMG" "$TFTP_ROOT/${KERNEL_IMG##*/}"
+cp "$CONFIG_TXT" "$TFTP_ROOT/${CONFIG_TXT##*/}"
 sync
 
 verify_copy "$KERNEL_IMG" "$DEST/kernel8.img"

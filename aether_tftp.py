@@ -158,7 +158,7 @@ class ReadOnlyTFTPServer:
     def bind(self) -> None:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((self.host, self.requested_port))
+        sock.bind(("", self.requested_port))
         sock.settimeout(self.timeout_s)
         self.sock = sock
         self.port = sock.getsockname()[1]
@@ -184,7 +184,9 @@ class ReadOnlyTFTPServer:
             except TimeoutError:
                 continue
             except OSError:
-                return
+                import time
+                time.sleep(1)
+                continue
 
             handled += 1
             try:
