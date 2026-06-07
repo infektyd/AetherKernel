@@ -910,6 +910,12 @@ int kernel_loader_selftest(void);
 // Runtime V53: Multi-process selftest — three isolated user processes via per-core EL0.
 int kernel_multiprocess_selftest(void);
 
+// Runtime V54: BCM2711 EMMC2/SDHCI register probe.
+#define EMMC2_BASE 0xFE340000UL
+int kernel_sdhci_probe_selftest(void);
+unsigned long kernel_sdhci_probe_cap0(void);
+unsigned long kernel_sdhci_probe_host_version(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

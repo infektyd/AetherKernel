@@ -19,7 +19,7 @@ This is a multi-year-class goal. It is reached one **hardware-proven increment**
 time — the same cadence that produced V1–V44. Never "boil the ocean": each increment
 must boot on the real Pi 4 and emit a machine-checkable serial marker + bootcert flag.
 
-## Where we are now (V53)
+## Where we are now (V54)
 
 A strong **microkernel-style runtime core**, all hardware-verified:
 - Boot → EL1, PL011 UART, GPIO mux, CNTP timer, GIC-400 IRQ routing, EL1 vectors.
@@ -32,6 +32,7 @@ A strong **microkernel-style runtime core**, all hardware-verified:
   secondary workers, work-stealing, load-balancing, priority/preemption, bounded soak.
 - Boot certificate + substrate certificate; panic/fault retained records; watchdog.
 - **EPIC B**: **process abstraction** — address space (isolated page table + ASID) + lifecycle state (create/destroy), with a fixed process table and ASID bitmap allocator. **User binary loader** — flat blob loaded into a fresh address space, runs at EL0, calls `sys_write` syscall (UART output "Hi\n"), proves end-to-end: process create → binary load → EL0 execute → syscall dispatch → UART write. **Multi-process isolation** — per-core `_kernel_el1_saved_sp` and `uaccess_active_pt`; 3 independent user processes each run isolated and print "Hi\n", proving address-space and EL0 isolation between processes.
+- **EPIC C (in progress)**: **BCM2711 EMMC2/SDHCI register probe** (V54) — SDHCI capabilities and host spec version registers readable at 0xFE340000; cap0 non-zero, host_spec_ver ≤ 3; `sdhci ok=1 version=54` marker.
 
 **The gap to the North Star** is everything that makes an OS *general-purpose*: user
 mode, processes, storage, display, input, and networking. The epics below close it.
