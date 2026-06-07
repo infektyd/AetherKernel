@@ -176,21 +176,21 @@ func printAgentSession() {
 func printSubstrateCertificate() {
   kernel_supervisor_check()
 
-  let runtimeAudit = kernel_runtime_audit_selftest()
-  let workerFeed = kernel_scheduler_timer_worker_feed_selftest()
   let secondaryWorkers = kernel_scheduler_secondary_worker_selftest()
+  let workerFeed = kernel_scheduler_timer_worker_feed_selftest()
   let jobExec = kernel_scheduler_secondary_job_selftest()
   let wake = kernel_scheduler_secondary_wake_selftest()
+  let handoff = kernel_scheduler_secondary_handoff_selftest()
   let preemptive = kernel_scheduler_active()
   let smpScheduler = kernel_scheduler_smp_selftest()
   let backpressure = kernel_scheduler_backpressure_selftest()
   let stealing = kernel_scheduler_work_steal_selftest()
-  let handoff = kernel_scheduler_secondary_handoff_selftest()
   let atomics = kernel_atomic_selftest()
   let locks = kernel_spinlock_selftest()
   let queues = kernel_scheduler_runqueue_selftest()
   let smp = kernel_smp_selftest()
   let scheduler = kernel_scheduler_selftest()
+  let runtimeAudit = kernel_runtime_audit_selftest()
   let agentSession = UInt32(1)
   let memmap = kernel_memory_map_valid()
   let heap = heap_guard_selftest()
@@ -553,8 +553,8 @@ func printScheduler6() {
 }
 
 func printScheduler7() {
-  let handoff = kernel_scheduler_secondary_handoff_selftest()
   let wake = kernel_scheduler_secondary_wake_selftest()
+  let handoff = kernel_scheduler_secondary_handoff_selftest()
   let jobExec = kernel_scheduler_secondary_job_selftest()
   let ok = handoff != 0 && wake != 0 && jobExec != 0 ? 1 : 0
 
@@ -597,9 +597,9 @@ func printScheduler7() {
 }
 
 func printScheduler8() {
-  let backpressure = kernel_scheduler_backpressure_selftest()
-  let handoff = kernel_scheduler_secondary_handoff_selftest()
   let wake = kernel_scheduler_secondary_wake_selftest()
+  let handoff = kernel_scheduler_secondary_handoff_selftest()
+  let backpressure = kernel_scheduler_backpressure_selftest()
   let total = kernel_scheduler_runqueue_count(0) +
     kernel_scheduler_runqueue_count(1) +
     kernel_scheduler_runqueue_count(2) +
@@ -645,10 +645,10 @@ func printScheduler8() {
 }
 
 func printScheduler9() {
-  let stealing = kernel_scheduler_work_steal_selftest()
-  let backpressure = kernel_scheduler_backpressure_selftest()
-  let handoff = kernel_scheduler_secondary_handoff_selftest()
   let wake = kernel_scheduler_secondary_wake_selftest()
+  let handoff = kernel_scheduler_secondary_handoff_selftest()
+  let backpressure = kernel_scheduler_backpressure_selftest()
+  let stealing = kernel_scheduler_work_steal_selftest()
   let total = kernel_scheduler_runqueue_count(0) +
     kernel_scheduler_runqueue_count(1) +
     kernel_scheduler_runqueue_count(2) +
@@ -1918,15 +1918,15 @@ func printBootcert() {
   kernel_supervisor_check()
   kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 41, UInt(kernel_event_count()), 0)
 
-  let workerFeed = kernel_scheduler_timer_worker_feed_selftest()
   let secondaryWorkers = kernel_scheduler_secondary_worker_selftest()
+  let workerFeed = kernel_scheduler_timer_worker_feed_selftest()
   let jobExec = kernel_scheduler_secondary_job_selftest()
   let wake = kernel_scheduler_secondary_wake_selftest()
+  let handoff = kernel_scheduler_secondary_handoff_selftest()
   let preemptive = kernel_scheduler_active()
   let smpScheduler = kernel_scheduler_smp_selftest()
   let backpressure = kernel_scheduler_backpressure_selftest()
   let stealing = kernel_scheduler_work_steal_selftest()
-  let handoff = kernel_scheduler_secondary_handoff_selftest()
   let atomics = kernel_atomic_selftest()
   let locks = kernel_spinlock_selftest()
   let queues = kernel_scheduler_runqueue_selftest()

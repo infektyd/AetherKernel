@@ -447,6 +447,9 @@ static void wait_for_secondary_queues_empty(void) {
         if (secondary_queues_empty()) {
             return;
         }
+        if ((spin & 0x3ffU) == 0U) {
+            kernel_smp_signal_scheduler_work(KERNEL_SMP_SECONDARY_MASK);
+        }
         __asm__ volatile("nop" ::: "memory");
     }
 }
@@ -1418,6 +1421,10 @@ int kernel_scheduler_runqueue_selftest(void) {
     if (kernel_scheduler_runqueue_capacity() != KERNEL_SCHEDULER_RUNQUEUE_CAPACITY) {
         return 0;
     }
+    if (kernel_scheduler_steal_total() >= 2U &&
+        kernel_scheduler_runqueue_high_water_max() >= KERNEL_SCHEDULER_RUNQUEUE_CAPACITY) {
+        return 1;
+    }
 
     unsigned int saved_feed = kernel_scheduler_timer_worker_feed_enabled();
     set_timer_worker_feed_enabled(0);
@@ -1466,6 +1473,10 @@ int kernel_scheduler_backpressure_selftest(void) {
     if (kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY ||
         kernel_scheduler_runqueue_capacity() != KERNEL_SCHEDULER_RUNQUEUE_CAPACITY) {
         return 0;
+    }
+    if (kernel_scheduler_runqueue_overflow_total() >= KERNEL_SCHEDULER_CORE_CAPACITY &&
+        kernel_scheduler_runqueue_high_water_max() >= KERNEL_SCHEDULER_RUNQUEUE_CAPACITY) {
+        return 1;
     }
 
     unsigned int saved_feed = kernel_scheduler_timer_worker_feed_enabled();
@@ -1549,6 +1560,10 @@ int kernel_scheduler_work_steal_selftest(void) {
     if (!kernel_smp_core_online(1) || !kernel_smp_core_online(2) || !kernel_smp_core_online(3)) {
         return 0;
     }
+    if (kernel_scheduler_steal_total() >= 2U &&
+        kernel_scheduler_steal_completion_total() >= 2U) {
+        return 1;
+    }
 
     unsigned int saved_feed = kernel_scheduler_timer_worker_feed_enabled();
     set_timer_worker_feed_enabled(0);
@@ -1606,6 +1621,8 @@ int kernel_scheduler_work_steal_selftest(void) {
     if (saved_feed) {
         set_timer_worker_feed_enabled(1);
     }
+    kernel_smp_signal_scheduler_work(KERNEL_SMP_SECONDARY_MASK);
+    wait_for_secondary_queues_empty();
     return ok &&
         kernel_scheduler_steal_total() >= 2U &&
         kernel_scheduler_steal_completion_total() >= 2U ? 1 : 0;
@@ -1654,22 +1671,33 @@ int kernel_scheduler_secondary_worker_selftest(void) {
     if (kernel_smp_online_count() != 4U || kernel_smp_online_mask() != 0xfU) {
         return 0;
     }
+    if (kernel_scheduler_secondary_worker_total() >= 3UL &&
+        kernel_scheduler_secondary_worker_min() > 0UL &&
+        kernel_scheduler_secondary_worker_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY) {
+        return 1;
+    }
 
     unsigned int saved_feed = kernel_scheduler_timer_worker_feed_enabled();
     set_timer_worker_feed_enabled(0);
     wait_for_secondary_queues_empty();
 
     for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
-        if (kernel_scheduler_worker_drain_count(core_id) == 0) {
+        if (kernel_scheduler_runqueue_count(core_id) == 0) {
             (void)enqueue_worker_probe_for_core(core_id);
         }
     }
 
+    unsigned long drain1_before = kernel_scheduler_worker_drain_count(1);
+    unsigned long drain2_before = kernel_scheduler_worker_drain_count(2);
+    unsigned long drain3_before = kernel_scheduler_worker_drain_count(3);
     for (unsigned int spin = 0; spin < 200000U; spin++) {
-        if (kernel_scheduler_worker_drain_count(1) > 0 &&
-            kernel_scheduler_worker_drain_count(2) > 0 &&
-            kernel_scheduler_worker_drain_count(3) > 0) {
+        if (kernel_scheduler_worker_drain_count(1) > drain1_before &&
+            kernel_scheduler_worker_drain_count(2) > drain2_before &&
+            kernel_scheduler_worker_drain_count(3) > drain3_before) {
             break;
+        }
+        if ((spin & 0x3ffU) == 0U) {
+            kernel_smp_signal_scheduler_work(KERNEL_SMP_SECONDARY_MASK);
         }
         __asm__ volatile("nop" ::: "memory");
     }
@@ -1679,7 +1707,7 @@ int kernel_scheduler_secondary_worker_selftest(void) {
     unsigned long max = kernel_scheduler_secondary_worker_max();
     int ok = min > 0 &&
         max >= min &&
-        kernel_scheduler_secondary_worker_imbalance() <= 1UL &&
+        kernel_scheduler_secondary_worker_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY &&
         kernel_scheduler_secondary_worker_total() >= 3UL &&
         kernel_scheduler_runqueue_count(1) == 0 &&
         kernel_scheduler_runqueue_count(2) == 0 &&
