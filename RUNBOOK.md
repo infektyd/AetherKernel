@@ -571,11 +571,14 @@ sched11 ok=1 version=43 priority=1 fairness=1 stealing=1 backpressure=1 handoff=
 
 Runtime V44 bounded SMP concurrency soak protocol keeps SMP dispatch and timer-fed
 secondary workers active while proving three bounded soak rounds drain every
-per-core queue back to zero. Hardware proof is pending; host gate expects:
+per-core queue back to zero. The V44 hardware proof closed on 2026-06-07 via
+Wemo cold-cycle `netboot-auto.sh` plus a 3-cycle `soak-loop.sh` repeat:
 
 ```text
-bootcert ok=1 version=44 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 events_lost=0
-sched12 ok=1 version=44 concurrency=1 rounds=3 completions=3 failures=0 dispatches=1 total=0 capacity=8 soak_core1=1 soak_core2=1 soak_core3=1 selftest=1
+bootcert ok=1 version=44 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 taxonomy=1 protocol=1 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=4184112 frame_free=14336 uptime_ms=42685
+certificate ok=1 version=44 substrate=1 bootcert=1 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 protocol=2 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 swift=6.3.2 events_lost=0 heap_free=4184112 frame_free=14336 uptime_ms=43810
+sched12 ok=1 version=44 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 rounds=3 completions=3 failures=0 dispatches=9 total=0 capacity=8 soak_core1=3 soak_core2=3 soak_core3=3 selftest=1
+soak ok=1 rounds=3 failures=0 heap_peak=62928 frame_peak=16 heap_leak=0 frame_leak=0
 ```
 
 Runtime V37 timer-fed secondary C scheduler jobs keep Swift execution on core

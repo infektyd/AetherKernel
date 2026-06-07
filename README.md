@@ -175,9 +175,16 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 > priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1
 > preemptions=2 yields=2 completions=4 total=0 capacity=8 low_core1=2
 > high_core1=2 preempt_core1=2 yield_core1=2 selftest=1`.
-> Runtime V44 bounded SMP concurrency soak protocol is pending hardware proof.
-> Host gate expects `bootcert ok=1 version=44 concurrency=1` and
-> `sched12 ok=1 version=44 concurrency=1 rounds=3 completions=3 failures=0`.
+> Runtime V44 bounded SMP concurrency soak protocol is hardware-accepted.
+> Live Pi proof (2026-06-07, `kernel8.img` sha256
+> `da94ea815b600951a82fc6ca46c23b679fb3362869f8a49aed1ceb00cd88a2cd`) printed
+> `bootcert ok=1 version=44 concurrency=1 priority=1 fairness=1 stealing=1
+> backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1
+> ... events_lost=0`, `certificate ok=1 version=44 substrate=1 bootcert=1
+> concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1
+> job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`, and
+> `sched12 ok=1 version=44 concurrency=1 rounds=3 completions=3 failures=0
+> dispatches=9 soak_core1=3 soak_core2=3 soak_core3=3 selftest=1`.
 
 ## What works (verified)
 
@@ -232,6 +239,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V41 secondary scheduler work-stealing protocol | ✅ | hardware run printed `runtime v41: secondary scheduler work stealing`; `bootcert ok=1 version=41 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=41 substrate=1 bootcert=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched9 ok=1 version=41 stealing=1 backpressure=1 handoff=1 wake=1 steals=4 completions=4 total=0 capacity=8 source_core1=4 source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=2 selftest=1`; `runqueues ok=1 version=33 cores=4 capacity=8 total=0`; `events count=41 capacity=64 lost=0`; clean 3-cycle live netboot repeat passed |
 | Runtime V42 secondary scheduler load-balancing protocol | ✅ | hardware run printed `runtime v42: secondary scheduler load balancing`; `bootcert ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=42 substrate=1 bootcert=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched10 ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 balances=3 completions=3 total=0 capacity=8 source_core1=3 source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=1 queue_imbalance=0 selftest=1`; `runqueues ok=1 version=33 cores=4 capacity=8 total=0`; clean 3-cycle live netboot repeat passed |
 | Runtime V43 secondary scheduler priority/preemption protocol | ✅ | hardware run printed `runtime v43: secondary scheduler priority preemption`; `bootcert ok=1 version=43 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=43 substrate=1 bootcert=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched11 ok=1 version=43 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 preemptions=2 yields=2 completions=4 total=0 capacity=8 low_core1=2 high_core1=2 preempt_core1=2 yield_core1=2 selftest=1`; `net-iterate.sh` passed all shell probes on 2026-06-07 |
+| Runtime V44 bounded SMP concurrency soak protocol | ✅ | hardware run printed `runtime v44: bounded smp concurrency soak`; `bootcert ok=1 version=44 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=44 substrate=1 bootcert=1 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched12 ok=1 version=44 concurrency=1 rounds=3 completions=3 failures=0 dispatches=9 soak_core1=3 soak_core2=3 soak_core3=3 selftest=1`; `soak ok=1 rounds=3 failures=0 heap_leak=0 frame_leak=0`; Wemo cold-cycle `netboot-auto.sh` + 3-cycle `soak-loop.sh` passed on 2026-06-07 |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -791,6 +799,19 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     preemptions=2 yields=2 completions=4 total=0 capacity=8 low_core1=2
     high_core1=2 preempt_core1=2 yield_core1=2 selftest=1`. `net-iterate.sh`
     passed all shell probes after a power-cycle recovery on the live Pi bench.
+
+  - **Runtime V44 bounded SMP concurrency soak protocol.** ✅ hardware
+    proof closed 2026-06-07. V44 keeps SMP dispatch and timer-fed secondary
+    workers active while proving three bounded soak rounds drain every per-core
+    queue back to zero. Proof: `bootcert ok=1 version=44 concurrency=1 priority=1
+    fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1
+    secondary_workers=1 ... events_lost=0`, `certificate ok=1 version=44
+    substrate=1 bootcert=1 concurrency=1 priority=1 fairness=1 stealing=1
+    backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1
+    ... events_lost=0`, and `sched12 ok=1 version=44 concurrency=1 rounds=3
+    completions=3 failures=0 dispatches=9 soak_core1=3 soak_core2=3 soak_core3=3
+    selftest=1`. Wemo cold-cycle `netboot-auto.sh` passed all shell probes and
+    `soak-loop.sh` ended `soak result ok=1 cycles=3 completed=3`.
 
 ## Provenance
 

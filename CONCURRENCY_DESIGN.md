@@ -44,16 +44,24 @@ was hardware-verified 2026-06-06. Runtime V41 secondary scheduler
 work-stealing protocol was hardware-verified 2026-06-06. Runtime V42 secondary
 scheduler load-balancing protocol was hardware-verified 2026-06-06. Runtime V43
 secondary scheduler priority/preemption protocol was hardware-verified 2026-06-07.
-Runtime V44 bounded SMP concurrency soak protocol is host-implemented and pending
-live Pi proof.
+Runtime V44 bounded SMP concurrency soak protocol was hardware-verified 2026-06-07.
 
-> ## Runtime V44 bounded SMP concurrency soak protocol ground truth (pending)
+> ## Runtime V44 bounded SMP concurrency soak protocol ground truth (2026-06-07)
 > V44 keeps Swift execution on core 0 and proves three bounded concurrency soak
 > rounds while SMP dispatch and timer-fed secondary workers stay active. Each round
 > feeds worker tokens into secondary queues, signals secondary cores, and requires
-> every queue to drain back to zero before the next round starts. Host gate expects
-> `runtime v44: bounded smp concurrency soak`, `bootcert ok=1 version=44 concurrency=1`,
-> and `sched12 ok=1 version=44 concurrency=1 rounds=3 completions=3 failures=0`.
+> every queue to drain back to zero before the next round starts. The live Pi proof
+> used `kernel8.img` sha256
+> `da94ea815b600951a82fc6ca46c23b679fb3362869f8a49aed1ceb00cd88a2cd` and passed
+> Wemo cold-cycle `netboot-auto.sh` plus a clean 3-cycle `soak-loop.sh` repeat.
+> Proof lines included `runtime v44: bounded smp concurrency soak`,
+> `bootcert ok=1 version=44 concurrency=1 priority=1 fairness=1 stealing=1
+> backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1
+> ... events_lost=0`, `certificate ok=1 version=44 substrate=1 bootcert=1
+> concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1
+> job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`, and
+> `sched12 ok=1 version=44 concurrency=1 rounds=3 completions=3 failures=0
+> dispatches=9 soak_core1=3 soak_core2=3 soak_core3=3 selftest=1`.
 
 > ## Runtime V43 secondary scheduler priority/preemption protocol ground truth (2026-06-07)
 > V43 keeps Swift execution on core 0 and adds bounded high-priority scheduler
