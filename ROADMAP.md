@@ -61,8 +61,9 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - [x] Loader for a user binary (flat blob) into a fresh address space; `sys_write` syscall
   proves EL0 output.
 - [x] Schedule user threads on the existing SMP scheduler (reuse V31–V44 machinery).
-- *First proof:* load a tiny user program from an in-image blob, run it at EL0, it
+- [x] *First proof:* load a tiny user program from an in-image blob, run it at EL0, it
   prints via a `write` syscall; multiple processes run concurrently and are isolated.
+  *(v52 + v53: loader + per-core EL0 + 3-process isolation proved on Pi4)*
 
 ### EPIC C — Storage  (persistence; read the card you booted from)
 - BCM2711 **EMMC2 / SDHCI** driver (the SD card controller).
