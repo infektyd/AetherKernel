@@ -213,10 +213,14 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
       && printf '%s' "$serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
       && printf '%s' "$serial_delta" | grep -q "runtime v45: dynamic virtual memory (page tables + TLB)" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v46: kernel/user address-space split (isolated page tables)" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v47: EL0 entry/exit and context save/restore" \
+      && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
+      && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \
       && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail tx 0x0000000000000000" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail rx 0x0000000000000000" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm"; then
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0"; then
       echo "netboot iteration verified on attempt ${attempt}/${RETRIES}"
       if [ "${AETHER_NETITERATE_SKIP_SHELL_PROBES:-0}" != "1" ]; then
         export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
@@ -294,17 +298,17 @@ while [ "$attempt" -le "$RETRIES" ]; do
           probe_shell "req id=44 cmd=sched11" "^resp id=44 ok=1 cmd=sched11 end"
         # probe shell: sched12
         AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
-          probe_shell "sched12" "^sched12 ok=1 version=45 .*concurrency=1 .*rounds=3 .*completions=3 .*failures=0 .*dispatches=[1-9][0-9]* .*total=0 .*capacity=8 .*soak_core1=[1-9][0-9]* .*soak_core2=[1-9][0-9]* .*soak_core3=[1-9][0-9]* .*selftest=1"
+          probe_shell "sched12" "^sched12 ok=1 version=44 .*concurrency=1 .*rounds=3 .*completions=3 .*failures=0 .*dispatches=[1-9][0-9]* .*total=0 .*capacity=8 .*soak_core1=[1-9][0-9]* .*soak_core2=[1-9][0-9]* .*soak_core3=[1-9][0-9]* .*selftest=1"
         # probe shell: req-sched12
         AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
           probe_shell "req id=45 cmd=sched12" "^resp id=45 ok=1 cmd=sched12 end"
         # probe shell: bootcert
         AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
-          probe_shell "bootcert" "^bootcert ok=1 version=45 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0"
+          probe_shell "bootcert" "^bootcert ok=1 version=47 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0"
         export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
         # probe shell: certificate
         AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
-          probe_shell "certificate" "^certificate ok=1 version=45 substrate=1 .*bootcert=1 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*vmm=1 .*events_lost=0"
+          probe_shell "certificate" "^certificate ok=1 version=47 substrate=1 .*bootcert=1 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*vmm=1 .*asplit=1 .*el0=1 .*events_lost=0"
         export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
@@ -356,6 +360,19 @@ while [ "$attempt" -le "$RETRIES" ]; do
       echo "--- serial delta ---"
       printf '%s\n' "$serial_delta" | tail -n 120
       exit 0
+    fi
+
+    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v46: kernel/user address-space split (isolated page tables)" \
+      && ! printf '%s' "$serial_delta" | grep -q "runtime v47: EL0 entry/exit and context save/restore"; then
+      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V47 SD fallback image detected"
+      echo "TFTP kernel fetch was not verified; staged network image is not proven."
+      print_tftp_diagnostics "$dns_delta"
+      last_dns_delta="$dns_delta"
+      last_serial_delta="$serial_delta"
+      sd_fallback_seen=1
+      break
     fi
 
     if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \

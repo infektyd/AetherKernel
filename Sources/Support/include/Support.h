@@ -851,6 +851,20 @@ void kernel_vmm_switch_pt(unsigned long l1_pa);
 void kernel_vmm_switch_pt_asid(unsigned long l1_pa, unsigned int asid);
 int kernel_vmm_asplit_selftest(void);
 
+// Runtime V47: EL0 entry/exit and context save/restore.
+typedef struct {
+    unsigned long regs[31]; // x0 - x30
+    unsigned long sp_el0;   // Stack pointer for EL0
+    unsigned long elr_el1;  // ELR_EL1 (PC)
+    unsigned long spsr_el1; // SPSR_EL1
+} user_context_t;
+
+void kernel_enter_el0_and_wait(unsigned long entry_pc, unsigned long user_sp);
+void kernel_el0_sync_handler(user_context_t *ctx);
+int kernel_vmm_el0_selftest(void);
+extern void el0_test_stub(void);
+extern void el0_test_stub_end(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

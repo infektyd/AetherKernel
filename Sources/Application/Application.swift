@@ -199,6 +199,7 @@ struct Application {
     // Runtime V40 adds bounded scheduler backpressure proof.
     // Runtime V44 adds bounded SMP concurrency soak under active scheduler load.
     // Runtime V46 adds kernel/user address-space split (isolated page tables).
+    // Runtime V47 adds EL0 entry/exit and context save/restore.
     // Runtime V45 adds dynamic virtual memory (page table allocator + 4KiB map/unmap + TLB maintenance on live EL1 tables).
     // Runtime V43 adds bounded secondary scheduler priority lanes.
     // Runtime V42 adds bounded secondary scheduler load balancing.
@@ -208,7 +209,7 @@ struct Application {
     kernel_cancel_init()
     kernel_event_log_init()
     kernel_scheduler_init()
-    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 46, 0, 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 47, 0, 0)
     kernel_object_registry_init()
     kernel_driver_registry_init()
     kernel_task_registry_init()
@@ -274,12 +275,14 @@ struct Application {
     uartPuts("runtime v44: bounded smp concurrency soak\n")
     uartPuts("runtime v45: dynamic virtual memory (page tables + TLB)\n")
     uartPuts("runtime v46: kernel/user address-space split (isolated page tables)\n")
+    uartPuts("runtime v47: EL0 entry/exit and context save/restore\n")
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(kernel_cancel_selftest()), 0)
     kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19, UInt(aetherTaskSpawnSelftest()), UInt(kernel_task_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20, UInt(aetherChannelSelftest()), UInt(kernel_mailbox_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 21, UInt(kernel_mmu_selftest()), 0)
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 45, UInt(kernel_vmm_pt_alloc_selftest()), UInt(kernel_vmm_vmm_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 46, UInt(kernel_vmm_asplit_selftest()), 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 47, UInt(kernel_vmm_el0_selftest()), 0)
     uartPuts("vmmcheck ok=")
     uartPutDec(UInt64((kernel_vmm_pt_alloc_selftest() != 0 && kernel_vmm_vmm_selftest() != 0) ? 1 : 0))
     uartPuts(" pt=")
@@ -291,6 +294,10 @@ struct Application {
     uartPuts("asplit ok=")
     uartPutDec(UInt64(asplit_ok))
     uartPuts(" version=46\n")
+    let el0_ok = kernel_vmm_el0_selftest()
+    uartPuts("el0 ok=")
+    uartPutDec(UInt64(el0_ok))
+    uartPuts(" version=47\n")
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

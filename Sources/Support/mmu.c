@@ -592,3 +592,97 @@ int kernel_vmm_asplit_selftest(void) {
     debug_uart_puts("selftest ok="); debug_uart_putc(ok ? '1' : '0'); debug_uart_puts("\n");
     return ok ? 1 : 0;
 }
+
+volatile unsigned long el0_test_result_x0 = 0;
+volatile unsigned long el0_test_result_x1 = 0;
+volatile int el0_test_result_handled = 0;
+
+void kernel_el0_sync_handler(user_context_t *ctx) {
+    unsigned long esr;
+    __asm__ volatile("mrs %0, esr_el1" : "=r"(esr));
+    unsigned long ec = (esr >> 26) & 0x3fUL;
+    
+    if (ec == 0x15) { // SVC
+        el0_test_result_x0 = ctx->regs[0];
+        el0_test_result_x1 = ctx->regs[1];
+        el0_test_result_handled = 1;
+    } else {
+        debug_uart_puts("EL0 sync exception EC=");
+        debug_uart_puthex(ec);
+        debug_uart_puts(" ELR=");
+        debug_uart_puthex(ctx->elr_el1);
+        debug_uart_puts("\n");
+        unsigned long far;
+        __asm__ volatile("mrs %0, far_el1" : "=r"(far));
+        extern void kernel_exception_handler(unsigned long esr, unsigned long elr, unsigned long far);
+        kernel_exception_handler(esr, ctx->elr_el1, far);
+    }
+}
+
+int kernel_vmm_el0_selftest(void) {
+    unsigned long pt = kernel_vmm_alloc_pt();
+    if (pt == 0) return 0;
+    kernel_vmm_init_space(pt);
+
+    unsigned long code_frame = kernel_frame_alloc();
+    unsigned long stack_frame = kernel_frame_alloc();
+    if (code_frame == 0 || stack_frame == 0) {
+        if (code_frame) kernel_frame_free(code_frame);
+        if (stack_frame) kernel_frame_free(stack_frame);
+        kernel_vmm_free_space(pt);
+        return 0;
+    }
+
+    // Copy el0_test_stub to code_frame
+    unsigned long stub_size = (unsigned long)el0_test_stub_end - (unsigned long)el0_test_stub;
+    if (stub_size > 4096) stub_size = 4096;
+    
+    unsigned char *dst = (unsigned char *)code_frame;
+    const unsigned char *src = (const unsigned char *)el0_test_stub;
+    for (unsigned long i = 0; i < stub_size; i++) {
+        dst[i] = src[i];
+    }
+    clean_data_cache_range((const void *)code_frame, stub_size);
+    __asm__ volatile("isb" ::: "memory");
+
+    unsigned long user_code_va = 0x100000000UL;
+    unsigned long user_stack_va = 0x100001000UL;
+    unsigned long attrs = KERNEL_VMM_ATTR_USER | (1UL << 11); // Non-Global
+
+    if (!kernel_vmm_map_in_table(pt, user_code_va, code_frame, attrs) ||
+        !kernel_vmm_map_in_table(pt, user_stack_va, stack_frame, attrs)) {
+        debug_uart_puts("el0 mapping failed\n");
+        kernel_frame_free(code_frame);
+        kernel_frame_free(stack_frame);
+        kernel_vmm_free_space(pt);
+        return 0;
+    }
+
+    unsigned long irq_flags = irq_save();
+
+    // Switch page table with ASID 3
+    kernel_vmm_switch_pt_asid(pt, 3);
+
+    el0_test_result_x0 = 0;
+    el0_test_result_x1 = 0;
+    el0_test_result_handled = 0;
+
+    // Enter EL0
+    kernel_enter_el0_and_wait(user_code_va, user_stack_va + 4096);
+
+    // Restore kernel page table (ASID 0)
+    kernel_vmm_switch_pt_asid(0, 0);
+
+    irq_restore(irq_flags);
+
+    kernel_frame_free(code_frame);
+    kernel_frame_free(stack_frame);
+    kernel_vmm_free_space(pt);
+
+    int ok = el0_test_result_handled && (el0_test_result_x0 == 0x47) && (el0_test_result_x1 == 0x2026);
+    debug_uart_puts("el0 ok=");
+    debug_uart_putc(ok ? '1' : '0');
+    debug_uart_puts(" version=47\n");
+
+    return ok ? 1 : 0;
+}
