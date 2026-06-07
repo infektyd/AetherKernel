@@ -6,7 +6,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V39 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
-    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,cores,locks,runqueues,diag,irqs,timers,"
+    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,cores,locks,runqueues,diag,irqs,timers,"
     "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,"
     "heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,"
     "canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
@@ -46,7 +46,7 @@ def test_runtime_v39_secondary_handoff_contract_exists() -> None:
 
     for marker in (
         "Runtime V39 secondary scheduler handoff protocol",
-        "#define KERNEL_SCHEDULER_VERSION 42U",
+        "#define KERNEL_SCHEDULER_VERSION 43U",
         "void kernel_scheduler_enable_secondary_handoffs(void);",
         "unsigned int kernel_scheduler_secondary_handoffs_enabled(void);",
         "unsigned long kernel_scheduler_secondary_handoff_issue_count(unsigned int core_id);",
@@ -75,7 +75,7 @@ def test_runtime_v39_application_boot_marker_and_selftest_exist() -> None:
 
     for marker in (
         "Runtime V39 adds secondary scheduler handoff acknowledgements.",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 42, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 43, 0, 0)",
         "kernel_scheduler_enable_secondary_handoffs()",
         "runtime v39: secondary scheduler handoff protocol",
         "let runtimeV39 = kernel_scheduler_secondary_handoff_selftest()",
@@ -146,9 +146,9 @@ def test_runtime_v39_netboot_gates_and_sched7_probe_exist() -> None:
         "^sched7 ok=1 version=39 .*handoff=1 .*wake=1 .*job_exec=1 .*issued=[1-9][0-9]* .*completed=[1-9][0-9]* .*gap=[0-9][0-9]* .*imbalance=[0-9][0-9]* .*core0_issue=0 .*core1_issue=[1-9][0-9]* .*core2_issue=[1-9][0-9]* .*core3_issue=[1-9][0-9]* .*core0_done=0 .*core1_done=[1-9][0-9]* .*core2_done=[1-9][0-9]* .*core3_done=[1-9][0-9]* .*selftest=1",
         "probe shell: req-sched7",
         "^resp id=40 ok=1 cmd=sched7 end",
-        "^bootcert ok=1 version=42 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
-        "^certificate ok=1 version=42 substrate=1 .*bootcert=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
-        "stale pre-V41 SD fallback",
+        "^bootcert ok=1 version=43 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "^certificate ok=1 version=43 substrate=1 .*bootcert=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
+        "stale pre-V43 SD fallback",
     ):
         assert marker in net_iterate
 

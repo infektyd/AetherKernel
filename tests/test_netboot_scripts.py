@@ -342,11 +342,13 @@ def test_net_iterate_reports_stale_pre_v11_sd_fallback_without_claiming_netboot(
 
     assert "stale pre-V41 SD fallback image detected" in net_iterate
     assert "stale pre-V42 SD fallback image detected" in net_iterate
+    assert "stale pre-V43 SD fallback image detected" in net_iterate
     assert "TFTP kernel fetch was not verified" in net_iterate
     assert 'grep -q "shell ready commands="' in net_iterate
     assert "sd_fallback_seen=1" in net_iterate
     assert "retrying after stale pre-V41 SD fallback" in net_iterate
     assert "retrying after stale pre-V42 SD fallback" in net_iterate
+    assert "retrying after stale pre-V43 SD fallback" in net_iterate
     assert "final_exit=3" in net_iterate
     assert 'exit "$final_exit"' in net_iterate
 
@@ -404,7 +406,7 @@ def test_netboot_doctor_verifies_runtime_v11_markers() -> None:
     assert "runtime v10: explicit guard probes" in doctor
     assert "runtime v11: boot and soak invariants" in doctor
     assert "runtime v21: mmu ownership boundary" in doctor
-    assert "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot" in doctor
+    assert "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot" in doctor
     assert "async tick 0x0000000000000000" not in doctor
 
 

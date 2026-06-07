@@ -109,6 +109,7 @@ void kernel_smp_secondary_entry(unsigned int core_id, unsigned long mpidr) {
     memory_barrier();
 
     for (;;) {
+        (void)kernel_scheduler_try_preempt_priority_work(core_id);
         kernel_scheduler_secondary_worker_tick(core_id);
         (void)kernel_scheduler_try_balance_work(core_id);
         cores[core_id].heartbeat++;

@@ -197,6 +197,7 @@ struct Application {
     // Runtime V38 adds SEV/WFE secondary scheduler wakeups.
     // Runtime V39 adds secondary scheduler handoff acknowledgements.
     // Runtime V40 adds bounded scheduler backpressure proof.
+    // Runtime V43 adds bounded secondary scheduler priority lanes.
     // Runtime V42 adds bounded secondary scheduler load balancing.
     // Runtime V41 adds bounded secondary scheduler work stealing.
     kernel_memory_init()
@@ -204,7 +205,7 @@ struct Application {
     kernel_cancel_init()
     kernel_event_log_init()
     kernel_scheduler_init()
-    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 42, 0, 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 43, 0, 0)
     kernel_object_registry_init()
     kernel_driver_registry_init()
     kernel_task_registry_init()
@@ -223,6 +224,7 @@ struct Application {
     kernel_scheduler_enable_secondary_handoffs()
     kernel_scheduler_enable_secondary_work_stealing()
     kernel_scheduler_enable_load_balancing()
+    kernel_scheduler_enable_priority_lanes()
     kernel_scheduler_enable_timer_worker_feed()
     uart_rx_irq_enable()
     uartPuts("runtime v2: shared CNTP timer arbiter, multi-task async sleep\n")
@@ -264,6 +266,7 @@ struct Application {
     uartPuts("runtime v40: scheduler backpressure protocol\n")
     uartPuts("runtime v41: secondary scheduler work stealing\n")
     uartPuts("runtime v42: secondary scheduler load balancing\n")
+    uartPuts("runtime v43: secondary scheduler priority preemption\n")
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(kernel_cancel_selftest()), 0)
     kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19, UInt(aetherTaskSpawnSelftest()), UInt(kernel_task_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20, UInt(aetherChannelSelftest()), UInt(kernel_mailbox_count()))
@@ -298,6 +301,8 @@ struct Application {
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 41, UInt(runtimeV41), UInt(kernel_scheduler_steal_total()))
     let runtimeV42 = kernel_scheduler_fairness_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 42, UInt(runtimeV42), UInt(kernel_scheduler_balance_total()))
+    let runtimeV43 = kernel_scheduler_priority_selftest()
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 43, UInt(runtimeV43), UInt(kernel_scheduler_priority_preempt_total()))
     let handleSelftest = kernel_object_handle_selftest()
     let capSelftest = kernel_object_capcheck_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_HANDLE, UInt(handleSelftest), UInt(capSelftest), 0)
