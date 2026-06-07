@@ -1,23 +1,31 @@
 // Runtime V49: fault-safe copy_from_user / copy_to_user via page-table probes.
+// Runtime V53: per-core active_pt for SMP-safe concurrent EL0.
 #include "Support.h"
 
 #define KERNEL_UACCESS_EFAULT (-14L)
 
-static unsigned long kernel_uaccess_active_pt = 0;
+static unsigned long kernel_uaccess_active_pt[4];
+
+static inline unsigned int uaccess_core_id(void) {
+    unsigned long mpidr;
+    __asm__ volatile("mrs %0, MPIDR_EL1" : "=r"(mpidr));
+    return (unsigned int)(mpidr & 0xFF);
+}
 
 void kernel_uaccess_set_active_pt(unsigned long l1_pa) {
-    kernel_uaccess_active_pt = l1_pa;
+    kernel_uaccess_active_pt[uaccess_core_id()] = l1_pa;
 }
 
 unsigned long kernel_uaccess_active_pt_read(void) {
-    return kernel_uaccess_active_pt;
+    return kernel_uaccess_active_pt[uaccess_core_id()];
 }
 
 long kernel_copy_from_user(void *kdst, unsigned long usrc, unsigned long len) {
     if (kdst == 0 || len == 0) {
         return 0;
     }
-    if (kernel_uaccess_active_pt == 0) {
+    unsigned long active_pt = kernel_uaccess_active_pt[uaccess_core_id()];
+    if (active_pt == 0) {
         return KERNEL_UACCESS_EFAULT;
     }
 
@@ -29,7 +37,7 @@ long kernel_copy_from_user(void *kdst, unsigned long usrc, unsigned long len) {
         unsigned long page_base = uva & ~0xfffUL;
         unsigned long page_off = uva & 0xfffUL;
         unsigned long attrs = 0;
-        unsigned long pa = kernel_vmm_lookup_in_table(kernel_uaccess_active_pt, page_base, &attrs);
+        unsigned long pa = kernel_vmm_lookup_in_table(active_pt, page_base, &attrs);
 
         if (pa == 0 || (attrs & KERNEL_VMM_ATTR_USER) == 0) {
             return copied == 0 ? KERNEL_UACCESS_EFAULT : (long)copied;
@@ -54,7 +62,8 @@ long kernel_copy_to_user(unsigned long udst, const void *ksrc, unsigned long len
     if (ksrc == 0 || len == 0) {
         return 0;
     }
-    if (kernel_uaccess_active_pt == 0) {
+    unsigned long active_pt = kernel_uaccess_active_pt[uaccess_core_id()];
+    if (active_pt == 0) {
         return KERNEL_UACCESS_EFAULT;
     }
 
@@ -66,7 +75,7 @@ long kernel_copy_to_user(unsigned long udst, const void *ksrc, unsigned long len
         unsigned long page_base = uva & ~0xfffUL;
         unsigned long page_off = uva & 0xfffUL;
         unsigned long attrs = 0;
-        unsigned long pa = kernel_vmm_lookup_in_table(kernel_uaccess_active_pt, page_base, &attrs);
+        unsigned long pa = kernel_vmm_lookup_in_table(active_pt, page_base, &attrs);
 
         if (pa == 0 || (attrs & KERNEL_VMM_ATTR_USER) == 0) {
             return copied == 0 ? KERNEL_UACCESS_EFAULT : (long)copied;

@@ -105,7 +105,11 @@ el0_sync_entry:
     mov     x0, sp
     bl      _kernel_el0_sync_handler
 
+    mrs     x4, MPIDR_EL1
+    and     x4, x4, #0xFF
+    lsl     x4, x4, #3
     ldr     x2, =_kernel_el1_saved_sp
+    add     x2, x2, x4
     ldr     x3, [x2]
     cbz     x3, el0_sync_return_to_user
 
@@ -203,9 +207,13 @@ _kernel_enter_el0_and_wait:
     stp     x29, x30, [sp, #-16]!
     
     mov     x2, sp
-    ldr     x3, =_kernel_el1_saved_sp
-    str     x2, [x3]
-    
+    mrs     x3, MPIDR_EL1
+    and     x3, x3, #0xFF
+    lsl     x3, x3, #3
+    ldr     x4, =_kernel_el1_saved_sp
+    add     x4, x4, x3
+    str     x2, [x4]
+
     msr     sp_el0, x1
     msr     elr_el1, x0
     mov     x0, #0
@@ -291,5 +299,8 @@ _user_hello_stub_end:
 .balign 8
 .global _kernel_el1_saved_sp
 _kernel_el1_saved_sp:
+    .quad 0
+    .quad 0
+    .quad 0
     .quad 0
 

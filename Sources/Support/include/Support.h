@@ -907,6 +907,9 @@ extern void user_hello_stub(void);
 extern void user_hello_stub_end(void);
 int kernel_loader_selftest(void);
 
+// Runtime V53: Multi-process selftest — three isolated user processes via per-core EL0.
+int kernel_multiprocess_selftest(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.
