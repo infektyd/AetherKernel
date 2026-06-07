@@ -349,3 +349,246 @@ int kernel_vmm_vmm_selftest(void) {
     // After unmap + flush, the old mapping should be gone (we don't re-access here to avoid fault).
     return ok ? 1 : 0;
 }
+
+//===----------------------------------------------------------------------===//
+// Runtime V46: kernel/user address-space split and isolated page tables.
+//===----------------------------------------------------------------------===//
+
+void kernel_vmm_init_space(unsigned long l1_pa) {
+    if (l1_pa == 0) return;
+    volatile unsigned long *l1 = (volatile unsigned long *)l1_pa;
+    l1[0] = l1_table[0];
+    l1[1] = l1_table[1];
+    l1[2] = l1_table[2];
+    l1[3] = l1_table[3];
+    clean_data_cache_range((const void *)l1_pa, 4096);
+    __asm__ volatile("dsb sy" ::: "memory");
+}
+
+int kernel_vmm_map_in_table(unsigned long l1_pa, unsigned long va, unsigned long pa, unsigned long attrs) {
+    unsigned int l1i = VMM_L1_INDEX(va);
+    unsigned int l2i = VMM_L2_INDEX(va);
+    unsigned int l3i = VMM_L3_INDEX(va);
+
+    if (l1i >= 512 || l1_pa == 0) {
+        return 0; // Out of bounds
+    }
+
+    volatile unsigned long *l1 = (volatile unsigned long *)l1_pa;
+
+    if (l1[l1i] == 0) {
+        unsigned long l2_pa = kernel_vmm_alloc_pt();
+        if (l2_pa == 0) return 0;
+        l1[l1i] = vmm_table_desc(l2_pa);
+        clean_data_cache_range((const void *)&l1[l1i], 8);
+        vmm_tlb_flush();
+    }
+
+    unsigned long l2_pa = l1[l1i] & ~0xfffUL;
+    volatile unsigned long *l2 = (volatile unsigned long *)l2_pa;
+    if (l2[l2i] == 0) {
+        unsigned long l3_pa = kernel_vmm_alloc_pt();
+        if (l3_pa == 0) return 0;
+        l2[l2i] = vmm_table_desc(l3_pa);
+        clean_data_cache_range((const void *)&l2[l2i], 8);
+        vmm_tlb_flush();
+    }
+
+    unsigned long l3_pa = l2[l2i] & ~0xfffUL;
+    volatile unsigned long *l3 = (volatile unsigned long *)l3_pa;
+    l3[l3i] = vmm_page_desc(pa) | attrs;
+    clean_data_cache_range((const void *)&l3[l3i], 8);
+    vmm_tlb_flush();
+    return 1;
+}
+
+int kernel_vmm_unmap_in_table(unsigned long l1_pa, unsigned long va) {
+    unsigned int l1i = VMM_L1_INDEX(va);
+    unsigned int l2i = VMM_L2_INDEX(va);
+    unsigned int l3i = VMM_L3_INDEX(va);
+
+    if (l1i >= 512 || l1_pa == 0) {
+        return 0;
+    }
+
+    volatile unsigned long *l1 = (volatile unsigned long *)l1_pa;
+    if (l1[l1i] == 0) {
+        return 0;
+    }
+
+    unsigned long l2_pa = l1[l1i] & ~0xfffUL;
+    volatile unsigned long *l2 = (volatile unsigned long *)l2_pa;
+    if (l2[l2i] == 0) {
+        return 0;
+    }
+
+    unsigned long l3_pa = l2[l2i] & ~0xfffUL;
+    volatile unsigned long *l3 = (volatile unsigned long *)l3_pa;
+    
+    l3[l3i] = 0;  // invalidate the leaf
+    clean_data_cache_range((const void *)&l3[l3i], 8);
+    vmm_tlb_flush();
+    return 1;
+}
+
+void kernel_vmm_free_space(unsigned long l1_pa) {
+    if (l1_pa == 0) return;
+    volatile unsigned long *l1 = (volatile unsigned long *)l1_pa;
+    for (int i = 4; i < 512; i++) {
+        if (l1[i] != 0 && (l1[i] & 3UL) == 3UL) {
+            unsigned long l2_pa = l1[i] & ~0xfffUL;
+            volatile unsigned long *l2 = (volatile unsigned long *)l2_pa;
+            for (int j = 0; j < 512; j++) {
+                if (l2[j] != 0 && (l2[j] & 3UL) == 3UL) {
+                    unsigned long l3_pa = l2[j] & ~0xfffUL;
+                    kernel_vmm_free_pt(l3_pa);
+                }
+            }
+            kernel_vmm_free_pt(l2_pa);
+        }
+    }
+    kernel_vmm_free_pt(l1_pa);
+}
+
+void kernel_vmm_switch_pt(unsigned long l1_pa) {
+    if (l1_pa == 0) {
+        msr_ttbr0_el1((unsigned long)l1_table);
+    } else {
+        msr_ttbr0_el1(l1_pa);
+    }
+    vmm_tlb_flush();
+}
+
+void kernel_vmm_switch_pt_asid(unsigned long l1_pa, unsigned int asid) {
+    unsigned long ttbr;
+    if (l1_pa == 0) {
+        ttbr = (unsigned long)l1_table;
+    } else {
+        ttbr = l1_pa | (((unsigned long)asid & 0xffffUL) << 48);
+    }
+    msr_ttbr0_el1(ttbr);
+    __asm__ volatile("dsb sy" ::: "memory");
+    __asm__ volatile("isb" ::: "memory");
+}
+
+static void debug_uart_putc(char c) {
+    while (mmio_read32(0xFE201000UL + 0x18UL) & (1U << 5)) {}
+    mmio_write32(0xFE201000UL + 0x00UL, (unsigned int)(unsigned char)c);
+}
+
+static void debug_uart_puts(const char *s) {
+    while (*s) {
+        debug_uart_putc(*s++);
+    }
+}
+
+static void debug_uart_puthex(unsigned long v) {
+    char hex[16] = "0123456789ABCDEF";
+    debug_uart_puts("0x");
+    for (int i = 15; i >= 0; i--) {
+        debug_uart_putc(hex[(v >> (i * 4)) & 0xf]);
+    }
+}
+
+int kernel_vmm_asplit_selftest(void) {
+    unsigned long pt1 = kernel_vmm_alloc_pt();
+    unsigned long pt2 = kernel_vmm_alloc_pt();
+    
+    debug_uart_puts("asplit selftest: pt1="); debug_uart_puthex(pt1); debug_uart_puts(" pt2="); debug_uart_puthex(pt2); debug_uart_puts("\n");
+
+    if (pt1 == 0 || pt2 == 0) {
+        if (pt1) kernel_vmm_free_pt(pt1);
+        if (pt2) kernel_vmm_free_pt(pt2);
+        return 0;
+    }
+
+    kernel_vmm_init_space(pt1);
+    kernel_vmm_init_space(pt2);
+
+    unsigned long frame1 = kernel_frame_alloc();
+    unsigned long frame2 = kernel_frame_alloc();
+    
+    debug_uart_puts("frame1="); debug_uart_puthex(frame1); debug_uart_puts(" frame2="); debug_uart_puthex(frame2); debug_uart_puts("\n");
+
+    if (frame1 == 0 || frame2 == 0) {
+        if (frame1) kernel_frame_free(frame1);
+        if (frame2) kernel_frame_free(frame2);
+        kernel_vmm_free_space(pt1);
+        kernel_vmm_free_space(pt2);
+        return 0;
+    }
+
+    // Map as Non-Global (nG = 1UL << 11) to use ASID segregation in TLB
+    unsigned long test_va = 0x100000000UL;
+    if (!kernel_vmm_map_in_table(pt1, test_va, frame1, (1UL << 11)) ||
+        !kernel_vmm_map_in_table(pt2, test_va, frame2, (1UL << 11))) {
+        debug_uart_puts("mapping failed\n");
+        kernel_frame_free(frame1);
+        kernel_frame_free(frame2);
+        kernel_vmm_free_space(pt1);
+        kernel_vmm_free_space(pt2);
+        return 0;
+    }
+
+    // Inspect pt1 entries
+    {
+        unsigned long *l1 = (unsigned long *)pt1;
+        debug_uart_puts("pt1[4]="); debug_uart_puthex(l1[4]); debug_uart_puts("\n");
+        unsigned long l2_pa = l1[4] & ~0xfffUL;
+        unsigned long *l2 = (unsigned long *)l2_pa;
+        debug_uart_puts("l2[0]="); debug_uart_puthex(l2[0]); debug_uart_puts("\n");
+        unsigned long l3_pa = l2[0] & ~0xfffUL;
+        unsigned long *l3 = (unsigned long *)l3_pa;
+        debug_uart_puts("l3[0]="); debug_uart_puthex(l3[0]); debug_uart_puts("\n");
+    }
+    // Inspect pt2 entries
+    {
+        unsigned long *l1 = (unsigned long *)pt2;
+        debug_uart_puts("pt2[4]="); debug_uart_puthex(l1[4]); debug_uart_puts("\n");
+        unsigned long l2_pa = l1[4] & ~0xfffUL;
+        unsigned long *l2 = (unsigned long *)l2_pa;
+        debug_uart_puts("pt2_l2[0]="); debug_uart_puthex(l2[0]); debug_uart_puts("\n");
+        unsigned long l3_pa = l2[0] & ~0xfffUL;
+        unsigned long *l3 = (unsigned long *)l3_pa;
+        debug_uart_puts("pt2_l3[0]="); debug_uart_puthex(l3[0]); debug_uart_puts("\n");
+    }
+
+    // Switch to pt1 with ASID 1
+    kernel_vmm_switch_pt_asid(pt1, 1);
+    debug_uart_puts("switched to pt1\n");
+    volatile unsigned long *p = (volatile unsigned long *)test_va;
+    *p = 0xDE1DE1DE1ULL;
+    debug_uart_puts("wrote to pt1 test_va\n");
+
+    // Switch to pt2 with ASID 2
+    kernel_vmm_switch_pt_asid(pt2, 2);
+    debug_uart_puts("switched to pt2\n");
+    unsigned long read2 = *p;
+    *p = 0xAD2AD2AD2ULL;
+    debug_uart_puts("wrote to pt2 test_va\n");
+
+    // Switch to pt1 with ASID 1
+    kernel_vmm_switch_pt_asid(pt1, 1);
+    unsigned long read1 = *p;
+
+    // Switch to pt2 with ASID 2
+    kernel_vmm_switch_pt_asid(pt2, 2);
+    unsigned long read2_again = *p;
+
+    // Restore boot page table (ASID 0)
+    kernel_vmm_switch_pt_asid(0, 0);
+
+    debug_uart_puts("read2="); debug_uart_puthex(read2);
+    debug_uart_puts(" read1="); debug_uart_puthex(read1);
+    debug_uart_puts(" read2_again="); debug_uart_puthex(read2_again);
+    debug_uart_puts("\n");
+
+    kernel_frame_free(frame1);
+    kernel_frame_free(frame2);
+    kernel_vmm_free_space(pt1);
+    kernel_vmm_free_space(pt2);
+
+    int ok = (read2 != 0xDE1DE1DE1ULL) && (read1 == 0xDE1DE1DE1ULL) && (read2_again == 0xAD2AD2AD2ULL);
+    debug_uart_puts("selftest ok="); debug_uart_putc(ok ? '1' : '0'); debug_uart_puts("\n");
+    return ok ? 1 : 0;
+}

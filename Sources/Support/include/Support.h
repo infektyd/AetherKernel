@@ -246,7 +246,7 @@ int kernel_spinlock_selftest(void);
 // preemptive yield when high-priority work arrives behind low-priority tokens.
 // V44 proves bounded concurrency soak rounds while SMP dispatch and timer-fed
 // secondary workers stay active and every per-core queue drains back to zero.
-#define KERNEL_SCHEDULER_VERSION 45U
+#define KERNEL_SCHEDULER_VERSION 46U
 #define KERNEL_SCHEDULER_CONCURRENCY_SOAK_ROUNDS 3U
 #define KERNEL_SCHEDULER_CORE_CAPACITY 4U
 #define KERNEL_SCHEDULER_RUNQUEUE_CAPACITY 8U
@@ -840,6 +840,16 @@ int kernel_vmm_pt_alloc_selftest(void);
 int kernel_vmm_map_4k(unsigned long va, unsigned long pa, unsigned long attrs);
 int kernel_vmm_unmap_4k(unsigned long va);
 int kernel_vmm_vmm_selftest(void);  // basic table + simple high-VA map test (expanded in v45-3)
+
+// Runtime V46: kernel/user address-space split and isolated page tables.
+#define KERNEL_VMM_ATTR_USER (1UL << 6)
+void kernel_vmm_init_space(unsigned long l1_pa);
+int kernel_vmm_map_in_table(unsigned long l1_pa, unsigned long va, unsigned long pa, unsigned long attrs);
+int kernel_vmm_unmap_in_table(unsigned long l1_pa, unsigned long va);
+void kernel_vmm_free_space(unsigned long l1_pa);
+void kernel_vmm_switch_pt(unsigned long l1_pa);
+void kernel_vmm_switch_pt_asid(unsigned long l1_pa, unsigned int asid);
+int kernel_vmm_asplit_selftest(void);
 
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
