@@ -892,6 +892,13 @@ extern void usermode_fault_stub_end(void);
 int kernel_el0_fault_contained_read(void);
 int kernel_usermode_selftest(void);
 
+// Runtime V51: Process abstraction — address space + lifecycle state.
+int kernel_process_create(unsigned long *pid_out);
+int kernel_process_destroy(unsigned long pid);
+int kernel_process_count(void);
+int kernel_process_capacity(void);
+int kernel_process_selftest(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

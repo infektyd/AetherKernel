@@ -19,7 +19,7 @@ This is a multi-year-class goal. It is reached one **hardware-proven increment**
 time — the same cadence that produced V1–V44. Never "boil the ocean": each increment
 must boot on the real Pi 4 and emit a machine-checkable serial marker + bootcert flag.
 
-## Where we are now (V50)
+## Where we are now (V51)
 
 A strong **microkernel-style runtime core**, all hardware-verified:
 - Boot → EL1, PL011 UART, GPIO mux, CNTP timer, GIC-400 IRQ routing, EL1 vectors.
@@ -31,6 +31,7 @@ A strong **microkernel-style runtime core**, all hardware-verified:
 - SMP: 4-core bring-up, atomics/spinlocks, per-core runqueues, timer-driven dispatch,
   secondary workers, work-stealing, load-balancing, priority/preemption, bounded soak.
 - Boot certificate + substrate certificate; panic/fault retained records; watchdog.
+- **EPIC B start**: **process abstraction** — address space (isolated page table + ASID) + lifecycle state (create/destroy), with a fixed process table and ASID bitmap allocator.
 
 **The gap to the North Star** is everything that makes an OS *general-purpose*: user
 mode, processes, storage, display, input, and networking. The epics below close it.
@@ -56,7 +57,7 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
   round trip and that a user fault is contained, not fatal to the kernel.
 
 ### EPIC B — Processes & program loading  (run something that isn't compiled in)
-- Process abstraction: address space + one or more threads + lifecycle state.
+- [x] Process abstraction: address space + one or more threads + lifecycle state.
 - Loader for a user binary (Mach-O `arm64-apple-none-macho`, or ELF — pick the simplest
   to produce from the existing toolchain) into a fresh address space.
 - Schedule user threads on the existing SMP scheduler (reuse V31–V44 machinery).
