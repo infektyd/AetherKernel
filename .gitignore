@@ -6,3 +6,4 @@ kernel8.img
 __pycache__/
 *.pyc
 .pytest_cache/
+monitor-v45.sh

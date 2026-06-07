@@ -172,11 +172,7 @@ int kernel_mmu_selftest(void) {
         l1_table[3] != device_block(0xC0000000UL)) {
         return 0;
     }
-    for (unsigned int i = 4; i < KERNEL_MMU_L1_ENTRY_COUNT; i++) {
-        if (l1_table[i] != 0) {
-            return 0;
-        }
-    }
+    // Dynamic VMM now allocates tables in L1[4]+, so we no longer assert they are 0.
     return 1;
 }
 
@@ -225,6 +221,7 @@ unsigned long kernel_vmm_alloc_pt(void) {
         pt[i] = 0;
     }
     // Make the zeroing visible before the table is installed.
+    clean_data_cache_range((const void *)pa, 4096);
     __asm__ volatile("dsb sy" ::: "memory");
     return pa;
 }
@@ -271,14 +268,15 @@ int kernel_vmm_map_4k(unsigned long va, unsigned long pa, unsigned long attrs) {
     unsigned int l2i = VMM_L2_INDEX(va);
     unsigned int l3i = VMM_L3_INDEX(va);
 
-    if (l1i >= 512) return 0;
+    if (l1i >= 512) {
+        return 0; // Out of bounds
+    }
 
-    // Ensure L1 entry has a table (allocate L2 if this L1 slot is still fault/0)
     if (l1_table[l1i] == 0) {
         unsigned long l2_pa = kernel_vmm_alloc_pt();
         if (l2_pa == 0) return 0;
         l1_table[l1i] = vmm_table_desc(l2_pa);
-        // BBM not strictly required for first install into 0, but flush for visibility
+        clean_data_cache_range((const void *)&l1_table[l1i], 8);
         vmm_tlb_flush();
     }
 
@@ -288,12 +286,14 @@ int kernel_vmm_map_4k(unsigned long va, unsigned long pa, unsigned long attrs) {
         unsigned long l3_pa = kernel_vmm_alloc_pt();
         if (l3_pa == 0) return 0;
         l2[l2i] = vmm_table_desc(l3_pa);
+        clean_data_cache_range((const void *)&l2[l2i], 8);
         vmm_tlb_flush();
     }
 
     unsigned long l3_pa = l2[l2i] & ~0xfffUL;
     volatile unsigned long *l3 = (volatile unsigned long *)l3_pa;
     l3[l3i] = vmm_page_desc(pa);
+    clean_data_cache_range((const void *)&l3[l3i], 8);
     vmm_tlb_flush();
     return 1;
 }
@@ -303,15 +303,21 @@ int kernel_vmm_unmap_4k(unsigned long va) {
     unsigned int l2i = VMM_L2_INDEX(va);
     unsigned int l3i = VMM_L3_INDEX(va);
 
-    if (l1i >= 512 || l1_table[l1i] == 0) return 0;
+    if (l1i >= 512 || l1_table[l1i] == 0) {
+        return 0;
+    }
 
     unsigned long l2_pa = l1_table[l1i] & ~0xfffUL;
     volatile unsigned long *l2 = (volatile unsigned long *)l2_pa;
-    if (l2[l2i] == 0) return 0;
+    if (l2[l2i] == 0) {
+        return 0;
+    }
 
     unsigned long l3_pa = l2[l2i] & ~0xfffUL;
     volatile unsigned long *l3 = (volatile unsigned long *)l3_pa;
+    
     l3[l3i] = 0;  // invalidate the leaf
+    clean_data_cache_range((const void *)&l3[l3i], 8);
     vmm_tlb_flush();
 
     // (We leave the L2/L3 tables allocated for simplicity in V45-2; free in full vmm later if desired.)
