@@ -191,8 +191,9 @@ runtime v37: timer-fed secondary C scheduler jobs
 runtime v38: secondary scheduler wake protocol
 runtime v39: secondary scheduler handoff protocol
 runtime v40: scheduler backpressure protocol
+runtime v41: secondary scheduler work stealing
 handlecheck ok=1 handle_selftest=1 cap_selftest=1
-shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
+shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
 ```
 
 The current kernel image services UART RX through PL011 receive interrupts into
@@ -532,6 +533,17 @@ these representative serial lines from the final cycle:
 bootcert ok=1 version=40 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 taxonomy=1 protocol=1 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=4184112 frame_free=14336 uptime_ms=3624
 certificate ok=1 version=40 substrate=1 bootcert=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 protocol=2 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 swift=6.3.2 events_lost=0 heap_free=4184112 frame_free=14336 uptime_ms=7036
 sched8 ok=1 version=40 backpressure=1 handoff=1 wake=1 high_water=8 overflows=16 total=0 capacity=8 core0_high=8 core1_high=8 core2_high=8 core3_high=8 core0_overflow=4 core1_overflow=4 core2_overflow=4 core3_overflow=4 selftest=1
+```
+
+Runtime V41 secondary scheduler work-stealing protocol keeps Swift execution on
+core 0 and lets idle C-only secondary scheduler workers steal bounded steal-job
+tokens from another secondary queue. The V41 hardware proof closed on
+2026-06-06:
+
+```text
+bootcert ok=1 version=41 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 taxonomy=1 protocol=1 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=4184112 frame_free=14336 uptime_ms=4314
+certificate ok=1 version=41 substrate=1 bootcert=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 protocol=2 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 swift=6.3.2 events_lost=0 heap_free=4184112 frame_free=14336 uptime_ms=5927
+sched9 ok=1 version=41 stealing=1 backpressure=1 handoff=1 wake=1 steals=4 completions=4 total=0 capacity=8 source_core1=4 source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=2 attempts_core1=11400412 attempts_core2=10817952 attempts_core3=11541429 selftest=1
 ```
 
 Runtime V37 timer-fed secondary C scheduler jobs keep Swift execution on core

@@ -40,7 +40,19 @@ Runtime V37 timer-fed secondary C scheduler jobs was hardware-verified
 2026-06-06. Runtime V38 secondary scheduler wake protocol was
 hardware-verified 2026-06-06. Runtime V39 secondary scheduler handoff protocol
 was hardware-verified 2026-06-06. Runtime V40 scheduler backpressure protocol
-was hardware-verified 2026-06-06.
+was hardware-verified 2026-06-06. Runtime V41 secondary scheduler
+work-stealing protocol is hardware-accepted on the live Pi bench.
+
+> ## Runtime V41 secondary scheduler work-stealing protocol ground truth (2026-06-06)
+> V41 keeps Swift execution on core 0 and lets idle C-only secondary scheduler
+> workers steal bounded steal-job tokens from another secondary queue through
+> the existing per-core runqueue locks. The source core cannot execute steal
+> tokens locally; only another secondary can steal, execute, record the steal
+> destination/source counters, and drain every queue back to zero. The live Pi
+> proof used `kernel8.img` sha256
+> `525a237533d0d1dbe0782f8c9a9d1c03a839676fc1cf4119b2625a41df0d78e0` and
+> passed a normal `net-iterate.sh` run plus a clean 3-cycle repeat. Proof lines
+> included `runtime v41: secondary scheduler work stealing`, `bootcert ok=1 version=41 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`, `certificate ok=1 version=41 substrate=1 bootcert=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`, and `sched9 ok=1 version=41 stealing=1 backpressure=1 handoff=1 wake=1 steals=4 completions=4 total=0 capacity=8 source_core1=4 source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=2 selftest=1`.
 
 > ## Runtime V40 scheduler backpressure protocol ground truth (2026-06-06)
 > V40 keeps Swift execution on core 0, keeps secondary cores in C-only loops,
