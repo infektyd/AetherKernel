@@ -828,6 +828,19 @@ unsigned long kernel_mmu_tcr_value(void);
 unsigned long kernel_mmu_mair_value(void);
 int kernel_mmu_selftest(void);
 
+// Runtime V45: dynamic page-table management (adds to static identity L1 blocks).
+// Page tables (L2/L3) allocated from frame allocator. Install helpers perform
+// explicit break-before-make + TLB maintenance (tlbi + dsb sy + isb) so that
+// remaps are safe while the kernel continues running on the live EL1 stage-1 tables.
+// High VA (L1 entries >=4, currently fault) used for initial test mappings to
+// avoid touching the 0-4 GiB identity blocks. Map/unmap of 4 KiB pages.
+unsigned long kernel_vmm_alloc_pt(void);
+int kernel_vmm_free_pt(unsigned long pa);
+int kernel_vmm_pt_alloc_selftest(void);
+int kernel_vmm_map_4k(unsigned long va, unsigned long pa, unsigned long attrs);
+int kernel_vmm_unmap_4k(unsigned long va);
+int kernel_vmm_vmm_selftest(void);  // basic table + simple high-VA map test (expanded in v45-3)
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

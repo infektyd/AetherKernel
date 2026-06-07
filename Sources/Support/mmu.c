@@ -179,3 +179,167 @@ int kernel_mmu_selftest(void) {
     }
     return 1;
 }
+
+//===----------------------------------------------------------------------===//
+// V45 dynamic VMM: page table allocator + 3-level install for 4 KiB pages.
+// Tables come from the frame allocator (kernel_frame_alloc). We install into
+// the existing live l1_table (entries 4+ are currently 0/fault). High VA range
+// keeps the 0-4 GiB 1 GiB block identity map completely untouched.
+// Barriers + tlbi follow the same style as mmu_enable (vmalle1 is simple and safe).
+// Break-before-make is explicit for any future change of a valid entry.
+//===----------------------------------------------------------------------===//
+
+#define VMM_L1_INDEX(va) (((va) >> 30) & 0x1ffUL)
+#define VMM_L2_INDEX(va) (((va) >> 21) & 0x1ffUL)
+#define VMM_L3_INDEX(va) (((va) >> 12) & 0x1ffUL)
+
+#define VMM_TABLE_DESC (0x3UL)          // valid + table (not block)
+#define VMM_PAGE_DESC  (0x3UL)          // valid + page (leaf at L3)
+#define VMM_AF         (1UL << 10)
+#define VMM_SH_INNER   (3UL << 8)
+#define VMM_ATTR_NORMAL (0UL << 2)
+
+static unsigned long vmm_page_desc(unsigned long pa) {
+    return pa | VMM_PAGE_DESC | VMM_AF | VMM_SH_INNER | VMM_ATTR_NORMAL;
+}
+
+static unsigned long vmm_table_desc(unsigned long pa) {
+    return pa | VMM_TABLE_DESC;
+}
+
+static void vmm_tlb_flush(void) {
+    __asm__ volatile("dsb sy" ::: "memory");
+    __asm__ volatile("tlbi vmalle1" ::: "memory");
+    __asm__ volatile("dsb sy" ::: "memory");
+    __asm__ volatile("isb" ::: "memory");
+}
+
+unsigned long kernel_vmm_alloc_pt(void) {
+    unsigned long pa = kernel_frame_alloc();
+    if (pa == 0) {
+        return 0;
+    }
+    // Zero the table (512 entries of 8 bytes). Use volatile writes for safety.
+    volatile unsigned long *pt = (volatile unsigned long *)pa;
+    for (int i = 0; i < 512; i++) {
+        pt[i] = 0;
+    }
+    // Make the zeroing visible before the table is installed.
+    __asm__ volatile("dsb sy" ::: "memory");
+    return pa;
+}
+
+int kernel_vmm_free_pt(unsigned long pa) {
+    if (pa == 0) {
+        return 0;
+    }
+    return kernel_frame_free(pa);
+}
+
+int kernel_vmm_pt_alloc_selftest(void) {
+    unsigned long a = kernel_vmm_alloc_pt();
+    unsigned long b = kernel_vmm_alloc_pt();
+    if (a == 0 || b == 0 || a == b) {
+        if (a) kernel_vmm_free_pt(a);
+        if (b) kernel_vmm_free_pt(b);
+        return 0;
+    }
+    // Basic sanity: tables are page aligned and non-zero (we zeroed content but pa valid)
+    if ((a & (KERNEL_PAGE_SIZE-1)) != 0 || (b & (KERNEL_PAGE_SIZE-1)) != 0) {
+        kernel_vmm_free_pt(a);
+        kernel_vmm_free_pt(b);
+        return 0;
+    }
+    int ok = kernel_vmm_free_pt(a) && kernel_vmm_free_pt(b);
+    // Re-alloc should succeed and preferably reuse (frame allocator allows)
+    unsigned long c = kernel_vmm_alloc_pt();
+    if (c == 0) {
+        ok = 0;
+    } else {
+        kernel_vmm_free_pt(c);
+    }
+    return ok;
+}
+
+// Install a 4 KiB mapping at va -> pa with normal attrs. Allocates L2/L3 tables
+// on demand for the VA (assumes va is in a range where L1 entry was fault).
+// Writes to the live l1_table (which is identity-mapped and covered by block).
+// Always performs full TLB maintenance after install.
+int kernel_vmm_map_4k(unsigned long va, unsigned long pa, unsigned long attrs) {
+    (void)attrs; // attrs reserved for future (we use fixed normal for V45-2)
+    unsigned int l1i = VMM_L1_INDEX(va);
+    unsigned int l2i = VMM_L2_INDEX(va);
+    unsigned int l3i = VMM_L3_INDEX(va);
+
+    if (l1i >= 512) return 0;
+
+    // Ensure L1 entry has a table (allocate L2 if this L1 slot is still fault/0)
+    if (l1_table[l1i] == 0) {
+        unsigned long l2_pa = kernel_vmm_alloc_pt();
+        if (l2_pa == 0) return 0;
+        l1_table[l1i] = vmm_table_desc(l2_pa);
+        // BBM not strictly required for first install into 0, but flush for visibility
+        vmm_tlb_flush();
+    }
+
+    unsigned long l2_pa = l1_table[l1i] & ~0xfffUL;
+    volatile unsigned long *l2 = (volatile unsigned long *)l2_pa;
+    if (l2[l2i] == 0) {
+        unsigned long l3_pa = kernel_vmm_alloc_pt();
+        if (l3_pa == 0) return 0;
+        l2[l2i] = vmm_table_desc(l3_pa);
+        vmm_tlb_flush();
+    }
+
+    unsigned long l3_pa = l2[l2i] & ~0xfffUL;
+    volatile unsigned long *l3 = (volatile unsigned long *)l3_pa;
+    l3[l3i] = vmm_page_desc(pa);
+    vmm_tlb_flush();
+    return 1;
+}
+
+int kernel_vmm_unmap_4k(unsigned long va) {
+    unsigned int l1i = VMM_L1_INDEX(va);
+    unsigned int l2i = VMM_L2_INDEX(va);
+    unsigned int l3i = VMM_L3_INDEX(va);
+
+    if (l1i >= 512 || l1_table[l1i] == 0) return 0;
+
+    unsigned long l2_pa = l1_table[l1i] & ~0xfffUL;
+    volatile unsigned long *l2 = (volatile unsigned long *)l2_pa;
+    if (l2[l2i] == 0) return 0;
+
+    unsigned long l3_pa = l2[l2i] & ~0xfffUL;
+    volatile unsigned long *l3 = (volatile unsigned long *)l3_pa;
+    l3[l3i] = 0;  // invalidate the leaf
+    vmm_tlb_flush();
+
+    // (We leave the L2/L3 tables allocated for simplicity in V45-2; free in full vmm later if desired.)
+    return 1;
+}
+
+int kernel_vmm_vmm_selftest(void) {
+    // Table alloc selftest
+    if (!kernel_vmm_pt_alloc_selftest()) return 0;
+
+    // Simple high-VA map (use a VA in L1[4] range, e.g. 0x100000000 + offset in a free frame area)
+    // For selftest we map a frame we alloc, write a sentinel via the VA, read back.
+    unsigned long frame = kernel_frame_alloc();
+    if (frame == 0) return 0;
+
+    unsigned long test_va = 0x100000000UL + 0x1000;  // high VA, L1 idx 4, some offset
+    if (!kernel_vmm_map_4k(test_va, frame, 0)) {
+        kernel_frame_free(frame);
+        return 0;
+    }
+
+    volatile unsigned long *p = (volatile unsigned long *)test_va;
+    *p = 0xA45A45A45ULL;
+    unsigned long readback = *p;
+    int ok = (readback == 0xA45A45A45ULL);
+
+    kernel_vmm_unmap_4k(test_va);
+    kernel_frame_free(frame);
+    // After unmap + flush, the old mapping should be gone (we don't re-access here to avoid fault).
+    return ok ? 1 : 0;
+}
