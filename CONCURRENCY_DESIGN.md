@@ -42,7 +42,19 @@ hardware-verified 2026-06-06. Runtime V39 secondary scheduler handoff protocol
 was hardware-verified 2026-06-06. Runtime V40 scheduler backpressure protocol
 was hardware-verified 2026-06-06. Runtime V41 secondary scheduler
 work-stealing protocol was hardware-verified 2026-06-06. Runtime V42 secondary
-scheduler load-balancing protocol is hardware-accepted on the live Pi bench.
+scheduler load-balancing protocol was hardware-verified 2026-06-06. Runtime V43
+secondary scheduler priority/preemption protocol is hardware-accepted on the live
+Pi bench.
+
+> ## Runtime V43 secondary scheduler priority/preemption protocol ground truth (2026-06-07)
+> V43 keeps Swift execution on core 0 and adds bounded high-priority scheduler
+> lanes on secondary cores. High-priority tokens use lane bit 12, secondary
+> workers preempt/yield through the existing per-core runqueue locks, and the
+> selftest quiesces timer SMP dispatch while proving preempt/yield counters and
+> draining every queue back to zero. The live Pi proof used `kernel8.img` sha256
+> `d2ddea45690c0b6180ab92c61dbc5ba26a9a01eb2d272ad3ae860f14a01b6610` and
+> passed a normal `net-iterate.sh` run after power-cycle recovery. Proof lines
+> included `runtime v43: secondary scheduler priority preemption`, `bootcert ok=1 version=43 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`, `certificate ok=1 version=43 substrate=1 bootcert=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`, and `sched11 ok=1 version=43 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 preemptions=2 yields=2 completions=4 total=0 capacity=8 low_core1=2 high_core1=2 preempt_core1=2 yield_core1=2 selftest=1`.
 
 > ## Runtime V42 secondary scheduler load-balancing protocol ground truth (2026-06-06)
 > V42 keeps Swift execution on core 0 and lets underloaded C-only secondary

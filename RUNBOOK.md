@@ -558,6 +558,17 @@ certificate ok=1 version=42 substrate=1 bootcert=1 fairness=1 stealing=1 backpre
 sched10 ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 balances=3 completions=3 min=358 max=359 imbalance=1 total=0 capacity=8 source_core1=3 source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=1 attempts_core1=11666283 attempts_core2=11712843 attempts_core3=11921440 queue_min=0 queue_max=0 queue_imbalance=0 selftest=1
 ```
 
+Runtime V43 secondary scheduler priority/preemption protocol keeps Swift
+execution on core 0 and proves bounded high-priority scheduler lanes on
+secondary cores with preempt/yield telemetry. The V43 hardware proof closed on
+2026-06-07:
+
+```text
+bootcert ok=1 version=43 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1 taxonomy=1 protocol=1 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=4184112 frame_free=14336 uptime_ms=3886
+certificate ok=1 version=43 substrate=1 bootcert=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 agent=1 runtime=1 protocol=2 memory=1 objects=1 tasks=1 mailboxes=1 supervisor=1 handles=1 events=1 cancellations=1 channels=1 drivers=1 pressure=1 pools=1 mmu=1 swift=6.3.2 events_lost=0 heap_free=4184112 frame_free=14336 uptime_ms=7316
+sched11 ok=1 version=43 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 preemptions=2 yields=2 completions=4 low=2 high=2 imbalance=4 total=0 capacity=8 low_core1=2 low_core2=0 low_core3=0 high_core1=2 high_core2=0 high_core3=0 preempt_core1=2 preempt_core2=0 preempt_core3=0 yield_core1=2 yield_core2=0 yield_core3=0 selftest=1
+```
+
 Runtime V37 timer-fed secondary C scheduler jobs keep Swift execution on core
 0, turn V36's timer-fed secondary worker tokens into typed C-only scheduler
 jobs, and report execution/completion/checksum telemetry from secondary cores

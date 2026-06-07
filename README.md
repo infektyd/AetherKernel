@@ -164,6 +164,17 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 > wake=1 balances=3 completions=3 total=0 capacity=8 source_core1=3
 > source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=1
 > queue_imbalance=0 selftest=1`.
+> Runtime V43 secondary scheduler priority/preemption protocol is hardware-accepted.
+> Live Pi proof (2026-06-07, `kernel8.img` sha256
+> `d2ddea45690c0b6180ab92c61dbc5ba26a9a01eb2d272ad3ae860f14a01b6610`) printed
+> `bootcert ok=1 version=43 priority=1 fairness=1 stealing=1 backpressure=1
+> handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`,
+> `certificate ok=1 version=43 substrate=1 bootcert=1 priority=1 fairness=1
+> stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1
+> secondary_workers=1 ... events_lost=0`, and `sched11 ok=1 version=43
+> priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1
+> preemptions=2 yields=2 completions=4 total=0 capacity=8 low_core1=2
+> high_core1=2 preempt_core1=2 yield_core1=2 selftest=1`.
 
 ## What works (verified)
 
@@ -217,6 +228,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V40 scheduler backpressure protocol | ✅ | hardware run printed `runtime v40: scheduler backpressure protocol`; `bootcert ok=1 version=40 backpressure=1 handoff=1 wake=1 ... events_lost=0`; `certificate ok=1 version=40 substrate=1 bootcert=1 backpressure=1 handoff=1 wake=1 ... events_lost=0`; `sched8 ok=1 version=40 backpressure=1 handoff=1 wake=1 high_water=8 overflows=16 total=0 capacity=8 core0_high=8 core1_high=8 core2_high=8 core3_high=8 core0_overflow=4 core1_overflow=4 core2_overflow=4 core3_overflow=4 selftest=1`; clean 3-cycle live netboot repeat passed |
 | Runtime V41 secondary scheduler work-stealing protocol | ✅ | hardware run printed `runtime v41: secondary scheduler work stealing`; `bootcert ok=1 version=41 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=41 substrate=1 bootcert=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched9 ok=1 version=41 stealing=1 backpressure=1 handoff=1 wake=1 steals=4 completions=4 total=0 capacity=8 source_core1=4 source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=2 selftest=1`; `runqueues ok=1 version=33 cores=4 capacity=8 total=0`; `events count=41 capacity=64 lost=0`; clean 3-cycle live netboot repeat passed |
 | Runtime V42 secondary scheduler load-balancing protocol | ✅ | hardware run printed `runtime v42: secondary scheduler load balancing`; `bootcert ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=42 substrate=1 bootcert=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched10 ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 balances=3 completions=3 total=0 capacity=8 source_core1=3 source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=1 queue_imbalance=0 selftest=1`; `runqueues ok=1 version=33 cores=4 capacity=8 total=0`; clean 3-cycle live netboot repeat passed |
+| Runtime V43 secondary scheduler priority/preemption protocol | ✅ | hardware run printed `runtime v43: secondary scheduler priority preemption`; `bootcert ok=1 version=43 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=43 substrate=1 bootcert=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched11 ok=1 version=43 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 preemptions=2 yields=2 completions=4 total=0 capacity=8 low_core1=2 high_core1=2 preempt_core1=2 yield_core1=2 selftest=1`; `net-iterate.sh` passed all shell probes on 2026-06-07 |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -763,6 +775,19 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=1
     queue_imbalance=0 selftest=1`. The 3-cycle repeat kept `certificate ok=1`,
     `sched10 ok=1`, `runqueues total=0`, and `events_lost=0`.
+
+  - **Runtime V43 secondary scheduler priority/preemption protocol.** ✅ hardware
+    proof closed 2026-06-07. V43 adds bounded high-priority scheduler lanes on
+    secondary cores with preempt/yield counters while keeping Swift execution on
+    core 0. Proof: `bootcert ok=1 version=43 priority=1 fairness=1 stealing=1
+    backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1
+    ... events_lost=0`, `certificate ok=1 version=43 substrate=1 bootcert=1
+    priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1
+    worker_feed=1 secondary_workers=1 ... events_lost=0`, and `sched11 ok=1
+    version=43 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1
+    preemptions=2 yields=2 completions=4 total=0 capacity=8 low_core1=2
+    high_core1=2 preempt_core1=2 yield_core1=2 selftest=1`. `net-iterate.sh`
+    passed all shell probes after a power-cycle recovery on the live Pi bench.
 
 ## Provenance
 
