@@ -41,7 +41,19 @@ Runtime V37 timer-fed secondary C scheduler jobs was hardware-verified
 hardware-verified 2026-06-06. Runtime V39 secondary scheduler handoff protocol
 was hardware-verified 2026-06-06. Runtime V40 scheduler backpressure protocol
 was hardware-verified 2026-06-06. Runtime V41 secondary scheduler
-work-stealing protocol is hardware-accepted on the live Pi bench.
+work-stealing protocol was hardware-verified 2026-06-06. Runtime V42 secondary
+scheduler load-balancing protocol is hardware-accepted on the live Pi bench.
+
+> ## Runtime V42 secondary scheduler load-balancing protocol ground truth (2026-06-06)
+> V42 keeps Swift execution on core 0 and lets underloaded C-only secondary
+> scheduler workers pull bounded balance-job tokens from an overloaded peer queue
+> through the existing per-core runqueue locks. The overloaded source core cannot
+> execute balance tokens locally; only another secondary can balance, execute,
+> record destination/source counters, and drain every queue back to zero. The
+> live Pi proof used `kernel8.img` sha256
+> `a480b4c4e5df7ee114dc63bb0c17edf2dedaddd5a2f00033f5b8d96f527e2b97` and
+> passed a normal `net-iterate.sh` run plus a clean 3-cycle repeat. Proof lines
+> included `runtime v42: secondary scheduler load balancing`, `bootcert ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`, `certificate ok=1 version=42 substrate=1 bootcert=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`, and `sched10 ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 balances=3 completions=3 total=0 capacity=8 source_core1=3 source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=1 queue_imbalance=0 selftest=1`.
 
 > ## Runtime V41 secondary scheduler work-stealing protocol ground truth (2026-06-06)
 > V41 keeps Swift execution on core 0 and lets idle C-only secondary scheduler

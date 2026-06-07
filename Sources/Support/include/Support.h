@@ -233,11 +233,14 @@ int kernel_spinlock_selftest(void);
 // signals when timer-fed secondary work is enqueued.
 // V39 records cross-core scheduler handoff issues and completion
 // acknowledgements for those C-only secondary jobs.
+// Runtime V42 secondary scheduler load-balancing protocol.
 // V40 proves bounded per-core queue backpressure: full queues reject overflow,
 // record high-water/overflow telemetry, and drain back to zero. V41 lets idle
 // C-only secondary workers steal bounded steal-job tokens from another
-// secondary queue, execute them locally, and leave every queue drained.
-#define KERNEL_SCHEDULER_VERSION 41U
+// secondary queue, execute them locally, and leave every queue drained. V42
+// lets underloaded secondary cores pull bounded balance-job tokens from an
+// overloaded peer queue, execute them locally, and record queue fairness.
+#define KERNEL_SCHEDULER_VERSION 42U
 #define KERNEL_SCHEDULER_CORE_CAPACITY 4U
 #define KERNEL_SCHEDULER_RUNQUEUE_CAPACITY 8U
 #define KERNEL_SCHEDULER_DISPATCH_TOKEN_BASE 0x3400U
@@ -245,6 +248,7 @@ int kernel_spinlock_selftest(void);
 #define KERNEL_SCHEDULER_JOB_TOKEN_BASE 0x3700U
 #define KERNEL_SCHEDULER_PRESSURE_TOKEN_BASE 0x4000U
 #define KERNEL_SCHEDULER_STEAL_TOKEN_BASE 0x5000U
+#define KERNEL_SCHEDULER_BALANCE_TOKEN_BASE 0x4200U
 #define KERNEL_SCHEDULER_JOB_OP_CHECKSUM 1U
 
 void kernel_scheduler_init(void);
@@ -257,6 +261,7 @@ void kernel_scheduler_enable_secondary_job_execution(void);
 void kernel_scheduler_enable_secondary_wake_signals(void);
 void kernel_scheduler_enable_secondary_handoffs(void);
 void kernel_scheduler_enable_secondary_work_stealing(void);
+void kernel_scheduler_enable_load_balancing(void);
 unsigned int kernel_scheduler_active(void);
 unsigned int kernel_scheduler_smp_dispatch_enabled(void);
 unsigned int kernel_scheduler_secondary_workers_enabled(void);
@@ -265,6 +270,7 @@ unsigned int kernel_scheduler_secondary_job_execution_enabled(void);
 unsigned int kernel_scheduler_secondary_wake_signals_enabled(void);
 unsigned int kernel_scheduler_secondary_handoffs_enabled(void);
 unsigned int kernel_scheduler_secondary_work_stealing_enabled(void);
+unsigned int kernel_scheduler_load_balancing_enabled(void);
 unsigned int kernel_scheduler_core_count(void);
 unsigned int kernel_scheduler_runqueue_capacity(void);
 unsigned int kernel_scheduler_runqueue_count(unsigned int core_id);
@@ -299,6 +305,16 @@ unsigned long kernel_scheduler_steal_source_count(unsigned int core_id);
 unsigned long kernel_scheduler_steal_completion_count(unsigned int core_id);
 unsigned long kernel_scheduler_steal_total(void);
 unsigned long kernel_scheduler_steal_completion_total(void);
+unsigned long kernel_scheduler_balance_attempt_count(unsigned int core_id);
+unsigned long kernel_scheduler_balance_success_count(unsigned int core_id);
+unsigned long kernel_scheduler_balance_source_count(unsigned int core_id);
+unsigned long kernel_scheduler_balance_completion_count(unsigned int core_id);
+unsigned long kernel_scheduler_balance_total(void);
+unsigned long kernel_scheduler_balance_completion_total(void);
+unsigned long kernel_scheduler_secondary_queue_min(void);
+unsigned long kernel_scheduler_secondary_queue_max(void);
+unsigned long kernel_scheduler_secondary_queue_imbalance(void);
+int kernel_scheduler_try_balance_work(unsigned int core_id);
 unsigned int kernel_scheduler_secondary_has_runnable_work(unsigned int core_id);
 unsigned long kernel_scheduler_secondary_worker_total(void);
 unsigned long kernel_scheduler_secondary_worker_min(void);
@@ -352,6 +368,7 @@ int kernel_scheduler_secondary_wake_selftest(void);
 int kernel_scheduler_secondary_handoff_selftest(void);
 int kernel_scheduler_backpressure_selftest(void);
 int kernel_scheduler_work_steal_selftest(void);
+int kernel_scheduler_fairness_selftest(void);
 
 // Runtime V32 SMP secondary-core bring-up substrate. Secondary cores enter a
 // fixed C-only accounting loop with private stacks; they do not touch Swift

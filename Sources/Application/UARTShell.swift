@@ -100,11 +100,11 @@ func uartPutShellBufferSlice(_ start: UInt32, _ len: UInt32) {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
 }
 
 func printProtocol() {
@@ -176,15 +176,16 @@ func printAgentSession() {
 func printSubstrateCertificate() {
   kernel_supervisor_check()
 
-  let secondaryWorkers = kernel_scheduler_secondary_worker_selftest()
   let workerFeed = kernel_scheduler_timer_worker_feed_selftest()
+  let secondaryWorkers = kernel_scheduler_secondary_worker_selftest()
   let jobExec = kernel_scheduler_secondary_job_selftest()
   let wake = kernel_scheduler_secondary_wake_selftest()
-  let handoff = kernel_scheduler_secondary_handoff_selftest()
   let preemptive = kernel_scheduler_active()
   let smpScheduler = kernel_scheduler_smp_selftest()
+  let handoff = kernel_scheduler_secondary_handoff_selftest()
   let backpressure = kernel_scheduler_backpressure_selftest()
   let stealing = kernel_scheduler_work_steal_selftest()
+  let fairness = kernel_scheduler_fairness_selftest()
   let atomics = kernel_atomic_selftest()
   let locks = kernel_spinlock_selftest()
   let queues = kernel_scheduler_runqueue_selftest()
@@ -210,17 +211,19 @@ func printSubstrateCertificate() {
   let pools = kernel_pool_selftest()
   let mmu = kernel_mmu_selftest()
   let eventsLost = kernel_event_lost_count()
-  let bootcertOk = stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && runtimeAudit != 0 && smp != 0 && scheduler != 0 && agentSession != 0 && memory != 0 &&
+  let bootcertOk = fairness != 0 && stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && runtimeAudit != 0 && smp != 0 && scheduler != 0 && agentSession != 0 && memory != 0 &&
     objects != 0 && tasks != 0 && mailboxes != 0 && supervisor != 0 &&
     events != 0 && cancellations != 0 && channels != 0 && drivers != 0 &&
     pressure != 0 && pools != 0 && mmu != 0 && eventsLost == 0
 
   uartPuts("certificate ok=")
   uartPutDec(UInt64(bootcertOk ? 1 : 0))
-  uartPuts(" version=41")
+  uartPuts(" version=42")
   uartPuts(" substrate=1")
   uartPuts(" bootcert=")
   uartPutDec(UInt64(bootcertOk ? 1 : 0))
+  uartPuts(" fairness=")
+  uartPutDec(UInt64(fairness))
   uartPuts(" stealing=")
   uartPutDec(UInt64(stealing))
   uartPuts(" backpressure=")
@@ -694,6 +697,74 @@ func printScheduler9() {
   uartPutDec(UInt64(kernel_scheduler_steal_attempt_count(3)))
   uartPuts(" selftest=")
   uartPutDec(UInt64(stealing))
+  uartPuts("\n")
+}
+
+func printScheduler10() {
+  let wake = kernel_scheduler_secondary_wake_selftest()
+  let handoff = kernel_scheduler_secondary_handoff_selftest()
+  let backpressure = kernel_scheduler_backpressure_selftest()
+  let stealing = kernel_scheduler_work_steal_selftest()
+  let fairness = kernel_scheduler_fairness_selftest()
+  let total = kernel_scheduler_runqueue_count(0) +
+    kernel_scheduler_runqueue_count(1) +
+    kernel_scheduler_runqueue_count(2) +
+    kernel_scheduler_runqueue_count(3)
+  let ok = fairness != 0 && stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && total == 0 ? 1 : 0
+
+  uartPuts("sched10 ok=")
+  uartPutDec(UInt64(ok))
+  uartPuts(" version=42")
+  uartPuts(" fairness=")
+  uartPutDec(UInt64(fairness))
+  uartPuts(" stealing=")
+  uartPutDec(UInt64(stealing))
+  uartPuts(" backpressure=")
+  uartPutDec(UInt64(backpressure))
+  uartPuts(" handoff=")
+  uartPutDec(UInt64(handoff))
+  uartPuts(" wake=")
+  uartPutDec(UInt64(wake))
+  uartPuts(" balances=")
+  uartPutDec(UInt64(kernel_scheduler_balance_total()))
+  uartPuts(" completions=")
+  uartPutDec(UInt64(kernel_scheduler_balance_completion_total()))
+  uartPuts(" min=")
+  uartPutDec(UInt64(kernel_scheduler_fairness_min()))
+  uartPuts(" max=")
+  uartPutDec(UInt64(kernel_scheduler_fairness_max()))
+  uartPuts(" imbalance=")
+  uartPutDec(UInt64(kernel_scheduler_fairness_imbalance()))
+  uartPuts(" total=")
+  uartPutDec(UInt64(total))
+  uartPuts(" capacity=")
+  uartPutDec(UInt64(kernel_scheduler_runqueue_capacity()))
+  uartPuts(" source_core1=")
+  uartPutDec(UInt64(kernel_scheduler_balance_source_count(1)))
+  uartPuts(" source_core2=")
+  uartPutDec(UInt64(kernel_scheduler_balance_source_count(2)))
+  uartPuts(" source_core3=")
+  uartPutDec(UInt64(kernel_scheduler_balance_source_count(3)))
+  uartPuts(" dest_core1=")
+  uartPutDec(UInt64(kernel_scheduler_balance_success_count(1)))
+  uartPuts(" dest_core2=")
+  uartPutDec(UInt64(kernel_scheduler_balance_success_count(2)))
+  uartPuts(" dest_core3=")
+  uartPutDec(UInt64(kernel_scheduler_balance_success_count(3)))
+  uartPuts(" attempts_core1=")
+  uartPutDec(UInt64(kernel_scheduler_balance_attempt_count(1)))
+  uartPuts(" attempts_core2=")
+  uartPutDec(UInt64(kernel_scheduler_balance_attempt_count(2)))
+  uartPuts(" attempts_core3=")
+  uartPutDec(UInt64(kernel_scheduler_balance_attempt_count(3)))
+  uartPuts(" queue_min=")
+  uartPutDec(UInt64(kernel_scheduler_secondary_queue_min()))
+  uartPuts(" queue_max=")
+  uartPutDec(UInt64(kernel_scheduler_secondary_queue_max()))
+  uartPuts(" queue_imbalance=")
+  uartPutDec(UInt64(kernel_scheduler_secondary_queue_imbalance()))
+  uartPuts(" selftest=")
+  uartPutDec(UInt64(fairness))
   uartPuts("\n")
 }
 
@@ -1916,17 +1987,18 @@ func printBootcheck() {
 
 func printBootcert() {
   kernel_supervisor_check()
-  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 41, UInt(kernel_event_count()), 0)
+  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 42, UInt(kernel_event_count()), 0)
 
-  let secondaryWorkers = kernel_scheduler_secondary_worker_selftest()
   let workerFeed = kernel_scheduler_timer_worker_feed_selftest()
+  let secondaryWorkers = kernel_scheduler_secondary_worker_selftest()
   let jobExec = kernel_scheduler_secondary_job_selftest()
   let wake = kernel_scheduler_secondary_wake_selftest()
-  let handoff = kernel_scheduler_secondary_handoff_selftest()
   let preemptive = kernel_scheduler_active()
   let smpScheduler = kernel_scheduler_smp_selftest()
+  let handoff = kernel_scheduler_secondary_handoff_selftest()
   let backpressure = kernel_scheduler_backpressure_selftest()
   let stealing = kernel_scheduler_work_steal_selftest()
+  let fairness = kernel_scheduler_fairness_selftest()
   let atomics = kernel_atomic_selftest()
   let locks = kernel_spinlock_selftest()
   let queues = kernel_scheduler_runqueue_selftest()
@@ -1954,13 +2026,15 @@ func printBootcert() {
   let supervisor = kernel_supervisor_selftest()
   let events = kernel_event_log_selftest()
   let eventsLost = kernel_event_lost_count()
-  let ok = stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && smp != 0 && scheduler != 0 && substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
+  let ok = fairness != 0 && stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && smp != 0 && scheduler != 0 && substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
     taskspawns != 0 && cancellations != 0 && kobjects != 0 && tasks != 0 && mailboxes != 0 &&
     channels != 0 && supervisor != 0 && events != 0 && eventsLost == 0
 
   uartPuts("bootcert ok=")
   uartPutDec(UInt64(ok ? 1 : 0))
-  uartPuts(" version=41")
+  uartPuts(" version=42")
+  uartPuts(" fairness=")
+  uartPutDec(UInt64(fairness))
   uartPuts(" stealing=")
   uartPutDec(UInt64(stealing))
   uartPuts(" backpressure=")
@@ -2356,6 +2430,8 @@ func dispatchShellCommand(_ commandStart: UInt32, _ commandLen: UInt32, _ reques
     printScheduler8()
   } else if shellBufferSliceEquals(commandStart, commandLen, "sched9") {
     printScheduler9()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "sched10") {
+    printScheduler10()
   } else if shellBufferSliceEquals(commandStart, commandLen, "cores") {
     printCores()
   } else if shellBufferSliceEquals(commandStart, commandLen, "locks") {

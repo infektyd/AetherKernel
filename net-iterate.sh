@@ -107,7 +107,7 @@ if [ "${AETHER_NETITERATE_DRY_RUN:-0}" = "1" ]; then
   echo "expect TFTP prefix: $PREFIX/"
   echo "attempts: $RETRIES"
   echo "timeout per attempt: ${TIMEOUT_S}s"
-  echo "shell probes: ./serial-probe.sh status protocol bootcert sched sched2 sched3 sched4 sched5 sched6 sched7 sched8 sched9 cores locks runqueues req-status req-sched req-cores req-locks req-runqueues req-sched2 req-sched3 req-sched4 req-sched5 req-sched6 req-sched7 req-sched8 req-sched9 canceltest taskcheck channeltest mmu poolcheck pools heapfrag poolstats bootcheck stress soak kobjects drivers drivercheck tasks2 mailboxes sendtest supervisor health capcheck events"
+  echo "shell probes: ./serial-probe.sh status protocol bootcert sched sched2 sched3 sched4 sched5 sched6 sched7 sched8 sched9 sched10 cores locks runqueues req-status req-sched req-cores req-locks req-runqueues req-sched2 req-sched3 req-sched4 req-sched5 req-sched6 req-sched7 req-sched8 req-sched9 req-sched10 canceltest taskcheck channeltest mmu poolcheck pools heapfrag poolstats bootcheck stress soak kobjects drivers drivercheck tasks2 mailboxes sendtest supervisor health capcheck events"
   exit 0
 fi
 
@@ -184,10 +184,11 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -q "runtime v39: secondary scheduler handoff protocol" \
       && printf '%s' "$serial_delta" | grep -q "runtime v40: scheduler backpressure protocol" \
       && printf '%s' "$serial_delta" | grep -q "runtime v41: secondary scheduler work stealing" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v42: secondary scheduler load balancing" \
       && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail tx 0x0000000000000000" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail rx 0x0000000000000000" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
       echo "netboot iteration verified on attempt ${attempt}/${RETRIES}"
       if [ "${AETHER_NETITERATE_SKIP_SHELL_PROBES:-0}" != "1" ]; then
         export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
@@ -196,13 +197,13 @@ while [ "$attempt" -le "$RETRIES" ]; do
         # probe shell: protocol
         probe_shell "protocol" "^protocol version=2 .*begin_end=1 .*errors=1"
         # probe shell: bootcert
-        probe_shell "bootcert" "^bootcert ok=1 version=41 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0"
+        probe_shell "bootcert" "^bootcert ok=1 version=42 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0"
         # probe shell: runtime
         probe_shell "runtime" "^runtime ok=1 version=28 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5"
         # probe shell: agent
         probe_shell "agent" "^agent ok=1 version=29 health=green .*bootcert=1 .*runtime=1 .*protocol=2 .*events_lost=0"
         # probe shell: certificate
-        probe_shell "certificate" "^certificate ok=1 version=41 substrate=1 .*bootcert=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0"
+        probe_shell "certificate" "^certificate ok=1 version=42 substrate=1 .*bootcert=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0"
         # probe shell: sched
         probe_shell "sched" "^sched ok=1 version=31 .*active=1 .*cores=1 .*core=0 .*ticks=[1-9][0-9]* .*irq_ticks=[1-9][0-9]* .*preemptions=[1-9][0-9]* .*runqueue=0/[1-9][0-9]* .*selftest=1"
         # probe shell: sched2
@@ -221,6 +222,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "sched8" "^sched8 ok=1 version=40 .*backpressure=1 .*handoff=1 .*wake=1 .*high_water=[8-9][0-9]* .*overflows=[1-9][0-9]* .*total=0 .*capacity=8 .*core0_high=8 .*core1_high=8 .*core2_high=8 .*core3_high=8 .*core0_overflow=[1-9][0-9]* .*core1_overflow=[1-9][0-9]* .*core2_overflow=[1-9][0-9]* .*core3_overflow=[1-9][0-9]* .*selftest=1"
         # probe shell: sched9
         probe_shell "sched9" "^sched9 ok=1 version=41 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*steals=[1-9][0-9]* .*completions=[1-9][0-9]* .*total=0 .*capacity=8 .*source_core1=[1-9][0-9]* .*source_core2=[0-9][0-9]* .*source_core3=[0-9][0-9]* .*dest_core1=0 .*dest_core2=[1-9][0-9]* .*dest_core3=[1-9][0-9]* .*attempts_core1=[0-9][0-9]* .*attempts_core2=[1-9][0-9]* .*attempts_core3=[1-9][0-9]* .*selftest=1"
+        # probe shell: sched10
+        probe_shell "sched10" "^sched10 ok=1 version=42 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*balances=[1-9][0-9]* .*completions=[1-9][0-9]* .*total=0 .*capacity=8 .*source_core1=[1-9][0-9]* .*source_core2=[0-9][0-9]* .*source_core3=[0-9][0-9]* .*dest_core1=0 .*dest_core2=[1-9][0-9]* .*dest_core3=[1-9][0-9]* .*attempts_core1=[0-9][0-9]* .*attempts_core2=[1-9][0-9]* .*attempts_core3=[1-9][0-9]* .*queue_imbalance=[0-9][0-9]* .*selftest=1"
         # probe shell: cores
         probe_shell "cores" "^cores ok=1 version=32 .*capacity=4 .*online=4 .*mask=0xf .*primary=0 .*release=0xe .*selftest=1 .*core0=1 .*core1=1 .*core2=1 .*core3=1"
         # probe shell: locks
@@ -255,6 +258,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "req id=41 cmd=sched8" "^resp id=41 ok=1 cmd=sched8 end"
         # probe shell: req-sched9
         probe_shell "req id=42 cmd=sched9" "^resp id=42 ok=1 cmd=sched9 end"
+        # probe shell: req-sched10
+        probe_shell "req id=43 cmd=sched10" "^resp id=43 ok=1 cmd=sched10 end"
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
@@ -309,6 +314,18 @@ while [ "$attempt" -le "$RETRIES" ]; do
 
     if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
       && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v41: secondary scheduler work stealing" \
+      && ! printf '%s' "$serial_delta" | grep -q "runtime v42: secondary scheduler load balancing"; then
+      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V42 SD fallback image detected"
+      echo "TFTP kernel fetch was not verified; staged network image is not proven."
+      print_tftp_diagnostics "$dns_delta"
+      last_dns_delta="$dns_delta"
+      last_serial_delta="$serial_delta"
+      sd_fallback_seen=1
+      break
+    fi
+    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
       && ! printf '%s' "$serial_delta" | grep -q "runtime v41: secondary scheduler work stealing"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V41 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
@@ -329,7 +346,12 @@ while [ "$attempt" -le "$RETRIES" ]; do
 
     if [ "$attempt" -lt "$RETRIES" ]; then
       if [ "$sd_fallback_seen" = "1" ]; then
-        echo "retrying after stale pre-V41 SD fallback..."
+        if printf '%s' "$last_serial_delta" | grep -q "runtime v41: secondary scheduler work stealing" \
+          && ! printf '%s' "$last_serial_delta" | grep -q "runtime v42: secondary scheduler load balancing"; then
+          echo "retrying after stale pre-V42 SD fallback..."
+        else
+          echo "retrying after stale pre-V41 SD fallback..."
+        fi
     fi
     echo "--- TFTP delta from failed attempt ---"
     printf '%s\n' "$last_dns_delta" | tail -n 40
@@ -345,6 +367,11 @@ done
 echo "netboot iteration did not verify after ${RETRIES} attempt(s)"
 print_tftp_diagnostics "$last_dns_delta"
 if printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
+  && printf '%s' "$last_serial_delta" | grep -q "runtime v41: secondary scheduler work stealing" \
+  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v42: secondary scheduler load balancing"; then
+  echo "final result: stale pre-V42 SD fallback image booted, but staged network image is not proven."
+  final_exit=3
+elif printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
   && ! printf '%s' "$last_serial_delta" | grep -q "runtime v41: secondary scheduler work stealing"; then
   echo "final result: stale pre-V41 SD fallback image booted, but staged network image is not proven."
   final_exit=3

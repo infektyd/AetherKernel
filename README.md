@@ -153,6 +153,17 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 > `sched9 ok=1 version=41 stealing=1 backpressure=1 handoff=1 wake=1
 > steals=4 completions=4 total=0 capacity=8 source_core1=4 source_core2=0
 > source_core3=0 dest_core1=0 dest_core2=2 dest_core3=2 selftest=1`.
+> Runtime V42 secondary scheduler load-balancing protocol is hardware-accepted.
+> Live Pi proof (2026-06-06, `kernel8.img` sha256
+> `a480b4c4e5df7ee114dc63bb0c17edf2dedaddd5a2f00033f5b8d96f527e2b97`) printed
+> `bootcert ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1
+> job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`, `certificate
+> ok=1 version=42 substrate=1 bootcert=1 fairness=1 stealing=1 backpressure=1
+> handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`,
+> and `sched10 ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1
+> wake=1 balances=3 completions=3 total=0 capacity=8 source_core1=3
+> source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=1
+> queue_imbalance=0 selftest=1`.
 
 ## What works (verified)
 
@@ -205,6 +216,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V39 secondary scheduler handoff protocol | ✅ | hardware run printed `runtime v39: secondary scheduler handoff protocol`; `bootcert ok=1 version=39 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=39 substrate=1 bootcert=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched7 ok=1 version=39 handoff=1 wake=1 job_exec=1 issued=885 completed=885 gap=0 imbalance=0 core0_issue=0 core1_issue=295 core2_issue=295 core3_issue=295 core0_done=0 core1_done=295 core2_done=295 core3_done=295 selftest=1`; clean 3-cycle live netboot repeat passed |
 | Runtime V40 scheduler backpressure protocol | ✅ | hardware run printed `runtime v40: scheduler backpressure protocol`; `bootcert ok=1 version=40 backpressure=1 handoff=1 wake=1 ... events_lost=0`; `certificate ok=1 version=40 substrate=1 bootcert=1 backpressure=1 handoff=1 wake=1 ... events_lost=0`; `sched8 ok=1 version=40 backpressure=1 handoff=1 wake=1 high_water=8 overflows=16 total=0 capacity=8 core0_high=8 core1_high=8 core2_high=8 core3_high=8 core0_overflow=4 core1_overflow=4 core2_overflow=4 core3_overflow=4 selftest=1`; clean 3-cycle live netboot repeat passed |
 | Runtime V41 secondary scheduler work-stealing protocol | ✅ | hardware run printed `runtime v41: secondary scheduler work stealing`; `bootcert ok=1 version=41 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=41 substrate=1 bootcert=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched9 ok=1 version=41 stealing=1 backpressure=1 handoff=1 wake=1 steals=4 completions=4 total=0 capacity=8 source_core1=4 source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=2 selftest=1`; `runqueues ok=1 version=33 cores=4 capacity=8 total=0`; `events count=41 capacity=64 lost=0`; clean 3-cycle live netboot repeat passed |
+| Runtime V42 secondary scheduler load-balancing protocol | ✅ | hardware run printed `runtime v42: secondary scheduler load balancing`; `bootcert ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=42 substrate=1 bootcert=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched10 ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 balances=3 completions=3 total=0 capacity=8 source_core1=3 source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=1 queue_imbalance=0 selftest=1`; `runqueues ok=1 version=33 cores=4 capacity=8 total=0`; clean 3-cycle live netboot repeat passed |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
@@ -736,6 +748,21 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     source_core3=0 dest_core1=0 dest_core2=2 dest_core3=2 selftest=1`. The
     3-cycle repeat kept `certificate ok=1`, `sched9 ok=1`, `runqueues total=0`,
     and `events_lost=0`.
+
+  - **Runtime V42 secondary scheduler load-balancing protocol.** ✅ hardware
+    proof closed 2026-06-06. V42 lets underloaded C-only secondary scheduler
+    workers pull bounded balance-job tokens from an overloaded peer queue,
+    execute them locally, and record per-core fairness counters while draining
+    every queue back to zero. Proof: `bootcert ok=1 version=42 fairness=1
+    stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1
+    secondary_workers=1 ... events_lost=0`, `certificate ok=1 version=42
+    substrate=1 bootcert=1 fairness=1 stealing=1 backpressure=1 handoff=1
+    wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`, and
+    `sched10 ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1
+    wake=1 balances=3 completions=3 total=0 capacity=8 source_core1=3
+    source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=1
+    queue_imbalance=0 selftest=1`. The 3-cycle repeat kept `certificate ok=1`,
+    `sched10 ok=1`, `runqueues total=0`, and `events_lost=0`.
 
 ## Provenance
 
