@@ -270,7 +270,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "req id=43 cmd=sched10" "^resp id=43 ok=1 cmd=sched10 end"
         # probe shell: sched11
         AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
-          probe_shell "sched11" "^sched11 ok=1 version=43 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*preemptions=[1-9][0-9]* .*yields=[1-9][0-9]* .*completions=[1-9][0-9]* .*total=0 .*capacity=8 .*low_core1=[1-9][0-9]* .*low_core2=[0-9][0-9]* .*low_core3=[0-9][0-9]* .*high_core1=[1-9][0-9]* .*high_core2=[0-9][0-9]* .*high_core3=[0-9][0-9]* .*preempt_core1=[1-9][0-9]* .*preempt_core2=[0-9][0-9]* .*preempt_core3=[0-9][0-9]* .*yield_core1=[1-9][0-9]* .*yield_core2=[0-9][0-9]* .*yield_core3=[0-9][0-9]* .*imbalance=[0-9][0-9]* .*selftest=1"
+          probe_shell "sched11" "^sched11 ok=1 version=43 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*preemptions=[1-9][0-9]* .*yields=[1-9][0-9]* .*completions=[1-9][0-9]* .*imbalance=[0-9][0-9]* .*total=0 .*capacity=8 .*low_core1=[1-9][0-9]* .*low_core2=[0-9][0-9]* .*low_core3=[0-9][0-9]* .*high_core1=[1-9][0-9]* .*high_core2=[0-9][0-9]* .*high_core3=[0-9][0-9]* .*preempt_core1=[1-9][0-9]* .*preempt_core2=[0-9][0-9]* .*preempt_core3=[0-9][0-9]* .*yield_core1=[1-9][0-9]* .*yield_core2=[0-9][0-9]* .*yield_core3=[0-9][0-9]* .*selftest=1"
         # probe shell: req-sched11
         AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
           probe_shell "req id=44 cmd=sched11" "^resp id=44 ok=1 cmd=sched11 end"
