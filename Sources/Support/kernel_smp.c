@@ -258,7 +258,7 @@ int kernel_smp_scheduler_wake_selftest(void) {
     return 1;
 }
 
-int kernel_smp_selftest(void) {
+int kernel_smp_proven(void) {
     if (!initialized) {
         return 0;
     }
@@ -292,4 +292,8 @@ int kernel_smp_selftest(void) {
         }
     }
     return 1;
+}
+
+int kernel_smp_selftest(void) {
+    return kernel_smp_proven();
 }

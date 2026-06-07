@@ -399,6 +399,7 @@ int kernel_scheduler_fairness_proven(void);
 int kernel_scheduler_priority_proven(void);
 int kernel_scheduler_smp_scheduler_proven(void);
 int kernel_scheduler_scheduler_proven(void);
+int kernel_scheduler_runqueue_proven(void);
 
 // Runtime V32 SMP secondary-core bring-up substrate. Secondary cores enter a
 // fixed C-only accounting loop with private stacks; they do not touch Swift
@@ -429,6 +430,7 @@ unsigned long kernel_smp_core_scheduler_wait_count(unsigned int core_id);
 unsigned long kernel_smp_core_scheduler_wake_count(unsigned int core_id);
 int kernel_smp_scheduler_wake_selftest(void);
 int kernel_smp_selftest(void);
+int kernel_smp_proven(void);
 
 // Runtime V12 kernel object and cooperative task registries. These are fixed
 // tables: they give the Swift demo runtime names, counters, and object handles

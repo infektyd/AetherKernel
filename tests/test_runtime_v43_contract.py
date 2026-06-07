@@ -68,6 +68,14 @@ def test_runtime_v43_priority_preemption_contract_exists() -> None:
     smp = read_repo("Sources/Support/kernel_smp.c")
     assert "kernel_scheduler_try_preempt_priority_work(core_id)" in smp
 
+    for marker in (
+        "priority_lanes_enabled && is_scheduler_priority_token",
+        "is_scheduler_steal_token(head_token)",
+        "is_scheduler_balance_token(head_token)",
+        "kernel_scheduler_try_preempt_priority_work(1)",
+    ):
+        assert marker in scheduler
+
 
 def test_runtime_v43_application_boot_marker_and_selftest_exist() -> None:
     app = read_repo("Sources/Application/Application.swift")
@@ -155,6 +163,7 @@ def test_runtime_v43_netboot_gates_and_sched11_probe_exist() -> None:
 def test_runtime_v43_shell_lane_provenance_helpers_exist() -> None:
     support = read_repo("Sources/Support/include/Support.h")
     scheduler = read_repo("Sources/Support/kernel_scheduler.c")
+    smp = read_repo("Sources/Support/kernel_smp.c")
     shell = read_repo("Sources/Application/UARTShell.swift")
 
     for marker in (
@@ -169,6 +178,8 @@ def test_runtime_v43_shell_lane_provenance_helpers_exist() -> None:
         "int kernel_scheduler_priority_proven(void);",
         "int kernel_scheduler_smp_scheduler_proven(void);",
         "int kernel_scheduler_scheduler_proven(void);",
+        "int kernel_scheduler_runqueue_proven(void);",
+        "int kernel_smp_proven(void);",
     ):
         assert marker in support
 
@@ -184,9 +195,13 @@ def test_runtime_v43_shell_lane_provenance_helpers_exist() -> None:
         "kernel_scheduler_priority_proven",
         "kernel_scheduler_smp_scheduler_proven",
         "kernel_scheduler_scheduler_proven",
+        "kernel_scheduler_runqueue_proven",
         "return kernel_scheduler_priority_preempt_total() >= 2U",
+        "kernel_scheduler_runqueue_high_water_max() >= KERNEL_SCHEDULER_RUNQUEUE_CAPACITY",
     ):
         assert marker in scheduler
+
+    assert "kernel_smp_proven" in smp
 
     for marker in (
         "let wake = kernel_scheduler_secondary_wake_proven()",
@@ -198,8 +213,19 @@ def test_runtime_v43_shell_lane_provenance_helpers_exist() -> None:
         "let secondaryWorkers = kernel_scheduler_secondary_worker_proven()",
         "let jobExec = kernel_scheduler_secondary_job_proven()",
         "let smpScheduler = kernel_scheduler_smp_scheduler_proven()",
+        "let queues = kernel_scheduler_runqueue_proven()",
+        "let smp = kernel_smp_proven()",
     ):
         assert marker in shell
+
+    for forbidden in (
+        "let queues = kernel_scheduler_runqueue_selftest()",
+        "let smp = kernel_smp_selftest()",
+    ):
+        bootcert = shell.split("func printBootcert()")[1].split("func ")[0]
+        certificate = shell.split("func printSubstrateCertificate()")[1].split("func ")[0]
+        assert forbidden not in bootcert, forbidden
+        assert forbidden not in certificate, forbidden
 
 
 def test_runtime_v43_docs_are_updated_after_hardware_proof() -> None:
