@@ -100,11 +100,11 @@ func uartPutShellBufferSlice(_ start: UInt32, _ len: UInt32) {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess\n")
+  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess\n")
+  uartPuts("shell help commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode\n")
 }
 
 func printProtocol() {
@@ -202,6 +202,7 @@ func printSubstrateCertificate() {
   let el0 = kernel_vmm_el0_selftest()
   let syscall = kernel_syscall_selftest()
   let uaccess = kernel_uaccess_selftest()
+  let usermode = kernel_usermode_selftest()
   let eventsLost = kernel_event_lost_count()
 
   let workerFeed = kernel_scheduler_timer_worker_feed_proven()
@@ -222,11 +223,11 @@ func printSubstrateCertificate() {
   let bootcertOk = concurrency != 0 && priority != 0 && fairness != 0 && stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && runtimeAudit != 0 && smp != 0 && scheduler != 0 && agentSession != 0 && memory != 0 &&
     objects != 0 && tasks != 0 && mailboxes != 0 && supervisor != 0 &&
     events != 0 && cancellations != 0 && channels != 0 && drivers != 0 &&
-    pressure != 0 && pools != 0 && mmu != 0 && vmm != 0 && asplit != 0 && el0 != 0 && syscall != 0 && uaccess != 0 && eventsLost == 0
+    pressure != 0 && pools != 0 && mmu != 0 && vmm != 0 && asplit != 0 && el0 != 0 && syscall != 0 && uaccess != 0 && usermode != 0 && eventsLost == 0
 
   uartPuts("certificate ok=")
   uartPutDec(UInt64(bootcertOk ? 1 : 0))
-  uartPuts(" version=49")
+  uartPuts(" version=50")
   uartPuts(" substrate=1")
   uartPuts(" bootcert=")
   uartPutDec(UInt64(bootcertOk ? 1 : 0))
@@ -304,6 +305,8 @@ func printSubstrateCertificate() {
   uartPutDec(UInt64(syscall))
   uartPuts(" uaccess=")
   uartPutDec(UInt64(uaccess))
+  uartPuts(" usermode=")
+  uartPutDec(UInt64(usermode))
   uartPuts(" swift=6.3.2")
   uartPuts(" events_lost=")
   uartPutDec(UInt64(eventsLost))
@@ -1854,7 +1857,7 @@ func printVMM() {
   let vmm_ok = kernel_vmm_vmm_selftest()
   uartPuts("vmm ok=")
   uartPutDec(UInt64((pt_ok != 0 && vmm_ok != 0) ? 1 : 0))
-  uartPuts(" version=49 pt=")
+  uartPuts(" version=50 pt=")
   uartPutDec(UInt64(pt_ok))
   uartPuts(" selftest=")
   uartPutDec(UInt64(vmm_ok))
@@ -1891,6 +1894,16 @@ func printUaccess() {
   uartPuts("uaccess ok=")
   uartPutDec(UInt64(ok))
   uartPuts(" version=49\n")
+}
+
+func printUsermode() {
+  let ok = kernel_usermode_selftest()
+  let fc = kernel_el0_fault_contained_read()
+  uartPuts("usermode ok=")
+  uartPutDec(UInt64(ok))
+  uartPuts(" version=50 fault_contained=")
+  uartPutDec(UInt64(fc))
+  uartPuts("\n")
 }
 
 func printPoolName(_ pool: UInt32) {
@@ -2228,13 +2241,14 @@ func printBootcert() {
   let el0 = kernel_vmm_el0_selftest()
   let syscall = kernel_syscall_selftest()
   let uaccess = kernel_uaccess_selftest()
-  let ok = concurrency != 0 && priority != 0 && fairness != 0 && stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && smp != 0 && scheduler != 0 && substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && vmm != 0 && asplit != 0 && el0 != 0 && syscall != 0 && uaccess != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
+  let usermode = kernel_usermode_selftest()
+  let ok = concurrency != 0 && priority != 0 && fairness != 0 && stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && smp != 0 && scheduler != 0 && substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && vmm != 0 && asplit != 0 && el0 != 0 && syscall != 0 && uaccess != 0 && usermode != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
     taskspawns != 0 && cancellations != 0 && kobjects != 0 && tasks != 0 && mailboxes != 0 &&
     channels != 0 && supervisor != 0 && events != 0 && eventsLost == 0
 
   uartPuts("bootcert ok=")
   uartPutDec(UInt64(ok ? 1 : 0))
-  uartPuts(" version=49")
+  uartPuts(" version=50")
   uartPuts(" concurrency=")
   uartPutDec(UInt64(concurrency))
   uartPuts(" priority=")
@@ -2300,6 +2314,8 @@ func printBootcert() {
   uartPutDec(UInt64(syscall))
   uartPuts(" uaccess=")
   uartPutDec(UInt64(uaccess))
+  uartPuts(" usermode=")
+  uartPutDec(UInt64(usermode))
   uartPuts(" channels=")
   uartPutDec(UInt64(channels))
   uartPuts(" taskspawns=")
@@ -2686,6 +2702,8 @@ func dispatchShellCommand(_ commandStart: UInt32, _ commandLen: UInt32, _ reques
     printSyscall()
   } else if shellBufferSliceEquals(commandStart, commandLen, "uaccess") {
     printUaccess()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "usermode") {
+    printUsermode()
   } else if shellBufferSliceEquals(commandStart, commandLen, "pools") {
     printPools()
   } else if shellBufferSliceEquals(commandStart, commandLen, "poolcheck") {

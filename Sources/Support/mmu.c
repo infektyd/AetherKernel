@@ -632,12 +632,20 @@ volatile unsigned long el0_test_result_x0 = 0;
 volatile unsigned long el0_test_result_x1 = 0;
 volatile int el0_test_result_handled = 0;
 
+// Runtime V50: set to 1 when a Data Abort from EL0 (EC=0x24) is caught and
+// contained rather than escalated to kernel_exception_handler.
+volatile int kernel_el0_fault_contained = 0;
+
+int kernel_el0_fault_contained_read(void) {
+    return (int)kernel_el0_fault_contained;
+}
+
 void kernel_el0_sync_handler(user_context_t *ctx) {
     unsigned long esr;
     __asm__ volatile("mrs %0, esr_el1" : "=r"(esr));
     unsigned long ec = (esr >> 26) & 0x3fUL;
-    
-    if (ec == 0x15) { // SVC
+
+    if (ec == 0x15) { // SVC from EL0
         if (ctx->regs[0] < (unsigned long)kernel_syscall_table_size()) {
             kernel_syscall_handle_svc(ctx);
         } else {
@@ -645,6 +653,8 @@ void kernel_el0_sync_handler(user_context_t *ctx) {
             el0_test_result_x1 = ctx->regs[1];
             el0_test_result_handled = 1;
         }
+    } else if (ec == 0x24) { // Data Abort from EL0 — contain, don't panic
+        kernel_el0_fault_contained = 1;
     } else {
         debug_uart_puts("EL0 sync exception EC=");
         debug_uart_puthex(ec);

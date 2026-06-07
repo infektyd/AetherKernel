@@ -262,6 +262,17 @@ _syscall_test_stub:
 1:  b       1b
 _syscall_test_stub_end:
 
+// Runtime V50: EL0 stub that deliberately touches an unmapped VA to trigger
+// a Data Abort (EC=0x24). The kernel must catch it without panicking.
+.global _usermode_fault_stub
+.global _usermode_fault_stub_end
+_usermode_fault_stub:
+    mov     x0, #0
+    movk    x0, #0x2, lsl #32    // x0 = 0x200000000 (8 GiB, unmapped)
+    ldr     x1, [x0]             // Data Abort from EL0 (EC=0x24)
+1:  b       1b                   // never reached
+_usermode_fault_stub_end:
+
 .section __DATA,__data
 .balign 8
 .global _kernel_el1_saved_sp

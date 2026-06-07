@@ -886,6 +886,12 @@ long kernel_copy_from_user(void *kdst, unsigned long usrc, unsigned long len);
 long kernel_copy_to_user(unsigned long udst, const void *ksrc, unsigned long len);
 int kernel_uaccess_selftest(void);
 
+// Runtime V50: EPIC A capstone — EL0 syscall round-trip + user fault containment.
+extern void usermode_fault_stub(void);
+extern void usermode_fault_stub_end(void);
+int kernel_el0_fault_contained_read(void);
+int kernel_usermode_selftest(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

@@ -199,6 +199,7 @@ struct Application {
     // Runtime V40 adds bounded scheduler backpressure proof.
     // Runtime V44 adds bounded SMP concurrency soak under active scheduler load.
     // Runtime V46 adds kernel/user address-space split (isolated page tables).
+    // Runtime V50 adds EPIC A capstone: EL0 syscall round-trip + user fault containment.
     // Runtime V49 adds fault-safe copy_from_user / copy_to_user.
     // Runtime V48 adds syscall ABI via SVC from EL0.
     // Runtime V47 adds EL0 entry/exit and context save/restore.
@@ -211,7 +212,7 @@ struct Application {
     kernel_cancel_init()
     kernel_event_log_init()
     kernel_scheduler_init()
-    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 49, 0, 0)
+    kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 50, 0, 0)
     kernel_object_registry_init()
     kernel_driver_registry_init()
     kernel_task_registry_init()
@@ -280,6 +281,7 @@ struct Application {
     uartPuts("runtime v47: EL0 entry/exit and context save/restore\n")
     uartPuts("runtime v48: syscall ABI via SVC from EL0\n")
     uartPuts("runtime v49: fault-safe copy_from_user / copy_to_user\n")
+    uartPuts("runtime v50: EPIC A capstone — EL0 syscall + user fault containment\n")
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(kernel_cancel_selftest()), 0)
     kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19, UInt(aetherTaskSpawnSelftest()), UInt(kernel_task_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20, UInt(aetherChannelSelftest()), UInt(kernel_mailbox_count()))
@@ -322,6 +324,14 @@ struct Application {
     uartPuts("uaccess ok=")
     uartPutDec(UInt64(uaccess_ok_boot))
     uartPuts(" version=49\n")
+    let usermode_ok_boot = kernel_usermode_selftest()
+    let fault_contained_boot = kernel_el0_fault_contained_read()
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 50, UInt(usermode_ok_boot), UInt(fault_contained_boot))
+    uartPuts("usermode ok=")
+    uartPutDec(UInt64(usermode_ok_boot))
+    uartPuts(" version=50 fault_contained=")
+    uartPutDec(UInt64(fault_contained_boot))
+    uartPuts("\n")
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
