@@ -111,7 +111,7 @@ With `serve-netboot.sh` still running in one terminal, the normal loop is:
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
 and waits for two proofs: a Pi TFTP fetch of `aether/kernel8.img` and a fresh
-AetherKernel banner plus Runtime V40 marker, `rtv2 fast/slow/long` zero-lines,
+AetherKernel banner plus Runtime V44 marker, `rtv2 fast/slow/long` zero-lines,
 the expanded `shell ready` command list, and shell probes for `status`,
 `protocol`, request-wrapped `status`, `bootcert`, `certificate`, `sched`
 through `sched8`, `canceltest`, `taskcheck`, `channeltest`, `mmu`, `poolcheck`,
@@ -153,7 +153,7 @@ reset step is handled by:
 
 The expected serial flow is bootloader `TFTP_GET` lines, then the AetherKernel
 banner, padded `CurrentEL`, repeating `rtv2 fast/slow/long` cadences, the
-Runtime V5 through V40 kernel markers (V26 is host-only), and:
+Runtime V5 through V44 kernel markers (V26 is host-only), and:
 
 ```text
 runtime v5: diagnostics shell
@@ -193,6 +193,8 @@ runtime v39: secondary scheduler handoff protocol
 runtime v40: scheduler backpressure protocol
 runtime v41: secondary scheduler work stealing
 runtime v42: secondary scheduler load balancing
+runtime v43: secondary scheduler priority preemption
+runtime v44: bounded smp concurrency soak
 handlecheck ok=1 handle_selftest=1 cap_selftest=1
 shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot
 ```
@@ -523,7 +525,7 @@ certificate ok=1 version=39 substrate=1 bootcert=1 handoff=1 wake=1 job_exec=1 w
 sched7 ok=1 version=39 handoff=1 wake=1 job_exec=1 issued=885 completed=885 gap=0 imbalance=0 core0_issue=0 core1_issue=295 core2_issue=295 core3_issue=295 core0_done=0 core1_done=295 core2_done=295 core3_done=295 selftest=1
 ```
 
-Runtime V40 scheduler backpressure protocol keeps Swift execution on core 0
+Runtime V44 bounded SMP concurrency soak protocol keeps Swift execution on core 0
 and proves bounded failure behavior for the SMP scheduler's fixed per-core
 runqueues. The live Pi proof accepted image `kernel8.img` sha256
 `46bc501a6513cf8a2187203c216be0dd6e54cf49223db3547f4d01578ca78372`,
@@ -680,8 +682,8 @@ Open a terminal on macOS to monitor the serial output:
 ## 5. Boot & Expected Output
 1. Insert the SD card back into the Raspberry Pi 4B.
 2. Connect the Raspberry Pi's USB-C power supply.
-3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, Runtime V4 through V40 markers, repeating `rtv2 fast/slow/long` lines, `bootcheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, `poolstats ok=1`, `drivers count=4 capacity=4 selftest=1`, `drivercheck ok=1`, `protocol version=2`, `agent ok=1 version=29 health=green`, `certificate ok=1 version=40 substrate=1 bootcert=1 backpressure=1`, `sched ok=1 version=31`, `sched2 ok=1 version=34`, `sched3 ok=1 version=35`, `sched4 ok=1 version=36`, `sched5 ok=1 version=37`, `sched6 ok=1 version=38`, `sched7 ok=1 version=39`, `sched8 ok=1 version=40`, `cores ok=1 version=32`, `locks ok=1 version=33`, `runqueues ok=1 version=33`, and `shell ready`.
-4. **Liveness Check:** Current liveness is the serial Runtime V40 cadence output plus UART shell diagnostic responses, especially `bootcert ok=1 version=40 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1`, `certificate ok=1 version=40 substrate=1 bootcert=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1`, `sched ok=1 version=31 active=1`, `sched2 ok=1 version=34 preemptive=1 smp_scheduler=1 active=1 cores=4 online=4`, `sched3 ok=1 version=35 secondary_workers=1 active=1 cores=4 online=4`, `sched4 ok=1 version=36 worker_feed=1 secondary_workers=1`, `sched5 ok=1 version=37 job_exec=1 worker_feed=1 secondary_workers=1`, `sched6 ok=1 version=38 wake=1 job_exec=1 worker_feed=1`, `sched7 ok=1 version=39 handoff=1 wake=1 job_exec=1`, `sched8 ok=1 version=40 backpressure=1 handoff=1 wake=1 high_water=8 overflows=16 total=0 capacity=8`, `cores ok=1 version=32 capacity=4 online=4`, `locks ok=1 version=33 atomics=1 spinlocks=1`, `runqueues ok=1 version=33 cores=4 total=0`, `agent ok=1 version=29 health=green`, `agent-session ok=1 version=29 health=green`, `protocol version=2`, `resp id=30 ok=1 cmd=certificate end`, `resp id=31 ok=1 cmd=sched end`, `resp id=35 ok=1 cmd=sched2 end`, `resp id=36 ok=1 cmd=sched3 end`, `resp id=37 ok=1 cmd=sched4 end`, `resp id=38 ok=1 cmd=sched5 end`, `resp id=39 ok=1 cmd=sched6 end`, `resp id=40 ok=1 cmd=sched7 end`, `resp id=41 ok=1 cmd=sched8 end`, `resp id=33 ok=1 cmd=locks end`, `resp id=34 ok=1 cmd=runqueues end`, `drivercheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, and `poolstats ok=1`. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
+3. Within a couple of seconds, the serial terminal should print the kernel's banner, `CurrentEL = 0x0000000000000004`, Runtime V4 through V44 markers, repeating `rtv2 fast/slow/long` lines, `bootcheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, `poolstats ok=1`, `drivers count=4 capacity=4 selftest=1`, `drivercheck ok=1`, `protocol version=2`, `agent ok=1 version=29 health=green`, `certificate ok=1 version=44 substrate=1 bootcert=1 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1`, `sched ok=1 version=31`, `sched2 ok=1 version=34`, `sched3 ok=1 version=35`, `sched4 ok=1 version=36`, `sched5 ok=1 version=37`, `sched6 ok=1 version=38`, `sched7 ok=1 version=39`, `sched8 ok=1 version=40`, `sched9 ok=1 version=41`, `sched10 ok=1 version=42`, `sched11 ok=1 version=43`, `sched12 ok=1 version=44`, `cores ok=1 version=32`, `locks ok=1 version=33`, `runqueues ok=1 version=33`, and `shell ready`.
+4. **Liveness Check:** Current liveness is the serial Runtime V44 cadence output plus UART shell diagnostic responses, especially `bootcert ok=1 version=44 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1 certificate=1 agent=1 runtime=1`, `certificate ok=1 version=44 substrate=1 bootcert=1 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 preemptive=1 smp_scheduler=1 atomics=1 locks=1 queues=1 smp=1 scheduler=1`, `sched ok=1 version=31 active=1`, `sched2 ok=1 version=34 preemptive=1 smp_scheduler=1 active=1 cores=4 online=4`, `sched3 ok=1 version=35 secondary_workers=1 active=1 cores=4 online=4`, `sched4 ok=1 version=36 worker_feed=1 secondary_workers=1`, `sched5 ok=1 version=37 job_exec=1 worker_feed=1 secondary_workers=1`, `sched6 ok=1 version=38 wake=1 job_exec=1 worker_feed=1`, `sched7 ok=1 version=39 handoff=1 wake=1 job_exec=1`, `sched8 ok=1 version=40 backpressure=1 handoff=1 wake=1 high_water=8 overflows=16 total=0 capacity=8`, `sched9 ok=1 version=41`, `sched10 ok=1 version=42`, `sched11 ok=1 version=43`, `sched12 ok=1 version=44 concurrency=1 rounds=3 completions=3 failures=0 dispatches=9`, `cores ok=1 version=32 capacity=4 online=4`, `locks ok=1 version=33 atomics=1 spinlocks=1`, `runqueues ok=1 version=33 cores=4 total=0`, `agent ok=1 version=29 health=green`, `agent-session ok=1 version=29 health=green`, `protocol version=2`, `resp id=30 ok=1 cmd=certificate end`, `resp id=31 ok=1 cmd=sched end`, `resp id=35 ok=1 cmd=sched2 end`, `resp id=36 ok=1 cmd=sched3 end`, `resp id=37 ok=1 cmd=sched4 end`, `resp id=38 ok=1 cmd=sched5 end`, `resp id=39 ok=1 cmd=sched6 end`, `resp id=40 ok=1 cmd=sched7 end`, `resp id=41 ok=1 cmd=sched8 end`, `resp id=42 ok=1 cmd=sched9 end`, `resp id=43 ok=1 cmd=sched10 end`, `resp id=44 ok=1 cmd=sched11 end`, `resp id=45 ok=1 cmd=sched12 end`, `resp id=33 ok=1 cmd=locks end`, `resp id=34 ok=1 cmd=runqueues end`, `drivercheck ok=1`, `canceltest ok=1`, `taskcheck ok=1`, `channeltest ok=1`, `mmu ok=1`, `poolcheck ok=1`, `heapfrag ok=1`, and `poolstats ok=1`. GPIO42 ACT-LED blink code remains as historical bring-up support, but the current app does not drive it.
 
 ## 6. Troubleshooting
 * **No output:**

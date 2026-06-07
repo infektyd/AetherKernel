@@ -1,6 +1,6 @@
 # Bare-metal Embedded-Swift bring-up playbook (BCM2711 / Pi 4, generalizable)
 
-Distilled from AetherKernel's hardware-verified milestones (2026-06-04): boot → UART → polled
+Distilled from AetherKernel's hardware-verified milestones (2026-06-07): boot → UART → polled
 timer → GIC IRQ. Every step here was confirmed on real silicon, not just compiled. Pi-4 specifics
 are tagged **[BCM2711]**; everything else generalizes to other AArch64 bare-metal targets.
 

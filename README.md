@@ -3,8 +3,8 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-> Status: **Runtime V40 scheduler backpressure protocol hardware-verified on real Raspberry Pi 4B**
-> (2026-06-06) — netbooted image fetched `kernel8.img`, printed banner +
+> Status: **Runtime V44 bounded SMP concurrency soak protocol hardware-verified on real Raspberry Pi 4B**
+> (2026-06-07) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
 > async cadences, the IRQ-backed UART shell marker, the Runtime V5 diagnostics
 > marker, the Runtime V6 retained-record marker, the Runtime V7 memory marker,
@@ -319,6 +319,12 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
 ```
 
 ## Roadmap (next, once it boots)
+
+> **The forward-looking roadmap now lives in [`ROADMAP.md`](ROADMAP.md)** — the
+> far-horizon North Star ("general-purpose OS on the Pi 4") and the dependency-ordered
+> epic ladder (user mode → processes → storage → display → USB → networking) that
+> autonomous agents climb after V44. The list below is the original boot-bring-up
+> roadmap, kept for history; items 1–4 are all hardware-verified.
 
 1. ~~Confirm boot on hardware: banner + `CurrentEL = 0x0000000000000004` (EL1) over serial.~~ ✅ 2026-06-04
 2. ~~Generic timer tick (CNTP) → a real periodic heartbeat instead of a busy delay.~~ ✅ 2026-06-04 (polled, 1 s @ 54 MHz)

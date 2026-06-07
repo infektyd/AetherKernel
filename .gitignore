@@ -2,3 +2,7 @@
 kernel8.img
 *.o
 .DS_Store
+.autodrive/
+__pycache__/
+*.pyc
+.pytest_cache/
