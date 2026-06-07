@@ -152,6 +152,56 @@ def test_runtime_v43_netboot_gates_and_sched11_probe_exist() -> None:
         assert marker in net_iterate
 
 
+def test_runtime_v43_shell_lane_provenance_helpers_exist() -> None:
+    support = read_repo("Sources/Support/include/Support.h")
+    scheduler = read_repo("Sources/Support/kernel_scheduler.c")
+    shell = read_repo("Sources/Application/UARTShell.swift")
+
+    for marker in (
+        "int kernel_scheduler_timer_worker_feed_proven(void);",
+        "int kernel_scheduler_secondary_worker_proven(void);",
+        "int kernel_scheduler_secondary_job_proven(void);",
+        "int kernel_scheduler_secondary_wake_proven(void);",
+        "int kernel_scheduler_secondary_handoff_proven(void);",
+        "int kernel_scheduler_backpressure_proven(void);",
+        "int kernel_scheduler_work_steal_proven(void);",
+        "int kernel_scheduler_fairness_proven(void);",
+        "int kernel_scheduler_priority_proven(void);",
+        "int kernel_scheduler_smp_scheduler_proven(void);",
+        "int kernel_scheduler_scheduler_proven(void);",
+    ):
+        assert marker in support
+
+    for marker in (
+        "kernel_scheduler_timer_worker_feed_proven",
+        "kernel_scheduler_secondary_worker_proven",
+        "kernel_scheduler_secondary_job_proven",
+        "kernel_scheduler_secondary_wake_proven",
+        "kernel_scheduler_secondary_handoff_proven",
+        "kernel_scheduler_backpressure_proven",
+        "kernel_scheduler_work_steal_proven",
+        "kernel_scheduler_fairness_proven",
+        "kernel_scheduler_priority_proven",
+        "kernel_scheduler_smp_scheduler_proven",
+        "kernel_scheduler_scheduler_proven",
+        "return kernel_scheduler_priority_preempt_total() >= 2U",
+    ):
+        assert marker in scheduler
+
+    for marker in (
+        "let wake = kernel_scheduler_secondary_wake_proven()",
+        "let handoff = kernel_scheduler_secondary_handoff_proven()",
+        "let backpressure = kernel_scheduler_backpressure_proven()",
+        "let stealing = kernel_scheduler_work_steal_proven()",
+        "let fairness = kernel_scheduler_fairness_proven()",
+        "let workerFeed = kernel_scheduler_timer_worker_feed_proven()",
+        "let secondaryWorkers = kernel_scheduler_secondary_worker_proven()",
+        "let jobExec = kernel_scheduler_secondary_job_proven()",
+        "let smpScheduler = kernel_scheduler_smp_scheduler_proven()",
+    ):
+        assert marker in shell
+
+
 def test_runtime_v43_docs_are_updated_after_hardware_proof() -> None:
     readme = read_repo("README.md")
     runbook = read_repo("RUNBOOK.md")

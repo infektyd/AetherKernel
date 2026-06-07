@@ -1870,6 +1870,198 @@ unsigned long kernel_scheduler_interval_ticks(void) {
     return value;
 }
 
+int kernel_scheduler_timer_worker_feed_proven(void) {
+    if (KERNEL_SCHEDULER_VERSION != 43U ||
+        !kernel_scheduler_active() ||
+        !kernel_scheduler_secondary_workers_enabled() ||
+        !kernel_scheduler_timer_worker_feed_enabled() ||
+        kernel_smp_online_count() != 4U ||
+        kernel_smp_online_mask() != 0xfU) {
+        return 0;
+    }
+
+    unsigned long feed_min = kernel_scheduler_secondary_worker_feed_min();
+    unsigned long feed_max = kernel_scheduler_secondary_worker_feed_max();
+    unsigned long drain_min = kernel_scheduler_secondary_worker_min();
+    unsigned long drain_max = kernel_scheduler_secondary_worker_max();
+    return feed_min > 0 &&
+        feed_max >= feed_min &&
+        drain_min > 0 &&
+        drain_max >= drain_min &&
+        kernel_scheduler_worker_feed_count(0) == 0 &&
+        kernel_scheduler_worker_drain_count(0) == 0 &&
+        kernel_scheduler_secondary_worker_feed_total() >= 3UL &&
+        kernel_scheduler_secondary_worker_total() >= 3UL &&
+        kernel_scheduler_secondary_worker_feed_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY &&
+        kernel_scheduler_secondary_worker_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY &&
+        kernel_scheduler_worker_feed_drain_gap() <= KERNEL_SCHEDULER_CORE_CAPACITY ? 1 : 0;
+}
+
+int kernel_scheduler_secondary_worker_proven(void) {
+    if (KERNEL_SCHEDULER_VERSION != 43U ||
+        !kernel_scheduler_active() ||
+        !kernel_scheduler_secondary_workers_enabled() ||
+        kernel_smp_online_count() != 4U ||
+        kernel_smp_online_mask() != 0xfU) {
+        return 0;
+    }
+
+    return kernel_scheduler_secondary_worker_total() >= 3UL &&
+        kernel_scheduler_secondary_worker_min() > 0UL &&
+        kernel_scheduler_secondary_worker_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY ? 1 : 0;
+}
+
+int kernel_scheduler_secondary_job_proven(void) {
+    if (KERNEL_SCHEDULER_VERSION != 43U ||
+        !kernel_scheduler_active() ||
+        !kernel_scheduler_secondary_workers_enabled() ||
+        !kernel_scheduler_timer_worker_feed_enabled() ||
+        !kernel_scheduler_secondary_job_execution_enabled() ||
+        kernel_smp_online_count() != 4U ||
+        kernel_smp_online_mask() != 0xfU) {
+        return 0;
+    }
+
+    unsigned long min = kernel_scheduler_secondary_job_min();
+    unsigned long max = kernel_scheduler_secondary_job_max();
+    return min > 0 &&
+        max >= min &&
+        kernel_scheduler_secondary_job_execution_count(0) == 0 &&
+        kernel_scheduler_secondary_job_completion_count(0) == 0 &&
+        kernel_scheduler_secondary_job_total() >= 3UL &&
+        kernel_scheduler_secondary_job_completion_total() >= 3UL &&
+        kernel_scheduler_secondary_job_checksum_total() > 0 &&
+        kernel_scheduler_secondary_job_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY &&
+        kernel_scheduler_secondary_job_completion_gap() == 0 ? 1 : 0;
+}
+
+int kernel_scheduler_secondary_wake_proven(void) {
+    if (KERNEL_SCHEDULER_VERSION != 43U ||
+        !kernel_scheduler_active() ||
+        !kernel_scheduler_secondary_workers_enabled() ||
+        !kernel_scheduler_timer_worker_feed_enabled() ||
+        !kernel_scheduler_secondary_job_execution_enabled() ||
+        !kernel_scheduler_secondary_wake_signals_enabled() ||
+        kernel_smp_online_count() != 4U ||
+        kernel_smp_online_mask() != 0xfU) {
+        return 0;
+    }
+
+    return kernel_scheduler_secondary_wake_signal_total() > 0 &&
+        kernel_scheduler_secondary_wake_signal_mask() == KERNEL_SMP_SECONDARY_MASK &&
+        kernel_scheduler_secondary_wake_target_total() >= 3UL &&
+        kernel_scheduler_secondary_wake_wait_count(0) == 0 &&
+        kernel_scheduler_secondary_wake_ack_count(0) == 0 &&
+        kernel_scheduler_secondary_wake_wait_total() >= 3UL &&
+        kernel_scheduler_secondary_wake_ack_total() >= 3UL &&
+        kernel_scheduler_secondary_wake_gap() <= KERNEL_SCHEDULER_CORE_CAPACITY ? 1 : 0;
+}
+
+int kernel_scheduler_secondary_handoff_proven(void) {
+    if (KERNEL_SCHEDULER_VERSION != 43U ||
+        !kernel_scheduler_active() ||
+        !kernel_scheduler_secondary_workers_enabled() ||
+        !kernel_scheduler_timer_worker_feed_enabled() ||
+        !kernel_scheduler_secondary_job_execution_enabled() ||
+        !kernel_scheduler_secondary_wake_signals_enabled() ||
+        !kernel_scheduler_secondary_handoffs_enabled() ||
+        kernel_smp_online_count() != 4U ||
+        kernel_smp_online_mask() != 0xfU) {
+        return 0;
+    }
+
+    return kernel_scheduler_secondary_handoff_issue_count(0) == 0 &&
+        kernel_scheduler_secondary_handoff_completion_count(0) == 0 &&
+        kernel_scheduler_secondary_handoff_issue_total() >= 3UL &&
+        kernel_scheduler_secondary_handoff_completion_total() >= 3UL &&
+        kernel_scheduler_secondary_handoff_gap() <= KERNEL_SCHEDULER_CORE_CAPACITY &&
+        kernel_scheduler_secondary_handoff_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY ? 1 : 0;
+}
+
+int kernel_scheduler_backpressure_proven(void) {
+    if (KERNEL_SCHEDULER_VERSION != 43U ||
+        kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY ||
+        kernel_scheduler_runqueue_capacity() != KERNEL_SCHEDULER_RUNQUEUE_CAPACITY) {
+        return 0;
+    }
+
+    return kernel_scheduler_runqueue_overflow_total() >= KERNEL_SCHEDULER_CORE_CAPACITY &&
+        kernel_scheduler_runqueue_high_water_max() >= KERNEL_SCHEDULER_RUNQUEUE_CAPACITY ? 1 : 0;
+}
+
+int kernel_scheduler_work_steal_proven(void) {
+    if (KERNEL_SCHEDULER_VERSION != 43U ||
+        kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY ||
+        kernel_scheduler_runqueue_capacity() != KERNEL_SCHEDULER_RUNQUEUE_CAPACITY ||
+        !kernel_smp_core_online(1) ||
+        !kernel_smp_core_online(2) ||
+        !kernel_smp_core_online(3)) {
+        return 0;
+    }
+
+    return kernel_scheduler_steal_total() >= 2U &&
+        kernel_scheduler_steal_completion_total() >= 2U ? 1 : 0;
+}
+
+int kernel_scheduler_fairness_proven(void) {
+    if (KERNEL_SCHEDULER_VERSION != 43U ||
+        kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY ||
+        kernel_scheduler_runqueue_capacity() != KERNEL_SCHEDULER_RUNQUEUE_CAPACITY ||
+        !kernel_smp_core_online(1) ||
+        !kernel_smp_core_online(2) ||
+        !kernel_smp_core_online(3)) {
+        return 0;
+    }
+
+    return kernel_scheduler_balance_total() >= 2U &&
+        kernel_scheduler_balance_completion_total() >= 2U &&
+        kernel_scheduler_secondary_queue_imbalance() <= 1UL ? 1 : 0;
+}
+
+int kernel_scheduler_priority_proven(void) {
+    if (KERNEL_SCHEDULER_VERSION != 43U ||
+        kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY ||
+        kernel_scheduler_runqueue_capacity() != KERNEL_SCHEDULER_RUNQUEUE_CAPACITY ||
+        !kernel_smp_core_online(1)) {
+        return 0;
+    }
+
+    return kernel_scheduler_priority_preempt_total() >= 2U &&
+        kernel_scheduler_priority_yield_total() >= 2U &&
+        kernel_scheduler_priority_completion_total() >= 4U &&
+        kernel_scheduler_priority_lane_imbalance() <= 1UL ? 1 : 0;
+}
+
+int kernel_scheduler_smp_scheduler_proven(void) {
+    if (KERNEL_SCHEDULER_VERSION != 43U ||
+        !kernel_scheduler_active() ||
+        !kernel_scheduler_smp_dispatch_enabled() ||
+        kernel_scheduler_core_count() != 4U ||
+        kernel_smp_online_count() != 4U) {
+        return 0;
+    }
+
+    unsigned long min = kernel_scheduler_fairness_min();
+    unsigned long max = kernel_scheduler_fairness_max();
+    return min > 0 &&
+        max >= min &&
+        kernel_scheduler_fairness_imbalance() <= 1UL &&
+        kernel_scheduler_total_route_count() >= 4UL &&
+        kernel_scheduler_total_dispatch_count() >= 4UL ? 1 : 0;
+}
+
+int kernel_scheduler_scheduler_proven(void) {
+    if (KERNEL_SCHEDULER_VERSION != 43U ||
+        kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY ||
+        kernel_scheduler_runqueue_capacity() != KERNEL_SCHEDULER_RUNQUEUE_CAPACITY ||
+        kernel_scheduler_active() == 0 ||
+        kernel_scheduler_interval_ticks() == 0) {
+        return 0;
+    }
+
+    return 1;
+}
+
 int kernel_scheduler_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();

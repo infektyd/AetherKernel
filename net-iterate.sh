@@ -129,6 +129,9 @@ while [ "$attempt" -le "$RETRIES" ]; do
 
   echo "netboot attempt ${attempt}/${RETRIES}: reset Pi, then wait up to ${TIMEOUT_S}s for TFTP fetch + fresh AetherKernel boot..."
   "$SCRIPT_DIR/serial-reset.sh" "$SERIAL_PORT"
+  if [ -x "$SCRIPT_DIR/serial-capture.sh" ]; then
+    "$SCRIPT_DIR/serial-capture.sh" "$SERIAL_PORT" >/dev/null
+  fi
 
   deadline=$((SECONDS + TIMEOUT_S))
   while [ "$SECONDS" -lt "$deadline" ]; do

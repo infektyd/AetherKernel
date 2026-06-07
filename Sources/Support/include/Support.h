@@ -388,6 +388,17 @@ int kernel_scheduler_backpressure_selftest(void);
 int kernel_scheduler_work_steal_selftest(void);
 int kernel_scheduler_fairness_selftest(void);
 int kernel_scheduler_priority_selftest(void);
+int kernel_scheduler_timer_worker_feed_proven(void);
+int kernel_scheduler_secondary_worker_proven(void);
+int kernel_scheduler_secondary_job_proven(void);
+int kernel_scheduler_secondary_wake_proven(void);
+int kernel_scheduler_secondary_handoff_proven(void);
+int kernel_scheduler_backpressure_proven(void);
+int kernel_scheduler_work_steal_proven(void);
+int kernel_scheduler_fairness_proven(void);
+int kernel_scheduler_priority_proven(void);
+int kernel_scheduler_smp_scheduler_proven(void);
+int kernel_scheduler_scheduler_proven(void);
 
 // Runtime V32 SMP secondary-core bring-up substrate. Secondary cores enter a
 // fixed C-only accounting loop with private stacks; they do not touch Swift
