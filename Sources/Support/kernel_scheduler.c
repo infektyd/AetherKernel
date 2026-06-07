@@ -1,6 +1,7 @@
 #include "Support.h"
 
 //===----------------------------------------------------------------------===//
+// Runtime V41 secondary scheduler work-stealing protocol.
 // Runtime V40 scheduler backpressure protocol.
 // Runtime V39 secondary scheduler handoff protocol.
 // Runtime V38 secondary scheduler wake protocol.
@@ -18,7 +19,9 @@
 // V39 records bounded issue/completion handoff acknowledgements for those
 // C-only secondary jobs. V40 proves the bounded per-core queues fail closed:
 // saturating a queue records high-water/overflow telemetry, rejects overfill,
-// and drains back to zero without corrupting queued tokens.
+// and drains back to zero without corrupting queued tokens. V41 lets idle
+// C-only secondary workers steal bounded steal-job tokens from another
+// secondary queue, execute them locally, and drain every queue back to zero.
 //===----------------------------------------------------------------------===//
 
 typedef struct scheduler_core {
@@ -40,6 +43,10 @@ typedef struct scheduler_core {
     unsigned long handoff_completions;
     unsigned long runqueue_high_water;
     unsigned long runqueue_overflows;
+    unsigned long steal_attempts;
+    unsigned long steal_successes;
+    unsigned long steal_source_count;
+    unsigned long steal_completions;
     unsigned long enqueues;
     unsigned long dequeues;
     unsigned int queue[KERNEL_SCHEDULER_RUNQUEUE_CAPACITY];
@@ -57,6 +64,7 @@ static unsigned int timer_worker_feed_enabled;
 static unsigned int secondary_job_execution_enabled;
 static unsigned int secondary_wake_signals_enabled;
 static unsigned int secondary_handoffs_enabled;
+static unsigned int secondary_work_stealing_enabled;
 static unsigned int last_dispatch_core;
 static unsigned long interval_ticks_value;
 
@@ -92,6 +100,10 @@ static void clear_core_unsafe(scheduler_core *core) {
     core->handoff_completions = 0;
     core->runqueue_high_water = 0;
     core->runqueue_overflows = 0;
+    core->steal_attempts = 0;
+    core->steal_successes = 0;
+    core->steal_source_count = 0;
+    core->steal_completions = 0;
     core->enqueues = 0;
     core->dequeues = 0;
     core->head = 0;
@@ -145,6 +157,7 @@ void kernel_scheduler_init(void) {
     secondary_job_execution_enabled = 0;
     secondary_wake_signals_enabled = 0;
     secondary_handoffs_enabled = 0;
+    secondary_work_stealing_enabled = 0;
     last_dispatch_core = 0;
     interval_ticks_value = 0;
     irq_restore(flags);
@@ -221,10 +234,25 @@ void kernel_scheduler_enable_secondary_handoffs(void) {
     irq_restore(flags);
 }
 
+void kernel_scheduler_enable_secondary_work_stealing(void) {
+    if (!initialized) {
+        kernel_scheduler_init();
+    }
+    unsigned long flags = irq_save();
+    secondary_work_stealing_enabled = 1;
+    irq_restore(flags);
+}
+
 static unsigned int scheduler_job_token_for_core(unsigned int core_id) {
     return KERNEL_SCHEDULER_JOB_TOKEN_BASE |
         (KERNEL_SCHEDULER_JOB_OP_CHECKSUM << 4) |
         (core_id & 0x0fU);
+}
+
+static unsigned int scheduler_steal_token_for_source(unsigned int source_core, unsigned int sequence) {
+    return KERNEL_SCHEDULER_STEAL_TOKEN_BASE |
+        ((sequence & 0xffU) << 4) |
+        (source_core & 0x0fU);
 }
 
 static unsigned int worker_token_for_core(unsigned int core_id) {
@@ -236,6 +264,10 @@ static unsigned int worker_token_for_core(unsigned int core_id) {
 
 static int is_scheduler_job_token(unsigned int token) {
     return (token & 0xff00U) == KERNEL_SCHEDULER_JOB_TOKEN_BASE;
+}
+
+static int is_scheduler_steal_token(unsigned int token) {
+    return (token & 0xff00U) == KERNEL_SCHEDULER_STEAL_TOKEN_BASE;
 }
 
 static int is_worker_token(unsigned int token) {
@@ -304,6 +336,72 @@ static void execute_scheduler_job_for_core(unsigned int core_id, unsigned int to
     cores[core_id].job_completions++;
     record_secondary_handoff_completion(core_id);
     unlock_core(core_id, flags);
+}
+
+static void execute_stolen_scheduler_job_for_core(unsigned int core_id, unsigned int token, unsigned int source_core) {
+    if (!valid_core(core_id) || core_id == 0 || !valid_core(source_core) || source_core == 0) {
+        return;
+    }
+
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    cores[core_id].job_executions++;
+    unsigned long sequence = cores[core_id].job_executions;
+    unsigned long mix = ((unsigned long)token << 16) ^
+        (sequence * 257UL) ^
+        ((unsigned long)core_id * 0x9e37UL) ^
+        ((unsigned long)source_core * 0x51edUL);
+    if (mix == 0) {
+        mix = (unsigned long)core_id + (unsigned long)source_core + 1UL;
+    }
+    cores[core_id].job_checksum += mix;
+    if (cores[core_id].job_checksum == 0) {
+        cores[core_id].job_checksum = mix | 1UL;
+    }
+    cores[core_id].job_completions++;
+    cores[core_id].steal_completions++;
+    unlock_core(core_id, flags);
+}
+
+static int kernel_scheduler_try_steal_work(unsigned int core_id) {
+    if (!secondary_work_stealing_enabled ||
+        !valid_core(core_id) ||
+        core_id == 0 ||
+        !kernel_smp_core_online(core_id)) {
+        return 0;
+    }
+
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    cores[core_id].steal_attempts++;
+    unlock_core(core_id, flags);
+
+    for (unsigned int offset = 1; offset < KERNEL_SCHEDULER_CORE_CAPACITY; offset++) {
+        unsigned int source_core = ((core_id + offset - 1U) % (KERNEL_SCHEDULER_CORE_CAPACITY - 1U)) + 1U;
+        if (source_core == core_id || !kernel_smp_core_online(source_core)) {
+            continue;
+        }
+
+        unsigned int token = 0;
+        lock_core(source_core, &flags);
+        if (cores[source_core].count == 0 ||
+            !is_scheduler_steal_token(cores[source_core].queue[cores[source_core].head])) {
+            unlock_core(source_core, flags);
+            continue;
+        }
+        (void)queue_pop_unsafe(&cores[source_core], &token);
+        cores[source_core].steal_source_count++;
+        unlock_core(source_core, flags);
+
+        lock_core(core_id, &flags);
+        cores[core_id].steal_successes++;
+        unlock_core(core_id, flags);
+
+        execute_stolen_scheduler_job_for_core(core_id, token, source_core);
+        return 1;
+    }
+
+    return 0;
 }
 
 static int enqueue_worker_probe_for_core(unsigned int core_id) {
@@ -503,6 +601,13 @@ unsigned int kernel_scheduler_secondary_handoffs_enabled(void) {
     return value;
 }
 
+unsigned int kernel_scheduler_secondary_work_stealing_enabled(void) {
+    unsigned long flags = irq_save();
+    unsigned int value = secondary_work_stealing_enabled;
+    irq_restore(flags);
+    return value;
+}
+
 unsigned int kernel_scheduler_core_count(void) {
     return KERNEL_SCHEDULER_CORE_CAPACITY;
 }
@@ -520,6 +625,18 @@ unsigned int kernel_scheduler_runqueue_count(unsigned int core_id) {
     unsigned int count = cores[core_id].count;
     unlock_core(core_id, flags);
     return count;
+}
+
+unsigned int kernel_scheduler_secondary_has_runnable_work(unsigned int core_id) {
+    if (!valid_core(core_id) || core_id == 0) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned int runnable = cores[core_id].count != 0 &&
+        is_worker_token(cores[core_id].queue[cores[core_id].head]) ? 1U : 0U;
+    unlock_core(core_id, flags);
+    return runnable;
 }
 
 int kernel_scheduler_enqueue(unsigned int core_id, unsigned int token) {
@@ -596,6 +713,14 @@ void kernel_scheduler_secondary_worker_tick(unsigned int core_id) {
     unsigned long flags = 0;
     lock_core(core_id, &flags);
     if (cores[core_id].count == 0) {
+        unlock_core(core_id, flags);
+        if (kernel_scheduler_try_steal_work(core_id)) {
+            lock_core(core_id, &flags);
+            cores[core_id].worker_drains++;
+            unlock_core(core_id, flags);
+            return;
+        }
+        lock_core(core_id, &flags);
         cores[core_id].worker_idles++;
         unlock_core(core_id, flags);
         return;
@@ -799,6 +924,66 @@ unsigned long kernel_scheduler_runqueue_high_water_max(void) {
         }
     }
     return max;
+}
+
+unsigned long kernel_scheduler_steal_attempt_count(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned long value = cores[core_id].steal_attempts;
+    unlock_core(core_id, flags);
+    return value;
+}
+
+unsigned long kernel_scheduler_steal_success_count(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned long value = cores[core_id].steal_successes;
+    unlock_core(core_id, flags);
+    return value;
+}
+
+unsigned long kernel_scheduler_steal_source_count(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned long value = cores[core_id].steal_source_count;
+    unlock_core(core_id, flags);
+    return value;
+}
+
+unsigned long kernel_scheduler_steal_completion_count(unsigned int core_id) {
+    if (!valid_core(core_id)) {
+        return 0;
+    }
+    unsigned long flags = 0;
+    lock_core(core_id, &flags);
+    unsigned long value = cores[core_id].steal_completions;
+    unlock_core(core_id, flags);
+    return value;
+}
+
+unsigned long kernel_scheduler_steal_total(void) {
+    unsigned long total = 0;
+    for (unsigned int i = 1; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        total += kernel_scheduler_steal_success_count(i);
+    }
+    return total;
+}
+
+unsigned long kernel_scheduler_steal_completion_total(void) {
+    unsigned long total = 0;
+    for (unsigned int i = 1; i < KERNEL_SCHEDULER_CORE_CAPACITY; i++) {
+        total += kernel_scheduler_steal_completion_count(i);
+    }
+    return total;
 }
 
 unsigned long kernel_scheduler_secondary_worker_total(void) {
@@ -1204,7 +1389,7 @@ int kernel_scheduler_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 40U) {
+    if (KERNEL_SCHEDULER_VERSION != 41U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY) {
@@ -1224,7 +1409,7 @@ int kernel_scheduler_runqueue_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 40U) {
+    if (KERNEL_SCHEDULER_VERSION != 41U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != 4U) {
@@ -1275,7 +1460,7 @@ int kernel_scheduler_backpressure_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 40U) {
+    if (KERNEL_SCHEDULER_VERSION != 41U) {
         return 0;
     }
     if (kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY ||
@@ -1350,11 +1535,87 @@ int kernel_scheduler_backpressure_selftest(void) {
         kernel_scheduler_runqueue_overflow_total() >= KERNEL_SCHEDULER_CORE_CAPACITY ? 1 : 0;
 }
 
+int kernel_scheduler_work_steal_selftest(void) {
+    if (!initialized) {
+        kernel_scheduler_init();
+    }
+    if (KERNEL_SCHEDULER_VERSION != 41U) {
+        return 0;
+    }
+    if (kernel_scheduler_core_count() != KERNEL_SCHEDULER_CORE_CAPACITY ||
+        kernel_scheduler_runqueue_capacity() != KERNEL_SCHEDULER_RUNQUEUE_CAPACITY) {
+        return 0;
+    }
+    if (!kernel_smp_core_online(1) || !kernel_smp_core_online(2) || !kernel_smp_core_online(3)) {
+        return 0;
+    }
+
+    unsigned int saved_feed = kernel_scheduler_timer_worker_feed_enabled();
+    set_timer_worker_feed_enabled(0);
+    wait_for_secondary_queues_empty();
+
+    unsigned long steal_before = kernel_scheduler_steal_total();
+    unsigned long completion_before = kernel_scheduler_steal_completion_total();
+    unsigned long source1_before = kernel_scheduler_steal_source_count(1);
+    unsigned long dest2_before = kernel_scheduler_steal_success_count(2);
+    unsigned long dest3_before = kernel_scheduler_steal_success_count(3);
+
+    int ok = 1;
+    for (unsigned int slot = 0; slot < 4U; slot++) {
+        if (!kernel_scheduler_enqueue(1, scheduler_steal_token_for_source(1, slot + 1U))) {
+            ok = 0;
+        }
+    }
+
+    if (ok) {
+        kernel_smp_signal_scheduler_work((1U << 2) | (1U << 3));
+        for (unsigned int spin = 0; spin < 200000U; spin++) {
+            if (kernel_scheduler_steal_success_count(2) > dest2_before &&
+                kernel_scheduler_steal_success_count(3) > dest3_before &&
+                kernel_scheduler_runqueue_count(1) == 0) {
+                break;
+            }
+            if ((spin & 0x3ffU) == 0) {
+                kernel_smp_signal_scheduler_work((1U << 2) | (1U << 3));
+            }
+            __asm__ volatile("nop" ::: "memory");
+        }
+    }
+
+    if (kernel_scheduler_steal_success_count(2) <= dest2_before ||
+        kernel_scheduler_steal_success_count(3) <= dest3_before ||
+        kernel_scheduler_steal_source_count(1) < source1_before + 2U ||
+        kernel_scheduler_steal_total() < steal_before + 2U ||
+        kernel_scheduler_steal_completion_total() < completion_before + 2U) {
+        ok = 0;
+    }
+
+    for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+        for (unsigned int cleanup = 0;
+             cleanup < KERNEL_SCHEDULER_RUNQUEUE_CAPACITY &&
+             kernel_scheduler_runqueue_count(core_id) != 0;
+             cleanup++) {
+            unsigned int ignored = 0;
+            (void)kernel_scheduler_dequeue(core_id, &ignored);
+        }
+        if (kernel_scheduler_runqueue_count(core_id) != 0) {
+            ok = 0;
+        }
+    }
+
+    if (saved_feed) {
+        set_timer_worker_feed_enabled(1);
+    }
+    return ok &&
+        kernel_scheduler_steal_total() >= 2U &&
+        kernel_scheduler_steal_completion_total() >= 2U ? 1 : 0;
+}
+
 int kernel_scheduler_smp_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 40U) {
+    if (KERNEL_SCHEDULER_VERSION != 41U) {
         return 0;
     }
     if (!kernel_scheduler_active() || !kernel_scheduler_smp_dispatch_enabled()) {
@@ -1384,7 +1645,7 @@ int kernel_scheduler_secondary_worker_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 40U) {
+    if (KERNEL_SCHEDULER_VERSION != 41U) {
         return 0;
     }
     if (!kernel_scheduler_active() || !kernel_scheduler_secondary_workers_enabled()) {
@@ -1434,7 +1695,7 @@ int kernel_scheduler_timer_worker_feed_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 40U) {
+    if (KERNEL_SCHEDULER_VERSION != 41U) {
         return 0;
     }
     if (!kernel_scheduler_active() ||
@@ -1488,7 +1749,7 @@ int kernel_scheduler_secondary_job_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 40U) {
+    if (KERNEL_SCHEDULER_VERSION != 41U) {
         return 0;
     }
     if (!kernel_scheduler_active() ||
@@ -1539,7 +1800,7 @@ int kernel_scheduler_secondary_wake_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 40U) {
+    if (KERNEL_SCHEDULER_VERSION != 41U) {
         return 0;
     }
     if (!kernel_scheduler_active() ||
@@ -1597,7 +1858,7 @@ int kernel_scheduler_secondary_handoff_selftest(void) {
     if (!initialized) {
         kernel_scheduler_init();
     }
-    if (KERNEL_SCHEDULER_VERSION != 40U) {
+    if (KERNEL_SCHEDULER_VERSION != 41U) {
         return 0;
     }
     if (!kernel_scheduler_active() ||

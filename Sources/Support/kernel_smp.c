@@ -192,14 +192,14 @@ void kernel_smp_secondary_wait_for_work(unsigned int core_id) {
     if (secondary_mask_for_core(core_id) == 0) {
         return;
     }
-    if (kernel_scheduler_runqueue_count(core_id) != 0) {
+    if (kernel_scheduler_secondary_has_runnable_work(core_id) != 0) {
         return;
     }
     cores[core_id].scheduler_waits++;
     memory_barrier();
     __asm__ volatile("sevl" ::: "memory");
     __asm__ volatile("wfe" ::: "memory");
-    if (kernel_scheduler_runqueue_count(core_id) == 0) {
+    if (kernel_scheduler_secondary_has_runnable_work(core_id) == 0) {
         __asm__ volatile("wfe" ::: "memory");
     }
     cores[core_id].scheduler_wakes++;
