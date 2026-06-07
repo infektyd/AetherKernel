@@ -365,6 +365,41 @@ void kernel_vmm_init_space(unsigned long l1_pa) {
     __asm__ volatile("dsb sy" ::: "memory");
 }
 
+unsigned long kernel_vmm_lookup_in_table(unsigned long l1_pa, unsigned long va, unsigned long *attrs_out) {
+    unsigned int l1i = VMM_L1_INDEX(va);
+    unsigned int l2i = VMM_L2_INDEX(va);
+    unsigned int l3i = VMM_L3_INDEX(va);
+
+    if (l1i >= 512 || l1_pa == 0) {
+        return 0;
+    }
+
+    volatile unsigned long *l1 = (volatile unsigned long *)l1_pa;
+    unsigned long l1e = l1[l1i];
+    if ((l1e & 0x3UL) != VMM_TABLE_DESC) {
+        return 0;
+    }
+
+    unsigned long l2_pa = l1e & ~0xfffUL;
+    volatile unsigned long *l2 = (volatile unsigned long *)l2_pa;
+    unsigned long l2e = l2[l2i];
+    if ((l2e & 0x3UL) != VMM_TABLE_DESC) {
+        return 0;
+    }
+
+    unsigned long l3_pa = l2e & ~0xfffUL;
+    volatile unsigned long *l3 = (volatile unsigned long *)l3_pa;
+    unsigned long l3e = l3[l3i];
+    if ((l3e & 0x3UL) != VMM_PAGE_DESC) {
+        return 0;
+    }
+
+    if (attrs_out) {
+        *attrs_out = l3e;
+    }
+    return l3e & ~0xfffUL;
+}
+
 int kernel_vmm_map_in_table(unsigned long l1_pa, unsigned long va, unsigned long pa, unsigned long attrs) {
     unsigned int l1i = VMM_L1_INDEX(va);
     unsigned int l2i = VMM_L2_INDEX(va);

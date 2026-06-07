@@ -19,13 +19,13 @@ This is a multi-year-class goal. It is reached one **hardware-proven increment**
 time — the same cadence that produced V1–V44. Never "boil the ocean": each increment
 must boot on the real Pi 4 and emit a machine-checkable serial marker + bootcert flag.
 
-## Where we are now (V48)
+## Where we are now (V49)
 
 A strong **microkernel-style runtime core**, all hardware-verified:
 - Boot → EL1, PL011 UART, GPIO mux, CNTP timer, GIC-400 IRQ routing, EL1 vectors.
 - Embedded-Swift `async/await` on bare metal (custom C executor), timer-backed sleep.
 - Memory: fixed memory map, 4 KiB frame allocator, guarded heap, typed pools,
-  **dynamic virtual memory (page tables + TLB)**, **kernel/user address-space split (isolated page tables)**, **EL0 entry/exit and context save/restore**, and **syscall ABI via SVC (versioned table + bootcert flag)**.
+  **dynamic virtual memory (page tables + TLB)**, **kernel/user address-space split (isolated page tables)**, **EL0 entry/exit and context save/restore**, **syscall ABI via SVC (versioned table + bootcert flag)**, and **fault-safe `copy_from_user`/`copy_to_user`**.
 - Kernel objects: registry, capability-tagged handles, mailboxes, async channels,
   supervisor, event-log ring, cancellation tokens, structured task spawn.
 - SMP: 4-core bring-up, atomics/spinlocks, per-core runqueues, timer-driven dispatch,
@@ -51,7 +51,7 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - [x] Kernel/user address-space split; per-address-space page tables.
 - [x] EL0 entry/exit; save/restore user context through the existing vectors.
 - [x] Syscall ABI via `SVC` (a tiny, versioned syscall table with a bootcert flag).
-- `copy_from_user`/`copy_to_user` with fault-safe access.
+- [x] `copy_from_user`/`copy_to_user` with fault-safe access.
 - *First proof:* a hand-built EL0 stub makes a syscall and returns; marker proves the
   round trip and that a user fault is contained, not fatal to the kernel.
 

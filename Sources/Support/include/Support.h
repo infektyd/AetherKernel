@@ -844,6 +844,7 @@ int kernel_vmm_vmm_selftest(void);  // basic table + simple high-VA map test (ex
 // Runtime V46: kernel/user address-space split and isolated page tables.
 #define KERNEL_VMM_ATTR_USER (1UL << 6)
 void kernel_vmm_init_space(unsigned long l1_pa);
+unsigned long kernel_vmm_lookup_in_table(unsigned long l1_pa, unsigned long va, unsigned long *attrs_out);
 int kernel_vmm_map_in_table(unsigned long l1_pa, unsigned long va, unsigned long pa, unsigned long attrs);
 int kernel_vmm_unmap_in_table(unsigned long l1_pa, unsigned long va);
 void kernel_vmm_free_space(unsigned long l1_pa);
@@ -877,6 +878,13 @@ unsigned long kernel_syscall_last_ret_read(void);
 int kernel_syscall_last_dispatched_read(void);
 extern void syscall_test_stub(void);
 extern void syscall_test_stub_end(void);
+
+// Runtime V49: fault-safe user memory copies (page-table probe, no kernel panic).
+void kernel_uaccess_set_active_pt(unsigned long l1_pa);
+unsigned long kernel_uaccess_active_pt_read(void);
+long kernel_copy_from_user(void *kdst, unsigned long usrc, unsigned long len);
+long kernel_copy_to_user(unsigned long udst, const void *ksrc, unsigned long len);
+int kernel_uaccess_selftest(void);
 
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
