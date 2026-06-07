@@ -73,6 +73,8 @@ def test_runtime_v43_priority_preemption_contract_exists() -> None:
         "is_scheduler_steal_token(head_token)",
         "is_scheduler_balance_token(head_token)",
         "kernel_scheduler_try_preempt_priority_work(1)",
+        "set_smp_dispatch_enabled(0)",
+        "saved_dispatch = kernel_scheduler_smp_dispatch_enabled()",
     ):
         assert marker in scheduler
 

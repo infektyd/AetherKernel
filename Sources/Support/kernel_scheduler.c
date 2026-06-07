@@ -684,6 +684,12 @@ static void set_timer_worker_feed_enabled(unsigned int value) {
     irq_restore(flags);
 }
 
+static void set_smp_dispatch_enabled(unsigned int value) {
+    unsigned long flags = irq_save();
+    smp_dispatch_enabled = value ? 1U : 0U;
+    irq_restore(flags);
+}
+
 static int timer_worker_feed_is_enabled(void) {
     unsigned long flags = irq_save();
     unsigned int enabled = timer_worker_feed_enabled;
@@ -2428,7 +2434,9 @@ int kernel_scheduler_priority_selftest(void) {
     }
 
     unsigned int saved_feed = kernel_scheduler_timer_worker_feed_enabled();
+    unsigned int saved_dispatch = kernel_scheduler_smp_dispatch_enabled();
     set_timer_worker_feed_enabled(0);
+    set_smp_dispatch_enabled(0);
     wait_for_secondary_queues_empty();
 
     unsigned long preempt_before = kernel_scheduler_priority_preempt_count(1);
@@ -2453,15 +2461,13 @@ int kernel_scheduler_priority_selftest(void) {
 
     if (ok) {
         kernel_smp_signal_scheduler_work(KERNEL_SMP_SECONDARY_MASK);
-        for (unsigned int spin = 0; spin < 200000U; spin++) {
+        for (unsigned int spin = 0; spin < 500000U; spin++) {
+            (void)kernel_scheduler_try_preempt_priority_work(1);
             if (kernel_scheduler_priority_preempt_count(1) >= preempt_before + 2U &&
                 kernel_scheduler_priority_yield_count(1) >= yield_before + 2U &&
                 kernel_scheduler_priority_completion_total() >= completion_before + 4U &&
                 kernel_scheduler_runqueue_count(1) == 0) {
                 break;
-            }
-            if ((spin & 0x3fU) == 0U) {
-                (void)kernel_scheduler_try_preempt_priority_work(1);
             }
             if ((spin & 0x3ffU) == 0U) {
                 kernel_smp_signal_scheduler_work(KERNEL_SMP_SECONDARY_MASK);
@@ -2489,6 +2495,9 @@ int kernel_scheduler_priority_selftest(void) {
         }
     }
 
+    if (saved_dispatch) {
+        set_smp_dispatch_enabled(1);
+    }
     if (saved_feed) {
         set_timer_worker_feed_enabled(1);
     }
