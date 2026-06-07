@@ -246,7 +246,7 @@ int kernel_spinlock_selftest(void);
 // preemptive yield when high-priority work arrives behind low-priority tokens.
 // V44 proves bounded concurrency soak rounds while SMP dispatch and timer-fed
 // secondary workers stay active and every per-core queue drains back to zero.
-#define KERNEL_SCHEDULER_VERSION 44U
+#define KERNEL_SCHEDULER_VERSION 45U
 #define KERNEL_SCHEDULER_CONCURRENCY_SOAK_ROUNDS 3U
 #define KERNEL_SCHEDULER_CORE_CAPACITY 4U
 #define KERNEL_SCHEDULER_RUNQUEUE_CAPACITY 8U

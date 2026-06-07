@@ -200,6 +200,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -q "runtime v42: secondary scheduler load balancing" \
       && printf '%s' "$serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption" \
       && printf '%s' "$serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v45: dynamic virtual memory (page tables + TLB)" \
       && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail tx 0x0000000000000000" \
       && printf '%s' "$serial_delta" | grep -q "rtv13 mail rx 0x0000000000000000" \

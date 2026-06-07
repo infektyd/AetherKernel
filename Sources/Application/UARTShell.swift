@@ -100,11 +100,11 @@ func uartPutShellBufferSlice(_ start: UInt32, _ len: UInt32) {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot\n")
+  uartPuts("shell help commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm\n")
 }
 
 func printProtocol() {
@@ -221,7 +221,7 @@ func printSubstrateCertificate() {
 
   uartPuts("certificate ok=")
   uartPutDec(UInt64(bootcertOk ? 1 : 0))
-  uartPuts(" version=44")
+  uartPuts(" version=45")
   uartPuts(" substrate=1")
   uartPuts(" bootcert=")
   uartPutDec(UInt64(bootcertOk ? 1 : 0))
@@ -1833,6 +1833,11 @@ func printMMU() {
   }
 }
 
+// V45 skeleton: placeholder until core VMM + live test wired (slice 3/4).
+func printVMM() {
+  uartPuts("vmm ok=0 version=45 pending-impl\n")
+}
+
 func printPoolName(_ pool: UInt32) {
   var i: UInt32 = 0
   let n = kernel_pool_name_len(pool)
@@ -2601,6 +2606,8 @@ func dispatchShellCommand(_ commandStart: UInt32, _ commandLen: UInt32, _ reques
     printMemmap()
   } else if shellBufferSliceEquals(commandStart, commandLen, "mmu") {
     printMMU()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "vmm") {
+    printVMM()
   } else if shellBufferSliceEquals(commandStart, commandLen, "pools") {
     printPools()
   } else if shellBufferSliceEquals(commandStart, commandLen, "poolcheck") {
