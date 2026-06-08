@@ -1049,6 +1049,11 @@ unsigned int kernel_pcie_cm_pcie_pre(void);
 unsigned int kernel_pcie_cm_pcie_post(void);
 unsigned int kernel_pcie_mmio_pre_perst(void);
 unsigned int kernel_pcie_mmio_pre_perst_ticks(void);
+unsigned int kernel_pcie_mmio_post_perst(void);
+unsigned int kernel_pcie_mmio_post_perst_ticks(void);
+unsigned int kernel_pcie_mmio_post_link(void);
+unsigned int kernel_pcie_mmio_post_link_ticks(void);
+unsigned int kernel_pcie_rgr1_pi(void);
 unsigned int kernel_pcie_rc_cmd(void);
 
 // Runtime V63: xHCI capability register probe (Sources/Support/kernel_xhci.c).

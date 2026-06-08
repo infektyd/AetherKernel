@@ -123,9 +123,20 @@ static uint32_t pcie_cm_pcie_pre_val;
 static uint32_t pcie_cm_pcie_post_val;
 // MMIO read at 0x600000000 BEFORE PERST# deassertion (link still down).
 // If ticks~0 → AXI intercepts outbound window regardless of link state (routing broken).
-// If ticks~2.7M → AXI routes to PCIe RC which returns CTO (routing works, link just down).
+// If ticks~24 → AXI routes to PCIe RC which returns local link-down error (routing works).
+// If ticks~2.7M → AXI routes to PCIe RC → CTO (50ms) — link-up but no endpoint response.
 static uint32_t pcie_mmio_pre_perst_val;
 static uint32_t pcie_mmio_pre_perst_ticks;
+// MMIO read at 0x600000000 immediately AFTER clearing RGR1_PERST (before link training).
+// Tells us: does the PERST# bit clear ITSELF cause the ticks transition (0 vs 24+)?
+static uint32_t pcie_mmio_post_perst_val;
+static uint32_t pcie_mmio_post_perst_ticks;
+// MMIO read at 0x600000000 after link-up + second SET_RESETS(1,0) call.
+// Tells us: does re-applying PCIe0 reset deassert after link-up restore routing?
+static uint32_t pcie_mmio_post_link_val;
+static uint32_t pcie_mmio_post_link_ticks;
+// Pi firmware RGR1_SW_INIT_1 state before our reset (bit0=PERST#, bit1=bridge_sw_init).
+static uint32_t pcie_rgr1_pi_val;
 // RC command register after our bring-up.
 static uint32_t pcie_rc_cmd_val;
 
@@ -263,6 +274,7 @@ int kernel_pcie_selftest(void) {
     pcie_udelay(10000);  // 10ms for domain to enable
 
     // Snapshot Pi firmware register state before we reset anything.
+    pcie_rgr1_pi_val     = PCIE32(OFF_RGR1_SW_INIT_1);   // bit0=PERST#, bit1=bridge_sw_init
     pcie_win0_lo_pre_val = PCIE32(OFF_MISC_WIN0_LO);
     pcie_win0_bl_pre_val = PCIE32(OFF_MISC_WIN0_BL);
 
@@ -353,6 +365,20 @@ int kernel_pcie_selftest(void) {
 
     // 10. Deassert PERST# — VL805 starts EEPROM firmware load + link training.
     PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_PERST;
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    // 10a. Immediate post-PERST# probe: read MMIO BEFORE link training starts.
+    //      If ticks~0 immediately after clearing PERST# bit: the bit itself gates AXI routing.
+    //      If ticks~24: routing still works; link training later causes the transition.
+    {
+        uint64_t _t0, _t1;
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t0));
+        pcie_mmio_post_perst_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t1));
+        uint64_t _dt = _t1 - _t0;
+        pcie_mmio_post_perst_ticks = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
+    }
+
     pcie_udelay(120000);
 
     // 11. Poll for link-up, up to 100ms.
@@ -375,6 +401,23 @@ int kernel_pcie_selftest(void) {
         uint32_t lnkctl_sta = PCIE32(OFF_LNKCTL_STA);
         pcie_speed_val = (lnkctl_sta >> 16) & 0xFU;
         pcie_width_val = (lnkctl_sta >> 20) & 0x3FU;
+    }
+
+    // 13. Post-link-up: re-apply PCIe0 firmware domain deassert and probe MMIO.
+    //     PERST# deassertion or link training may trigger BCM2711 AXI auto-reset.
+    //     If ticks>0 here but 0 in Phase 1 (500ms later), ASPM/CLKREQ is gating.
+    //     If ticks>0 here AND in Phase 1, this call is the missing fix.
+    //     If ticks=0 here, neither SET_RESETS nor timing is the gate mechanism.
+    kernel_vc_mbox_set_pcie_reset(1U, 0U);
+    pcie_udelay(5000);
+    __asm__ volatile("dsb sy" ::: "memory");
+    {
+        uint64_t _t0, _t1;
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t0));
+        pcie_mmio_post_link_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t1));
+        uint64_t _dt = _t1 - _t0;
+        pcie_mmio_post_link_ticks = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
     }
 
     pcie_link_ok = 1;
@@ -401,6 +444,11 @@ unsigned int kernel_pcie_cm_pcie_pre(void)      { return (unsigned int)pcie_cm_p
 unsigned int kernel_pcie_cm_pcie_post(void)     { return (unsigned int)pcie_cm_pcie_post_val;       }
 unsigned int kernel_pcie_mmio_pre_perst(void)   { return (unsigned int)pcie_mmio_pre_perst_val;     }
 unsigned int kernel_pcie_mmio_pre_perst_ticks(void) { return (unsigned int)pcie_mmio_pre_perst_ticks; }
+unsigned int kernel_pcie_mmio_post_perst(void)  { return (unsigned int)pcie_mmio_post_perst_val;    }
+unsigned int kernel_pcie_mmio_post_perst_ticks(void){ return (unsigned int)pcie_mmio_post_perst_ticks;}
+unsigned int kernel_pcie_mmio_post_link(void)   { return (unsigned int)pcie_mmio_post_link_val;     }
+unsigned int kernel_pcie_mmio_post_link_ticks(void) { return (unsigned int)pcie_mmio_post_link_ticks; }
+unsigned int kernel_pcie_rgr1_pi(void)          { return (unsigned int)pcie_rgr1_pi_val;            }
 unsigned int kernel_pcie_rc_cmd(void)           { return (unsigned int)pcie_rc_cmd_val;             }
 
 // ── V62: VL805 config-space probe + BAR0 assignment ───────────────────────
