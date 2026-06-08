@@ -227,15 +227,16 @@ static int xhci_reset_result = -1;
 static uint32_t xhci_reset_payload = 0xFFFFFFFFU;  // vc_buf[5] after call (0=VC success, else error)
 
 int kernel_vc_mbox_notify_xhci_reset(void) {
-    vc_buf[0] = 7U * 4U;
+    // Linux calls rpi_firmware_property(fw, RPI_FIRMWARE_NOTIFY_XHCI_RESET, NULL, 0)
+    // — zero-length tag, no value buffer, no request data.
+    vc_buf[0] = 6U * 4U;  // 24 bytes
     vc_buf[1] = MBOX_REQ;
     vc_buf[2] = TAG_NOTIFY_XHCI_RESET;
-    vc_buf[3] = 4U;
-    vc_buf[4] = 4U;  // 4 bytes of request data (xhci_type u32)
-    vc_buf[5] = 0U;  // xhci_type = 0 = VL805
-    vc_buf[6] = TAG_END;
-    xhci_reset_result = vc_call(28U);
-    xhci_reset_payload = vc_buf[5];  // VC response: 0=success, non-zero=error
+    vc_buf[3] = 0U;  // no value buffer
+    vc_buf[4] = 0U;  // no request data
+    vc_buf[5] = TAG_END;
+    xhci_reset_result = vc_call(24U);
+    xhci_reset_payload = 0U;  // no response data for zero-length tag
     return xhci_reset_result;
 }
 

@@ -409,7 +409,9 @@ int kernel_vl805_selftest(void) {
     pcie_udelay(10000);
 
     vl805_vc_xhci_payload_val = kernel_vc_mbox_xhci_reset_payload();
-    vl805_rom_status_val = pcie_cfg_rd(1, 0, 0, 0xB4);
+    // VL805 config 0x50 = firmware version; 0 = ROM state (firmware not loaded).
+    // Linux reads this immediately after NOTIFY_XHCI_RESET to confirm load.
+    vl805_rom_status_val = pcie_cfg_rd(1, 0, 0, 0x50);
 
     // Poll MMIO for up to 5s — disambiguates "firmware not loaded" from "needs time".
     for (unsigned int poll_ms = 0; poll_ms < 5000U; poll_ms += 10U) {
