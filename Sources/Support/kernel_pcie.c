@@ -295,30 +295,27 @@ int kernel_pcie_selftest(void) {
     //   MISC_CTRL, WIN0, BAR2, HARD_DEBUG are configured AFTER bridge-reset deassertion
     //   but BEFORE PERST# deassertion.
     //
-    // Previous attempts set WIN0/MISC_CTRL after link-up (Fixes 1 & 2). Both left
-    // MMIO returning 0xDEADDEAD.  The BCM2711 AXI fabric's ARM→PCIe routing appears
-    // to latch SCB_ACCESS_EN / outbound-window state at PERST# deassertion time;
-    // writing those registers after the fact has no effect.
+    // CRITICAL ORDERING (matches Linux pcie-brcmstb.c exactly):
+    //   All MISC register writes (WIN0, MISC_CTRL, HARD_DEBUG, BAR2) must happen
+    //   WHILE BRIDGE_SW_INIT=1 (bridge in reset).  The BCM2711 AXI fabric latches
+    //   the outbound-window routing configuration at the BRIDGE_SW_INIT 1→0 edge.
+    //   Writing WIN0 after clearing BRIDGE_SW_INIT → AXI snapshots WIN0=0 → 0-tick
+    //   MMIO returns 0xDEADDEAD even with link up (root cause confirmed by at_l0_ticks=0
+    //   with WIN0_LO reading back correct but routing still blocked).
 
     // 1. Assert PERST# + bridge SW reset simultaneously.
     PCIE32(OFF_RGR1_SW_INIT_1) |= (RGR1_PERST | RGR1_BRIDGE_SW_INIT);
     pcie_udelay(100);
 
-    // 2. Deassert bridge SW reset (keep PERST# asserted).
-    //    BCM2711 PCIe RC MISC registers now reset to defaults (WIN0_LO=0, etc.).
-    PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_BRIDGE_SW_INIT;
-    pcie_udelay(100);
+    // 3-8. Configure all MISC registers WHILE BRIDGE_SW_INIT=1.
+    //      These writes set the values the AXI fabric will latch when
+    //      BRIDGE_SW_INIT is cleared in step 2 below.
 
-    // 3. Power up SerDes (clear IDDQ).
-    PCIE32(OFF_MISC_HARD_DEBUG) &= ~HARD_DEBUG_SERDES_IDDQ;
-    pcie_udelay(100);
-
-    // 4. Mask MSI interrupts.
+    // 3. Mask MSI interrupts.
     PCIE32(OFF_MSI_MASK_SET) = 0xFFFFFFFFU;
     PCIE32(OFF_MSI_CLR)      = 0xFFFFFFFFU;
 
-    // 5. MISC_CTRL: SCB_ACCESS_EN, CFG_READ_UR_MODE, 128B burst, SCB0=4GB.
-    //    MUST be set before PERST# deassertion — matches Linux ordering.
+    // 4. MISC_CTRL: SCB_ACCESS_EN, CFG_READ_UR_MODE, 128B burst, SCB0=4GB.
     {
         uint32_t mc = PCIE32(OFF_MISC_MISC_CTRL);
         mc |=  (1U << 12);   // SCB_ACCESS_EN
@@ -328,7 +325,7 @@ int kernel_pcie_selftest(void) {
         PCIE32(OFF_MISC_MISC_CTRL) = mc;
     }
 
-    // 6. Inbound DMA window (RC BAR2): PCIe 0x400000000 → ARM phys 0x0, 4GB.
+    // 5. Inbound DMA window (RC BAR2): PCIe 0x400000000 → ARM phys 0x0, 4GB.
     {
         uint64_t bar2_off  = 0x400000000ULL;
         uint64_t bar2_size = 0x100000000ULL;
@@ -339,7 +336,7 @@ int kernel_pcie_selftest(void) {
         PCIE32(OFF_MISC_RC_BAR3_LO) &= ~0x1FU;
     }
 
-    // 7. HARD_DEBUG: clear CLKREQ_DBG_EN (gates endpoint ref-clock), SERDES_IDDQ,
+    // 6. HARD_DEBUG: clear CLKREQ_DBG_EN (gates endpoint ref-clock), SERDES_IDDQ,
     //    and L1SS_ENA (L1 sub-states can stall MMIO TLPs while MCU boots).
     {
         uint32_t hd = PCIE32(OFF_MISC_HARD_DEBUG);
@@ -349,10 +346,16 @@ int kernel_pcie_selftest(void) {
         PCIE32(OFF_MISC_HARD_DEBUG) = hd;
     }
 
-    // 8. Outbound MMIO window 0: CPU phys 0x600000000 → PCIe 0xf8000000, 64MB.
-    //    Set BEFORE PERST# deassertion — matches Linux ordering.
+    // 7. Outbound MMIO window 0: CPU phys 0x600000000 → PCIe 0xf8000000, 64MB.
+    //    Written while BRIDGE_SW_INIT=1 so AXI latches this value at step 2.
     pcie_set_outbound_win0(CPU_WIN_BASE, PCIE_WIN_BASE, WIN_SIZE_MB);
     __asm__ volatile("dsb sy" ::: "memory");
+
+    // 2. Deassert bridge SW reset (keep PERST# asserted).
+    //    AXI fabric latches WIN0/MISC_CTRL configuration here.
+    //    SerDes wakes up now that the bridge is out of reset.
+    PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_BRIDGE_SW_INIT;
+    pcie_udelay(100);
 
     // 9. Bridge bus numbers: SecBus=1 ensures EXT_CFG generates TYPE-0 TLPs for
     //    bus=1 (endpoint); without this, VL805 returns UR → 0xFFFFFFFF.
