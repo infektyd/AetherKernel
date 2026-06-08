@@ -231,8 +231,8 @@ int kernel_vc_mbox_notify_xhci_reset(void) {
     vc_buf[1] = MBOX_REQ;
     vc_buf[2] = TAG_NOTIFY_XHCI_RESET;
     vc_buf[3] = 4U;
-    vc_buf[4] = 0U;
-    vc_buf[5] = 0U;
+    vc_buf[4] = 4U;  // 4 bytes of request data (xhci_type u32)
+    vc_buf[5] = 0U;  // xhci_type = 0 = VL805
     vc_buf[6] = TAG_END;
     xhci_reset_result = vc_call(28U);
     xhci_reset_payload = vc_buf[5];  // VC response: 0=success, non-zero=error
