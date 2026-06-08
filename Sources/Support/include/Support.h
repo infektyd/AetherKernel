@@ -1008,7 +1008,9 @@ unsigned int kernel_vl805_pm_state(void);
 int          kernel_vl805_vc_xhci_reset(void);
 // Diagnostic: vc_buf[5] response payload after NOTIFY_XHCI_RESET (0=VC success, non-zero=VC error).
 unsigned int kernel_vl805_vc_xhci_payload(void);
-// Diagnostic: VL805 config offset 0xB4 vendor ROM status (bit6=firmware running).
+// Diagnostic: VL805 config 0x50 BEFORE NOTIFY_XHCI_RESET (0=ROM state; non-0=firmware or static cap data).
+unsigned int kernel_vl805_fw_ver_pre(void);
+// Diagnostic: VL805 config 0x50 AFTER NOTIFY_XHCI_RESET (firmware version if loaded).
 unsigned int kernel_vl805_rom_status(void);
 // Diagnostic: ms polled before mmio_raw0 became valid (0xFFFF=never valid in 5s).
 unsigned int kernel_vl805_mmio_poll_ms(void);
