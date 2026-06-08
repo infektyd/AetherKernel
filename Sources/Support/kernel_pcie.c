@@ -411,14 +411,34 @@ int kernel_vl805_selftest(void) {
     pcie_udelay(10000);
 
     vl805_vc_xhci_payload_val = kernel_vc_mbox_xhci_reset_payload();
-    // VL805 config 0x50 = firmware version; 0 = ROM state (firmware not loaded).
-    // Linux reads this immediately after NOTIFY_XHCI_RESET to confirm load.
     vl805_rom_status_val = pcie_cfg_rd(1, 0, 0, 0x50);
 
-    // Poll MMIO for up to 5s — disambiguates "firmware not loaded" from "needs time".
+    // The 3s EEPROM poll above generated many completion timeouts that may have
+    // left the BRCMSTB RC in a sticky-error state.  Reset the RC bridge (without
+    // asserting PERST# to VL805) so the completion tracker starts fresh.
+    // VL805 firmware survives: PERST# is NOT driven here; only the bridge itself resets.
+    {
+        uint32_t rgr1 = PCIE32(OFF_RGR1_SW_INIT_1);
+        PCIE32(OFF_RGR1_SW_INIT_1) = rgr1 | RGR1_BRIDGE_SW_INIT;
+        pcie_udelay(1000);                         // 1ms in reset
+        PCIE32(OFF_RGR1_SW_INIT_1) = rgr1 & ~RGR1_BRIDGE_SW_INIT;
+    }
+    pcie_udelay(200000);  // 200ms: link re-train + VL805 re-settle
+
+    // MISC regs may have been cleared by BRIDGE_SW_INIT; re-configure.
+    pcie_set_outbound_win0(CPU_WIN_BASE, PCIE_WIN_BASE, WIN_SIZE_MB);
+    pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
+    pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
+    {
+        uint32_t cmd = pcie_cfg_rd(1, 0, 0, 0x04);
+        pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
+    }
+    pcie_udelay(10000);
+
+    // Poll MMIO for up to 5s.
     for (unsigned int poll_ms = 0; poll_ms < 5000U; poll_ms += 10U) {
         __asm__ volatile("dsb sy" ::: "memory");
-        if (*(volatile uint32_t *)0x600000000UL != 0xDEADDEADU) {
+        if (*(volatile uint32_t *)VL805_MMIO_ARM_PHYS != 0xDEADDEADU) {
             vl805_mmio_poll_ms_val = poll_ms;
             vl805_ok_val = 1;
             return 1;
