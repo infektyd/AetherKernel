@@ -144,6 +144,14 @@ static uint32_t pcie_mmio_post_link_ticks;
 static uint32_t pcie_rgr1_pi_val;
 // RC command register after our bring-up.
 static uint32_t pcie_rc_cmd_val;
+// Gen1 link speed forcing: PRIV1_LINK_CAPABILITY (0x04dc) and LNKCTL2 (0x00dc).
+// _pre = value before our write; _post = read-back after write (confirms writability).
+// If _post[3:0] == 0x1 → write took, link will train Gen1-only (no speed-change TLP).
+// If _post[3:0] != 0x1 → register is read-only; speed-change hypothesis unconfirmed.
+static uint32_t pcie_priv1_lnkcap_pre_val;
+static uint32_t pcie_priv1_lnkcap_post_val;
+static uint32_t pcie_lnkctl2_pre_val;
+static uint32_t pcie_lnkctl2_post_val;
 // LNKCTL register at L0 (lower 16 bits of PCIE32(OFF_LNKCTL_STA)):
 //   bits[1:0] = ASPM control (00=disabled, 01=L0s, 10=L1, 11=both).
 //   If non-zero, ASPM is active and endpoint may have entered L1/L0s.
@@ -386,6 +394,24 @@ int kernel_pcie_selftest(void) {
     //     (ticks 39→1), so the MemBase/MemLimit write was moved to AFTER link-up.
     PCIE32(OFF_LNKCTL_STA) &= ~0x3U;  // LNKCTL bits[1:0] = 00 = ASPM disabled
 
+    // 9d. Force Gen1 link speed before PERST# deassertion.
+    //     Hypothesis: BCM2711 BCM2711 AXI routing block (at_l0_ticks=0) is triggered by
+    //     the Gen1→Gen2 speed-change recovery sequence during LTSSM training.  The RC
+    //     sends a Directed Speed Change TLP; the PHY retrains; during recovery the AXI
+    //     fabric loses routing and never recovers.  Forcing Gen1-only eliminates the
+    //     speed-change TLP entirely.
+    //     PRIV1_LINK_CAPABILITY (0x04DC): BRCMSTB proprietary; bits[3:0]=Max/Target speed.
+    //     LNKCTL2 (0x00DC): Standard PCIe; bits[3:0]=Target_Link_Speed.
+    {
+        pcie_priv1_lnkcap_pre_val = PCIE32(0x04DCU);
+        pcie_lnkctl2_pre_val      = PCIE32(0x00DCU);
+        PCIE32(0x04DCU) = (pcie_priv1_lnkcap_pre_val & ~0xFU) | 0x1U;
+        PCIE32(0x00DCU) = (pcie_lnkctl2_pre_val       & ~0xFU) | 0x1U;
+        __asm__ volatile("dsb sy" ::: "memory");
+        pcie_priv1_lnkcap_post_val = PCIE32(0x04DCU);
+        pcie_lnkctl2_post_val      = PCIE32(0x00DCU);
+    }
+
     // 10. Deassert PERST# — VL805 starts EEPROM firmware load + link training.
     PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_PERST;
     __asm__ volatile("dsb sy" ::: "memory");
@@ -506,6 +532,10 @@ unsigned int kernel_pcie_mmio_post_link(void)   { return (unsigned int)pcie_mmio
 unsigned int kernel_pcie_mmio_post_link_ticks(void) { return (unsigned int)pcie_mmio_post_link_ticks; }
 unsigned int kernel_pcie_rgr1_pi(void)          { return (unsigned int)pcie_rgr1_pi_val;            }
 unsigned int kernel_pcie_rc_cmd(void)           { return (unsigned int)pcie_rc_cmd_val;             }
+unsigned int kernel_pcie_priv1_lnkcap_pre(void) { return (unsigned int)pcie_priv1_lnkcap_pre_val;  }
+unsigned int kernel_pcie_priv1_lnkcap_post(void){ return (unsigned int)pcie_priv1_lnkcap_post_val; }
+unsigned int kernel_pcie_lnkctl2_pre(void)      { return (unsigned int)pcie_lnkctl2_pre_val;       }
+unsigned int kernel_pcie_lnkctl2_post(void)     { return (unsigned int)pcie_lnkctl2_post_val;      }
 unsigned int kernel_pcie_lnkctl(void)           { return (unsigned int)pcie_lnkctl_val;             }
 unsigned int kernel_pcie_hard_debug_post(void)  { return (unsigned int)pcie_hard_debug_post_val;    }
 unsigned int kernel_pcie_misc_ctrl_post(void)   { return (unsigned int)pcie_misc_ctrl_post_val;     }
