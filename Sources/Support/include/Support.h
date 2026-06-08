@@ -1016,6 +1016,10 @@ unsigned int kernel_vl805_rom_status(void);
 unsigned int kernel_vl805_mmio_poll_ms(void);
 // Diagnostic: MMIO[0] read BEFORE calling NOTIFY_XHCI_RESET (tests if Pi firmware left VL805 up).
 unsigned int kernel_vl805_mmio_early(void);
+// Diagnostic: HARD_DEBUG register captured before and after NOTIFY_XHCI_RESET.
+// CLKREQ_DBG_EN (bit 0) gates the endpoint ref-clock — if set after NOTIFY, MMIO times out.
+unsigned int kernel_vl805_hard_debug_pre(void);
+unsigned int kernel_vl805_hard_debug_post(void);
 // Diagnostic: WIN0_LO captured before our call to pcie_set_outbound_win0().
 unsigned int kernel_pcie_win0_lo_pre(void);
 unsigned int kernel_pcie_win0_bl_pre(void);

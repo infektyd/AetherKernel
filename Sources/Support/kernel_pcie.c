@@ -80,7 +80,9 @@ static uint32_t vl805_vc_xhci_payload_val;  // vc_buf[5] after call (VC response
 static uint32_t vl805_fw_ver_pre_val;        // VL805 config 0x50 BEFORE NOTIFY_XHCI_RESET (0=ROM)
 static uint32_t vl805_rom_status_val;        // VL805 config 0x50 AFTER NOTIFY_XHCI_RESET
 static uint32_t vl805_mmio_poll_ms_val;      // ms waited before mmio_raw0 became non-0xDEADDEAD
-static uint32_t vl805_mmio_early_val;        // MMIO[0] after early EEPROM poll (before NOTIFY)
+static uint32_t vl805_mmio_early_val;        // MMIO[0] after early probe (before NOTIFY)
+static uint32_t vl805_hard_debug_pre_val;    // HARD_DEBUG before NOTIFY
+static uint32_t vl805_hard_debug_post_val;   // HARD_DEBUG after NOTIFY + settle
 
 // Pre-write snapshots of WIN0 registers (Pi firmware state)
 static uint32_t pcie_win0_lo_pre_val;
@@ -375,6 +377,11 @@ int kernel_vl805_selftest(void) {
     __asm__ volatile("dsb sy" ::: "memory");
     vl805_mmio_early_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
 
+    // Capture HARD_DEBUG before NOTIFY — Pi firmware may have left CLKREQ_DBG_EN
+    // (bit 0) set which gates the endpoint ref-clock and causes all memory TLPs
+    // to time out with 0xDEADDEAD even after MMIO appears in config space.
+    vl805_hard_debug_pre_val = PCIE32(OFF_MISC_HARD_DEBUG);
+
     // Linux-exact sequence: NOTIFY first, BAR0 assignment after.
     // VideoCore reloads VL805 firmware from embedded blob in start4.elf.
     // PERST# is driven by VC internally; ARM must NOT touch PERST# here.
@@ -382,6 +389,17 @@ int kernel_vl805_selftest(void) {
 
     // Linux waits 400-500ms.  Use 3s to cover slow EEPROM + PLL re-lock.
     pcie_udelay(3000000);
+
+    // Re-clear CLKREQ_DBG_EN and SERDES_IDDQ — NOTIFY's internal PERST# cycle
+    // may re-set these bits, re-gating the endpoint ref-clock.
+    {
+        uint32_t hd = PCIE32(OFF_MISC_HARD_DEBUG);
+        hd &= ~HARD_DEBUG_CLKREQ_DBG_EN;
+        hd &= ~HARD_DEBUG_SERDES_IDDQ;
+        PCIE32(OFF_MISC_HARD_DEBUG) = hd;
+        vl805_hard_debug_post_val = hd;
+    }
+    pcie_udelay(10000);
 
     // Assign BAR0 now — AFTER NOTIFY's PERST# cycle has completed.
     pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
@@ -425,7 +443,9 @@ unsigned int kernel_vl805_raw_viddid(void) { return vl805_raw_viddid_val; }
 unsigned int kernel_vl805_hw_rev(void) { return (unsigned int)vl805_hw_rev_val; }
 unsigned int kernel_vl805_pcie_status(void) { return (unsigned int)vl805_pcie_status_val; }
 unsigned int kernel_vl805_rgr1(void) { return (unsigned int)vl805_rgr1_val; }
-unsigned int kernel_vl805_busnr(void) { return (unsigned int)vl805_busnr_val; }
+unsigned int kernel_vl805_busnr(void)           { return (unsigned int)vl805_busnr_val;           }
+unsigned int kernel_vl805_hard_debug_pre(void)  { return (unsigned int)vl805_hard_debug_pre_val;  }
+unsigned int kernel_vl805_hard_debug_post(void) { return (unsigned int)vl805_hard_debug_post_val; }
 
 // Exposed for shell / certificate
 unsigned int kernel_vl805_vendor(void) { return VL805_VID; }
