@@ -964,6 +964,47 @@ unsigned int kernel_vc_console_rows(void);
 unsigned int kernel_vc_console_cols(void);
 unsigned int kernel_vc_console_glyphs(void);
 
+// Runtime V61: BCM2711 PCIe RC bring-up (Sources/Support/kernel_pcie.c).
+// selftest de-asserts PERST#, polls PHYLINKUP|DL_ACTIVE, sets outbound win0.
+int          kernel_pcie_selftest(void);
+int          kernel_pcie_ok(void);
+unsigned int kernel_pcie_speed(void);
+unsigned int kernel_pcie_width(void);
+
+// Runtime V62: VL805 USB 3.0 controller discovery (Sources/Support/kernel_pcie.c).
+// selftest reads VID/DID at bus 1:0:0, probes BAR0 size, assigns BAR0=PCIe 0xF8000000.
+int          kernel_vl805_selftest(void);
+int          kernel_vl805_ok(void);
+unsigned int kernel_vl805_vendor(void);
+unsigned int kernel_vl805_device(void);
+
+// Runtime V63: xHCI capability register probe (Sources/Support/kernel_xhci.c).
+// V64: xHCI controller init — DCBAA + rings + USBCMD.RUN + port-connect detect.
+// V65: USB device enumeration — port reset, ENABLE_SLOT, ADDRESS_DEVICE, GET_DESCRIPTOR.
+// V66: HID boot-protocol keyboard — interrupt-IN poll + keypress decode.
+int          kernel_xhci_selftest(void);
+int          kernel_xhci_ok(void);
+unsigned int kernel_xhci_hciversion(void);
+unsigned int kernel_xhci_ports(void);
+unsigned int kernel_xhci_slots(void);
+unsigned int kernel_xhci_scratch(void);
+
+int          kernel_xhci_run_selftest(void);
+int          kernel_xhci_run_ok(void);
+unsigned int kernel_xhci_ports_connected(void);
+
+int          kernel_usb_enum_selftest(void);
+int          kernel_usb_enum_ok(void);
+unsigned int kernel_usb_enum_vendor(void);
+unsigned int kernel_usb_enum_product(void);
+unsigned int kernel_usb_enum_class(void);
+unsigned int kernel_usb_enum_addr(void);
+
+int          kernel_kbd_selftest(void);
+int          kernel_kbd_ok(void);
+unsigned int kernel_kbd_keycode(void);
+unsigned int kernel_kbd_char(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

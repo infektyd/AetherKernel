@@ -11,7 +11,7 @@
 #define ATTRIDX_DEVICE (1UL << 2)
 
 #define MAIR_EL1_VAL ((0xFFUL << 0) | (0x00UL << 8))
-#define TCR_EL1_VAL  (25UL | (1UL << 8) | (1UL << 10) | (3UL << 12) | (0UL << 14) | (1UL << 23) | (0UL << 32))
+#define TCR_EL1_VAL  (25UL | (1UL << 8) | (1UL << 10) | (3UL << 12) | (0UL << 14) | (1UL << 23) | (2UL << 32))
 #define SCTLR_MMU_ON  ((1UL << 0) | (1UL << 2) | (1UL << 12))
 
 static unsigned long l1_table[512] __attribute__((aligned(4096)));
@@ -25,10 +25,11 @@ typedef struct kernel_mmu_region {
 } kernel_mmu_region;
 
 static const kernel_mmu_region mmu_regions[] = {
-    {0x00000000UL, 0x00000000UL, KERNEL_MMU_BLOCK_SIZE, KERNEL_MMU_REGION_KIND_NORMAL},
-    {0x40000000UL, 0x40000000UL, KERNEL_MMU_BLOCK_SIZE, KERNEL_MMU_REGION_KIND_NORMAL},
-    {0x80000000UL, 0x80000000UL, KERNEL_MMU_BLOCK_SIZE, KERNEL_MMU_REGION_KIND_NORMAL},
-    {0xC0000000UL, 0xC0000000UL, KERNEL_MMU_BLOCK_SIZE, KERNEL_MMU_REGION_KIND_DEVICE},
+    {0x000000000UL, 0x000000000UL, KERNEL_MMU_BLOCK_SIZE, KERNEL_MMU_REGION_KIND_NORMAL},
+    {0x040000000UL, 0x040000000UL, KERNEL_MMU_BLOCK_SIZE, KERNEL_MMU_REGION_KIND_NORMAL},
+    {0x080000000UL, 0x080000000UL, KERNEL_MMU_BLOCK_SIZE, KERNEL_MMU_REGION_KIND_NORMAL},
+    {0x0C0000000UL, 0x0C0000000UL, KERNEL_MMU_BLOCK_SIZE, KERNEL_MMU_REGION_KIND_DEVICE},
+    {0x600000000UL, 0x600000000UL, KERNEL_MMU_BLOCK_SIZE, KERNEL_MMU_REGION_KIND_DEVICE},
 };
 
 #define KERNEL_MMU_REGION_COUNT ((unsigned int)(sizeof(mmu_regions) / sizeof(mmu_regions[0])))
@@ -80,10 +81,11 @@ static void build_l1_table_once(void) {
     for (unsigned long i = 0; i < 512; i++) {
         l1_table[i] = 0;
     }
-    l1_table[0] = normal_block(0x00000000UL);
-    l1_table[1] = normal_block(0x40000000UL);
-    l1_table[2] = normal_block(0x80000000UL);
-    l1_table[3] = device_block(0xC0000000UL);
+    l1_table[0]  = normal_block(0x000000000UL);
+    l1_table[1]  = normal_block(0x040000000UL);
+    l1_table[2]  = normal_block(0x080000000UL);
+    l1_table[3]  = device_block(0x0C0000000UL);
+    l1_table[24] = device_block(0x600000000UL);  // BCM2711 PCIe MMIO outbound window
     clean_data_cache_range(l1_table, sizeof(l1_table));
 
     l1_table_ready = 1;
@@ -161,15 +163,16 @@ unsigned long kernel_mmu_mair_value(void) {
 }
 
 int kernel_mmu_selftest(void) {
-    if (KERNEL_MMU_REGION_COUNT != 4U ||
+    if (KERNEL_MMU_REGION_COUNT != 5U ||
         KERNEL_MMU_L1_ENTRY_COUNT != 512U ||
         KERNEL_MMU_BLOCK_SIZE != 0x40000000UL) {
         return 0;
     }
-    if (l1_table[0] != normal_block(0x00000000UL) ||
-        l1_table[1] != normal_block(0x40000000UL) ||
-        l1_table[2] != normal_block(0x80000000UL) ||
-        l1_table[3] != device_block(0xC0000000UL)) {
+    if (l1_table[0]  != normal_block(0x000000000UL) ||
+        l1_table[1]  != normal_block(0x040000000UL) ||
+        l1_table[2]  != normal_block(0x080000000UL) ||
+        l1_table[3]  != device_block(0x0C0000000UL) ||
+        l1_table[24] != device_block(0x600000000UL)) {
         return 0;
     }
     // Dynamic VMM now allocates tables in L1[4]+, so we no longer assert they are 0.
