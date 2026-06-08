@@ -328,13 +328,18 @@ static unsigned int sdhci_mbr_magic = 0; // bits[15:0] of word[127] >> 16
 
 // CMD7: SELECT_CARD — moves card from STAND-BY to TRANSFER state.
 // R1b response: waits for DAT0 busy to clear.
+static int sdhci_card_selected = 0; // 1 = card is in Transfer State
+
 static int sdhci_card_select(void) {
     unsigned int resp[4];
     if (!sdhci_send_cmd(CMDTM_CMD(7, CMD_RESP_48B, CMD_CRC_CHK | CMD_IXCHK_EN),
                         (unsigned int)(sdhci_card_rca) << 16, resp))
         return 0;
     // R1b: card holds DAT0 low while busy; wait for DATA_INHIBIT to clear.
-    return sdhci_wait_bits(SDHCI_STATUS, SDHCI_STATUS_DATA_INHIBIT, 0, 200000);
+    if (!sdhci_wait_bits(SDHCI_STATUS, SDHCI_STATUS_DATA_INHIBIT, 0, 200000))
+        return 0;
+    sdhci_card_selected = 1;
+    return 1;
 }
 
 // PIO read of one 512-byte sector into buf[128 words].
@@ -407,3 +412,169 @@ int kernel_sdhci_block_read(void) {
 
 int kernel_sdhci_block_read_selftest(void) { return sdhci_mbr_ok; }
 unsigned long kernel_sdhci_mbr_magic(void)  { return (unsigned long)sdhci_mbr_magic; }
+
+// ============================================================================
+// Runtime V57: FAT32 file read — locate partition, parse BPB, find
+// config.txt in root directory, read file data, emit bytes + checksum.
+// ============================================================================
+
+// Shared 512-byte scratch buffer for FAT32 sector reads (no stack alloc needed).
+static unsigned int sdhci_fat32_buf[128];
+
+// FAT32 result state.
+static int          fat32_ok         = 0;
+static unsigned int fat32_file_bytes = 0;
+static unsigned int fat32_checksum   = 0;
+static unsigned int fat32_last_step  = 0; // diagnostic: last step reached
+static unsigned int fat32_diag_name0 = 0; // diagnostic: first byte of first non-skip dir entry name
+
+// FAT32 derived BPB parameters (filled during fat32_read).
+static unsigned int fat32_sec_per_clus = 0;
+static unsigned int fat32_data_lba     = 0;
+static unsigned int fat32_root_clus    = 0;
+static unsigned int fat32_fat_lba      = 0; // first FAT table start LBA
+
+// Helpers: read byte/u16/u32 from a 512-byte block buffer (little-endian).
+static unsigned int fat32_byte(const unsigned int *buf, unsigned int off) {
+    return (buf[off >> 2] >> ((off & 3u) << 3)) & 0xFFu;
+}
+static unsigned int fat32_u16(const unsigned int *buf, unsigned int off) {
+    return fat32_byte(buf, off) | (fat32_byte(buf, off + 1u) << 8);
+}
+static unsigned int fat32_u32(const unsigned int *buf, unsigned int off) {
+    return fat32_u16(buf, off) | (fat32_u16(buf, off + 2u) << 16);
+}
+
+// Return the first LBA of cluster N.
+static unsigned int fat32_clus_lba(unsigned int clus) {
+    return fat32_data_lba + (clus - 2u) * fat32_sec_per_clus;
+}
+
+// Scan one directory sector (sdhci_fat32_buf) for an 8.3 short name (11 bytes,
+// uppercase, space-padded, e.g. "CONFIG  TXT").
+// Returns  1  = found; fills *clus_out and *size_out.
+// Returns  0  = not found in this sector, continue scanning.
+// Returns -1  = end-of-directory (first byte == 0x00).
+static int fat32_scan_dirsec(const char *name83,
+                              unsigned int *clus_out, unsigned int *size_out) {
+    for (unsigned int e = 0u; e < 16u; e++) {
+        unsigned int base = e * 32u;
+        unsigned int b0   = fat32_byte(sdhci_fat32_buf, base);
+        if (b0 == 0x00u) return -1;   // end-of-dir sentinel
+        if (b0 == 0xE5u) continue;    // deleted entry
+        unsigned int attr = fat32_byte(sdhci_fat32_buf, base + 11u);
+        if (attr == 0x0Fu) continue;  // LFN entry
+        if (attr & 0x08u) continue;   // volume label
+        int match = 1;
+        for (unsigned int j = 0u; j < 11u; j++) {
+            unsigned int nc = fat32_byte(sdhci_fat32_buf, base + j);
+            if (nc >= 'a' && nc <= 'z') nc -= 32u; // uppercase for case-insensitive compare
+            if (nc != (unsigned int)(unsigned char)name83[j]) { match = 0; break; }
+        }
+        if (match) {
+            unsigned int hi = fat32_u16(sdhci_fat32_buf, base + 20u);
+            unsigned int lo = fat32_u16(sdhci_fat32_buf, base + 26u);
+            *clus_out = (hi << 16) | lo;
+            *size_out = fat32_u32(sdhci_fat32_buf, base + 28u);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int kernel_sdhci_fat32_read(void) {
+    fat32_last_step = 0;
+    if (!sdhci_card_init_ok) return 0;
+    fat32_last_step = 1;
+    // Select card if not already in Transfer State.
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+    fat32_last_step = 2;
+
+    // ---- 1. MBR: find FAT32 partition LBA ----
+    if (!sdhci_read_block_pio(0, sdhci_fat32_buf)) return 0;
+    fat32_last_step = 3;
+    // Verify boot signature.
+    if (((sdhci_fat32_buf[127] >> 16) & 0xFFFFu) != 0xAA55u) return 0;
+    fat32_last_step = 4;
+    // Scan 4 MBR partition entries (table at offset 446, 16 bytes each).
+    unsigned int part_lba = 0;
+    int found = 0;
+    for (unsigned int i = 0u; i < 4u && !found; i++) {
+        unsigned int base  = 446u + i * 16u;
+        unsigned int ptype = fat32_byte(sdhci_fat32_buf, base + 4u);
+        if (ptype == 0x0Bu || ptype == 0x0Cu) {
+            part_lba = fat32_u32(sdhci_fat32_buf, base + 8u);
+            found = 1;
+        }
+    }
+    if (!found) return 0;
+    fat32_last_step = 5;
+
+    // ---- 2. VBR: parse FAT32 BPB ----
+    if (!sdhci_read_block_pio(part_lba, sdhci_fat32_buf)) return 0;
+    fat32_last_step = 6;
+    if (fat32_u16(sdhci_fat32_buf, 510u) != 0xAA55u) return 0;
+    fat32_last_step = 7;
+    if (fat32_u16(sdhci_fat32_buf, 11u)  != 512u)    return 0; // require 512 B/sec
+    fat32_last_step = 8;
+    fat32_sec_per_clus       = fat32_byte(sdhci_fat32_buf, 13u);
+    unsigned int rsvd        = fat32_u16(sdhci_fat32_buf, 14u);
+    unsigned int num_fats    = fat32_byte(sdhci_fat32_buf, 16u);
+    unsigned int fat_sz32    = fat32_u32(sdhci_fat32_buf, 36u);
+    fat32_root_clus          = fat32_u32(sdhci_fat32_buf, 44u);
+    fat32_fat_lba            = part_lba + rsvd;
+    fat32_data_lba           = fat32_fat_lba + num_fats * fat_sz32;
+    if (fat32_sec_per_clus == 0u) return 0;
+    fat32_last_step = 9;
+
+    // ---- 3. Root dir: find "CONFIG  TXT" — follow FAT cluster chain ----
+    unsigned int file_clus = 0u, file_size = 0u;
+    int file_found = 0;
+    unsigned int dir_clus = fat32_root_clus;
+    unsigned int dir_done = 0u;
+    for (unsigned int max_clus = 256u; !file_found && !dir_done && max_clus > 0u; max_clus--) {
+        unsigned int dir_lba = fat32_clus_lba(dir_clus);
+        for (unsigned int s = 0u; s < fat32_sec_per_clus; s++) {
+            if (!sdhci_read_block_pio(dir_lba + s, sdhci_fat32_buf)) return 0;
+            fat32_last_step = 10;
+            int r = fat32_scan_dirsec("CONFIG  TXT", &file_clus, &file_size);
+            if (r == 1)  { file_found = 1; break; }
+            if (r == -1) { dir_done = 1u; break; } // end-of-dir sentinel
+        }
+        if (!file_found && !dir_done) {
+            // Read FAT entry to follow cluster chain.
+            unsigned int fat_off = dir_clus * 4u;
+            if (!sdhci_read_block_pio(fat32_fat_lba + fat_off / 512u, sdhci_fat32_buf))
+                break;
+            unsigned int next = fat32_u32(sdhci_fat32_buf, fat_off % 512u) & 0x0FFFFFFFu;
+            if (next >= 0x0FFFFFF8u) break; // end of chain
+            dir_clus = next;
+        }
+    }
+    if (!file_found || file_size == 0u || file_size > 65536u) return 0;
+    fat32_last_step = 11;
+
+    // ---- 4. Read file data and compute 32-bit byte-sum checksum ----
+    unsigned int file_lba  = fat32_clus_lba(file_clus);
+    unsigned int nsectors  = (file_size + 511u) / 512u;
+    unsigned int checksum  = 0u;
+    unsigned int remaining = file_size;
+    for (unsigned int s = 0u; s < nsectors; s++) {
+        if (!sdhci_read_block_pio(file_lba + s, sdhci_fat32_buf)) return 0;
+        fat32_last_step = 12 + s;
+        unsigned int nbytes = remaining < 512u ? remaining : 512u;
+        for (unsigned int b = 0u; b < nbytes; b++)
+            checksum += fat32_byte(sdhci_fat32_buf, b);
+        remaining -= nbytes;
+    }
+
+    fat32_file_bytes = file_size;
+    fat32_checksum   = checksum;
+    fat32_ok         = 1;
+    return 1;
+}
+
+int kernel_sdhci_fat32_selftest(void)           { return fat32_ok; }
+unsigned long kernel_sdhci_fat32_bytes(void)    { return (unsigned long)fat32_file_bytes; }
+unsigned long kernel_sdhci_fat32_checksum(void) { return (unsigned long)fat32_checksum; }
+unsigned long kernel_sdhci_fat32_step(void)     { return (unsigned long)fat32_last_step; }

@@ -927,6 +927,13 @@ int kernel_sdhci_block_read(void);
 int kernel_sdhci_block_read_selftest(void);
 unsigned long kernel_sdhci_mbr_magic(void);
 
+// Runtime V57: FAT32 file read (config.txt); byte count + 32-bit byte-sum checksum.
+int kernel_sdhci_fat32_read(void);
+int kernel_sdhci_fat32_selftest(void);
+unsigned long kernel_sdhci_fat32_bytes(void);
+unsigned long kernel_sdhci_fat32_checksum(void);
+unsigned long kernel_sdhci_fat32_step(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.
