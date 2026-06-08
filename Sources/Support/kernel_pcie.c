@@ -370,38 +370,41 @@ int kernel_vl805_selftest(void) {
     // Capture BAR0 BEFORE our assignment (reveals Pi firmware's state).
     vl805_bar0_lo_pi_val = pcie_cfg_rd(1, 0, 0, 0x10);
 
-    // EARLY EEPROM POLL: assign BAR0 and poll MMIO for up to 3s to allow VL805
-    // to self-load firmware from its EEPROM (or for Pi firmware to have left
-    // firmware running).  Avoids calling NOTIFY_XHCI_RESET when not needed.
+    // Assert OUR OWN PERST# first: guarantees VL805 is in clean ROM state and
+    // the BRCMSTB RC has NO accumulated completion-timeout errors before we probe.
+    // (Pi firmware may have left the RC in a dirty state from earlier MMIO timeouts.)
+    PCIE32(OFF_RGR1_SW_INIT_1) |= RGR1_PERST;
+    pcie_udelay(100000);                   // 100ms PERST# hold
+    PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_PERST;
+    pcie_udelay(500000);                   // 500ms: link re-train after PERST#
+
+    // Assign BAR0 (in clean ROM state, before any MMIO probe).
     pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
     pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
     {
         uint32_t cmd = pcie_cfg_rd(1, 0, 0, 0x04);
         pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
     }
-    {
-        uint32_t early = 0xDEADDEADU;
-        for (unsigned int ms = 0; ms < 3000U; ms += 50U) {
-            pcie_udelay(50000);
-            __asm__ volatile("dsb sy" ::: "memory");
-            early = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
-            if (early != 0xDEADDEADU) {
-                vl805_mmio_early_val = early;
-                vl805_mmio_poll_ms_val = ms;
-                vl805_ok_val = 1;
-                return 1;
-            }
-        }
-        vl805_mmio_early_val = early;  // = 0xDEADDEAD
+    pcie_udelay(10000);
+
+    // Capture config 0x50 in clean ROM state (before NOTIFY).
+    vl805_fw_ver_pre_val = pcie_cfg_rd(1, 0, 0, 0x50);
+    // First MMIO probe in clean state (no prior timeouts to contaminate RC).
+    __asm__ volatile("dsb sy" ::: "memory");
+    vl805_mmio_early_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
+    if (vl805_mmio_early_val != 0xDEADDEADU) {
+        // ROM responded — unusual but fine.
+        vl805_mmio_poll_ms_val = 0;
+        vl805_ok_val = 1;
+        return 1;
     }
 
-    // 3s passed, EEPROM not loaded.  Capture config 0x50 in this ROM state,
-    // then call NOTIFY_XHCI_RESET to ask VC to reload VL805 firmware.
-    vl805_fw_ver_pre_val = pcie_cfg_rd(1, 0, 0, 0x50);
+    // ROM state confirmed.  Call NOTIFY_XHCI_RESET: VC loads firmware from
+    // embedded blob in start4.elf.  RC is clean (no prior timeout errors).
     vl805_vc_xhci_reset_val = kernel_vc_mbox_notify_xhci_reset();
     pcie_udelay(500000);  // 500ms: VL805 firmware init + PLL re-lock
 
-    // Re-assign BAR0 in case NOTIFY_XHCI_RESET toggled PERST# (which resets BAR0).
+    // Re-assign BAR0 (NOTIFY may have PERST#'d VL805 again).
     pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
     pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
     {
@@ -412,28 +415,6 @@ int kernel_vl805_selftest(void) {
 
     vl805_vc_xhci_payload_val = kernel_vc_mbox_xhci_reset_payload();
     vl805_rom_status_val = pcie_cfg_rd(1, 0, 0, 0x50);
-
-    // The 3s EEPROM poll above generated many completion timeouts that may have
-    // left the BRCMSTB RC in a sticky-error state.  Reset the RC bridge (without
-    // asserting PERST# to VL805) so the completion tracker starts fresh.
-    // VL805 firmware survives: PERST# is NOT driven here; only the bridge itself resets.
-    {
-        uint32_t rgr1 = PCIE32(OFF_RGR1_SW_INIT_1);
-        PCIE32(OFF_RGR1_SW_INIT_1) = rgr1 | RGR1_BRIDGE_SW_INIT;
-        pcie_udelay(1000);                         // 1ms in reset
-        PCIE32(OFF_RGR1_SW_INIT_1) = rgr1 & ~RGR1_BRIDGE_SW_INIT;
-    }
-    pcie_udelay(200000);  // 200ms: link re-train + VL805 re-settle
-
-    // MISC regs may have been cleared by BRIDGE_SW_INIT; re-configure.
-    pcie_set_outbound_win0(CPU_WIN_BASE, PCIE_WIN_BASE, WIN_SIZE_MB);
-    pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
-    pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
-    {
-        uint32_t cmd = pcie_cfg_rd(1, 0, 0, 0x04);
-        pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
-    }
-    pcie_udelay(10000);
 
     // Poll MMIO for up to 5s.
     for (unsigned int poll_ms = 0; poll_ms < 5000U; poll_ms += 10U) {
