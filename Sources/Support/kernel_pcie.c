@@ -15,6 +15,15 @@
 #define PCIE_BASE 0xFD500000UL
 #define PCIE32(off) (*(volatile uint32_t *)(PCIE_BASE + (unsigned long)(off)))
 
+// BCM2711 CPRMAN clock manager — PCIe LP clock (BCM2711_CLK_PCIE0_LP).
+// Linux performs clk_prepare_enable(sw_pcie) as the FIRST step in pcie-brcmstb.c.
+// Without this clock the BCM2711 AXI fabric intercepts all outbound MMIO reads
+// and returns 0xDEADDEAD without generating a PCIe TLP (mmio_ticks=0 confirms this).
+#define CM_BASE     0xFE101000UL
+#define CM_PCIE_OFF 0x1E0U
+#define CM32(off)   (*(volatile uint32_t *)(CM_BASE + (unsigned long)(off)))
+#define CM_PASSWD   0x5A000000U   // CPRMAN write authentication (bits[31:24])
+
 // RGR1 reset block
 #define OFF_RGR1_SW_INIT_1   0x9210U
 #define RGR1_PERST           (1U << 0)
@@ -108,6 +117,10 @@ static uint32_t pcie_win0_bl_pre_val;
 static uint32_t pcie_mmio_pre_reset_val;
 // Pre-reset BAR0 from config space (Pi firmware's BAR assignment before our VL805 probe).
 static uint32_t pcie_bar0_pre_reset_val;
+// CPRMAN PCIe LP clock register (CM_PCIE) before and after our enable attempt.
+// ENAB=bit4; SRC=bits[3:0]; BUSY=bit9 (read-only).  Pre should be 0 if firmware disabled it.
+static uint32_t pcie_cm_pcie_pre_val;
+static uint32_t pcie_cm_pcie_post_val;
 
 // ── Timing (generic timer at 54 MHz on Pi4) ────────────────────────────────
 static void pcie_udelay(unsigned int us) {
@@ -185,6 +198,16 @@ int kernel_pcie_selftest(void) {
     if (pcie_probed) return pcie_link_ok;
     pcie_probed = 1;
     pcie_link_ok = 0;
+
+    // BCM2711 CPRMAN PCIe LP clock enable — must happen before ANYTHING else.
+    // Linux pcie-brcmstb.c calls clk_prepare_enable(sw_pcie=BCM2711_CLK_PCIE0_LP) as
+    // its very first step.  Without this clock, the BCM2711 AXI SCB fabric intercepts
+    // all ARM reads into the outbound window (0x600000000) and returns 0xDEADDEAD before
+    // any PCIe TLP is generated.  CPRMAN writes require 0x5A in bits[31:24] as a password.
+    pcie_cm_pcie_pre_val = CM32(CM_PCIE_OFF);
+    CM32(CM_PCIE_OFF) = CM_PASSWD | (pcie_cm_pcie_pre_val & 0xFU) | (1U << 4); // ENAB=1
+    pcie_udelay(100);
+    pcie_cm_pcie_post_val = CM32(CM_PCIE_OFF);
 
     // Pre-reset MMIO probe: read VL805 MMIO before ANY PCIe manipulation.
     // If non-0xDEADDEAD → Pi firmware left MMIO accessible; our reset sequence breaks it.
@@ -338,6 +361,8 @@ unsigned int kernel_pcie_win0_lo_pre(void)     { return (unsigned int)pcie_win0_
 unsigned int kernel_pcie_win0_bl_pre(void)     { return (unsigned int)pcie_win0_bl_pre_val;      }
 unsigned int kernel_pcie_mmio_pre_reset(void)  { return (unsigned int)pcie_mmio_pre_reset_val;   }
 unsigned int kernel_pcie_bar0_pre_reset(void)  { return (unsigned int)pcie_bar0_pre_reset_val;   }
+unsigned int kernel_pcie_cm_pcie_pre(void)     { return (unsigned int)pcie_cm_pcie_pre_val;       }
+unsigned int kernel_pcie_cm_pcie_post(void)    { return (unsigned int)pcie_cm_pcie_post_val;      }
 
 // ── V62: VL805 config-space probe + BAR0 assignment ───────────────────────
 static int vl805_probed;

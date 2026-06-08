@@ -483,6 +483,10 @@ struct Application {
     uartPutHexCompact(UInt64(kernel_pcie_mmio_pre_reset()))
     uartPuts(" bar0_pre=")
     uartPutHexCompact(UInt64(kernel_pcie_bar0_pre_reset()))
+    uartPuts(" cm_pre=")
+    uartPutHexCompact(UInt64(kernel_pcie_cm_pcie_pre()))
+    uartPuts(" cm_post=")
+    uartPutHexCompact(UInt64(kernel_pcie_cm_pcie_post()))
     uartPuts("\n")
 
     // Runtime V62: VL805 USB 3.0 controller discovery
