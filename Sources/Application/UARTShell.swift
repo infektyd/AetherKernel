@@ -2116,6 +2116,8 @@ func printVl805() {
   uartPutHexCompact(UInt64(kernel_vl805_rom_status()))
   uartPuts(" poll_ms=")
   uartPutDec(UInt64(kernel_vl805_mmio_poll_ms()))
+  uartPuts(" mmio_early=")
+  uartPutHexCompact(UInt64(kernel_vl805_mmio_early()))
   uartPuts(" bar0_lo=")
   uartPutHexCompact(UInt64(kernel_vl805_bar0_lo()))
   uartPuts(" bar0_hi=")

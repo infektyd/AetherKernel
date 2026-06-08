@@ -1012,6 +1012,8 @@ unsigned int kernel_vl805_vc_xhci_payload(void);
 unsigned int kernel_vl805_rom_status(void);
 // Diagnostic: ms polled before mmio_raw0 became valid (0xFFFF=never valid in 5s).
 unsigned int kernel_vl805_mmio_poll_ms(void);
+// Diagnostic: MMIO[0] read BEFORE calling NOTIFY_XHCI_RESET (tests if Pi firmware left VL805 up).
+unsigned int kernel_vl805_mmio_early(void);
 // Diagnostic: WIN0_LO captured before our call to pcie_set_outbound_win0().
 unsigned int kernel_pcie_win0_lo_pre(void);
 unsigned int kernel_pcie_win0_bl_pre(void);

@@ -79,6 +79,7 @@ static int vl805_vc_xhci_reset_val = -1;    // result of RPI_FIRMWARE_NOTIFY_XHC
 static uint32_t vl805_vc_xhci_payload_val;  // vc_buf[5] after call (VC response: 0=success)
 static uint32_t vl805_rom_status_val;        // VL805 config offset 0xB4 (vendor ROM status)
 static uint32_t vl805_mmio_poll_ms_val;      // ms waited before mmio_raw0 became non-0xDEADDEAD
+static uint32_t vl805_mmio_early_val;        // MMIO[0] BEFORE calling NOTIFY_XHCI_RESET
 
 // Pre-write snapshots of WIN0 registers (Pi firmware state)
 static uint32_t pcie_win0_lo_pre_val;
@@ -344,29 +345,19 @@ int kernel_vl805_selftest(void) {
         return 0;
     }
 
-    // VL805 is in ROM-only mode after Pi firmware PERST# (bar0_lo_pi=0x4 proves
-    // firmware was not reloaded).  RPI_FIRMWARE_NOTIFY_XHCI_RESET tells VideoCore
-    // to reload the VL805 firmware blob via PCIe config writes; without this,
-    // memory TLPs (MMIO) never complete — they time out as 0xDEADDEAD.
-    vl805_vc_xhci_reset_val = kernel_vc_mbox_notify_xhci_reset();
-    pcie_udelay(500000);  // 500ms: VL805 firmware init + PLL re-lock
-
-    // Force D0 power state.  Pi firmware may have placed VL805 in D3hot before
-    // handoff (stops xHCI + power down).  D3hot allows config-space access but
-    // blocks MMIO — exactly the symptom we see.  Walk the capability list and
-    // write PMCSR[1:0]=00 if the device isn't already in D0.
+    // Force D0 power state (pm_state confirmed 0 in practice, but be defensive).
     {
         uint32_t cmd_st = pcie_cfg_rd(1, 0, 0, 0x04);
-        if ((cmd_st >> 16) & (1U << 4)) {  // Capabilities List present
+        if ((cmd_st >> 16) & (1U << 4)) {
             unsigned int caps = pcie_cfg_rd(1, 0, 0, 0x34) & 0xFCU;
             for (int walk = 0; walk < 16 && caps != 0 && caps < 0x100U; walk++) {
                 uint32_t cap = pcie_cfg_rd(1, 0, 0, caps);
-                if ((cap & 0xFFU) == 0x01U) {  // Power Management capability
+                if ((cap & 0xFFU) == 0x01U) {
                     uint32_t pmcsr = pcie_cfg_rd(1, 0, 0, caps + 4U);
                     vl805_pm_state_val = pmcsr & 0x3U;
                     if (vl805_pm_state_val != 0U) {
                         pcie_cfg_wr(1, 0, 0, caps + 4U, pmcsr & ~0x3U);
-                        pcie_udelay(10000);  // spec: ≤10ms D3→D0 transition
+                        pcie_udelay(10000);
                     }
                     break;
                 }
@@ -375,41 +366,61 @@ int kernel_vl805_selftest(void) {
         }
     }
 
-    // Capture BAR0 BEFORE our assignment (reveals Pi firmware's assignment).
+    // Capture BAR0 BEFORE our assignment (reveals Pi firmware's state).
     vl805_bar0_lo_pi_val = pcie_cfg_rd(1, 0, 0, 0x10);
 
-    // BAR0 at config offset 0x10/0x14 (64-bit BAR).
-    // Write ~0 to probe size (result discarded; we assign a fixed address).
-    pcie_cfg_wr(1, 0, 0, 0x10, 0xFFFFFFFFU);
-    pcie_cfg_wr(1, 0, 0, 0x14, 0xFFFFFFFFU);
-
-    // Assign BAR0 = PCIe 0xF8000000 (maps to ARM phys 0x600000000 via outbound window)
+    // EARLY MMIO TEST: assign BAR0 and probe MMIO WITHOUT calling NOTIFY_XHCI_RESET.
+    // Pi firmware loads VL805 firmware during its own boot (xhci_set_port_power msgs
+    // at 3-4s).  If Pi firmware did NOT assert PERST# at OS handoff, VL805 firmware
+    // is still running and MMIO will respond immediately once BAR0 is assigned.
+    // Calling NOTIFY_XHCI_RESET in that case would assert PERST# and CLEAR the
+    // firmware — making MMIO worse, not better.
     pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
     pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
+    {
+        uint32_t cmd = pcie_cfg_rd(1, 0, 0, 0x04);
+        pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
+    }
+    pcie_udelay(10000);
+    __asm__ volatile("dsb sy" ::: "memory");
+    vl805_mmio_early_val = *(volatile uint32_t *)0x600000000UL;
 
-    // Enable Memory Space + Bus Master, then wait for VL805 to latch the assignment.
-    uint32_t cmd = pcie_cfg_rd(1, 0, 0, 0x04);
-    pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
-    pcie_udelay(10000);  // 10ms: give VL805 time to activate BAR decode
+    if (vl805_mmio_early_val != 0xDEADDEADU) {
+        // Pi firmware left VL805 firmware running (no PERST# at handoff).
+        // BAR0 is now assigned and MMIO is live — skip NOTIFY_XHCI_RESET.
+        vl805_mmio_poll_ms_val = 0;
+        vl805_ok_val = 1;
+        return 1;
+    }
 
-    // Capture the VC response payload (0=VC success) and VL805 vendor ROM status.
-    // ROM_STATUS at config 0xB4: bit6=1 means firmware is running (MMIO ready).
+    // Early MMIO is dead.  Try NOTIFY_XHCI_RESET: tells VC to reinitialize VL805
+    // (PERST# + firmware load).  If VC loads firmware, MMIO should become valid
+    // after BAR0 re-assignment below.
+    vl805_vc_xhci_reset_val = kernel_vc_mbox_notify_xhci_reset();
+    pcie_udelay(500000);  // 500ms: VL805 firmware init + PLL re-lock
+
+    // Re-assign BAR0 in case NOTIFY_XHCI_RESET toggled PERST# (which resets BAR0).
+    pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
+    pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
+    {
+        uint32_t cmd = pcie_cfg_rd(1, 0, 0, 0x04);
+        pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
+    }
+    pcie_udelay(10000);
+
     vl805_vc_xhci_payload_val = kernel_vc_mbox_xhci_reset_payload();
     vl805_rom_status_val = pcie_cfg_rd(1, 0, 0, 0xB4);
 
-    // Poll MMIO until valid (non-0xDEADDEAD) or 5s timeout.
-    // This disambiguates between "firmware not loaded" and "needs more time".
+    // Poll MMIO for up to 5s — disambiguates "firmware not loaded" from "needs time".
     for (unsigned int poll_ms = 0; poll_ms < 5000U; poll_ms += 10U) {
         __asm__ volatile("dsb sy" ::: "memory");
-        uint32_t v = *(volatile uint32_t *)0x600000000UL;
-        if (v != 0xDEADDEADU) {
+        if (*(volatile uint32_t *)0x600000000UL != 0xDEADDEADU) {
             vl805_mmio_poll_ms_val = poll_ms;
             vl805_ok_val = 1;
             return 1;
         }
         pcie_udelay(10000);
     }
-    // MMIO never became valid; proceed anyway and let xhci selftest report the failure.
     vl805_mmio_poll_ms_val = 0xFFFFU;
 
     vl805_ok_val = 1;
@@ -422,6 +433,7 @@ int          kernel_vl805_vc_xhci_reset(void)      { return vl805_vc_xhci_reset_
 unsigned int kernel_vl805_vc_xhci_payload(void)    { return (unsigned int)vl805_vc_xhci_payload_val;  }
 unsigned int kernel_vl805_rom_status(void)         { return (unsigned int)vl805_rom_status_val;       }
 unsigned int kernel_vl805_mmio_poll_ms(void)       { return (unsigned int)vl805_mmio_poll_ms_val;     }
+unsigned int kernel_vl805_mmio_early(void)         { return (unsigned int)vl805_mmio_early_val;       }
 
 int kernel_vl805_ok(void) { return vl805_ok_val; }
 unsigned int kernel_vl805_raw_viddid(void) { return vl805_raw_viddid_val; }
