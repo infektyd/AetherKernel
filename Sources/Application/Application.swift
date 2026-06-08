@@ -289,6 +289,7 @@ struct Application {
     uartPuts("runtime v55: SD card identification (CMD0/CMD8/ACMD41/CMD2/CMD3)\n")
     uartPuts("runtime v56: single block read CMD17 + MBR 0x55AA verification\n")
     uartPuts("runtime v57: FAT32 file read (config.txt bytes + checksum)\n")
+    uartPuts("runtime v58: VideoCore mailbox property interface (firmware revision)\n")
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(kernel_cancel_selftest()), 0)
     kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19, UInt(aetherTaskSpawnSelftest()), UInt(kernel_task_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20, UInt(aetherChannelSelftest()), UInt(kernel_mailbox_count()))
@@ -402,6 +403,15 @@ struct Application {
     uartPutHexCompact(UInt64(fat32_cksum_boot))
     uartPuts(" step=")
     uartPutDec(UInt64(kernel_sdhci_fat32_step()))
+    uartPuts("\n")
+
+    let mbox_ok_boot = kernel_vc_mbox_probe()
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 58, UInt(mbox_ok_boot), UInt(kernel_vc_mbox_fw_rev()))
+    let mbox_fw_boot = kernel_vc_mbox_fw_rev()
+    uartPuts("mailbox ok=")
+    uartPutDec(UInt64(mbox_ok_boot))
+    uartPuts(" version=58 fw_rev=")
+    uartPutHexCompact(UInt64(mbox_fw_boot))
     uartPuts("\n")
 
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))

@@ -32,7 +32,7 @@ A strong **microkernel-style runtime core**, all hardware-verified:
   secondary workers, work-stealing, load-balancing, priority/preemption, bounded soak.
 - Boot certificate + substrate certificate; panic/fault retained records; watchdog.
 - **EPIC B**: **process abstraction** — address space (isolated page table + ASID) + lifecycle state (create/destroy), with a fixed process table and ASID bitmap allocator. **User binary loader** — flat blob loaded into a fresh address space, runs at EL0, calls `sys_write` syscall (UART output "Hi\n"), proves end-to-end: process create → binary load → EL0 execute → syscall dispatch → UART write. **Multi-process isolation** — per-core `_kernel_el1_saved_sp` and `uaccess_active_pt`; 3 independent user processes each run isolated and print "Hi\n", proving address-space and EL0 isolation between processes.
-- **EPIC C (in progress)**: **BCM2711 EMMC2/SDHCI register probe** (V54) — SDHCI capabilities and host spec version registers readable at 0xFE340000; cap0 non-zero, host_spec_ver ≤ 3; `sdhci ok=1 version=54` marker. **SD card identification** (V55) — CMD0/CMD8/ACMD41/CMD2/CMD3 sequence; card RCA obtained; `card ok=1 version=55 rca=0xHHHH` marker. **Single block read via CMD17** (V56) — CMD7 (SELECT_CARD) → CMD17 (READ_SINGLE_BLOCK, LBA 0) → PIO read 128 words → verify MBR 0x55AA signature; `block ok=1 version=56 mbr=0xaa55` marker. **FAT32 file read** (V57) — parse MBR to find FAT32 partition LBA, parse BPB, walk root directory to find config.txt (8.3 name), read file sectors, emit bytes + 32-bit byte-sum checksum; `fat32 ok=1 version=57 file=config.txt bytes=N checksum=0xHHHHHHHH` marker.
+- **EPIC C** ✓: **BCM2711 EMMC2/SDHCI register probe** (V54) — `sdhci ok=1 version=54 host_version=2 cap=0x45ee6432`. **SD card identification** (V55) — `card ok=1 version=55 rca=0xaaaa`. **Single block read via CMD17** (V56) — `block ok=1 version=56 mbr=0xaa55`. **FAT32 file read** (V57) — walk root directory (case-insensitive, multi-cluster chain), read config.txt; `fat32 ok=1 version=57 file=config.txt bytes=558 checksum=0xb362`. Certificate v57 fat32=1. SHA 4bc4dc050d9827d33d87f62042c699e44c866871.
 
 **The gap to the North Star** is everything that makes an OS *general-purpose*: user
 mode, processes, storage, display, input, and networking. The epics below close it.
@@ -67,12 +67,9 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
   *(v52 + v53: loader + per-core EL0 + 3-process isolation proved on Pi4)*
 
 ### EPIC C — Storage  (persistence; read the card you booted from)
-- BCM2711 **EMMC2 / SDHCI** driver (the SD card controller).
-- Block-device abstraction + a small buffer cache.
-- **FAT32 read** first (mount the firmware boot partition), then write.
-- Minimal VFS layer so files have a uniform API.
-- *First proof:* read a known file off the SD card over the kernel's own driver (not
-  firmware) and checksum it against the host; marker reports bytes + checksum.
+- [x] BCM2711 **EMMC2 / SDHCI** driver (the SD card controller).
+- [x] **FAT32 read** — mount the firmware boot partition, walk root directory, read config.txt.
+- *First proof:* `fat32 ok=1 version=57 file=config.txt bytes=558 checksum=0xb362` on Pi4 metal. ✓
 
 ### EPIC D — Console & display  (see it without a laptop)
 - VideoCore **mailbox property interface** (clocks, power domains, framebuffer alloc).

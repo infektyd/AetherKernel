@@ -934,6 +934,11 @@ unsigned long kernel_sdhci_fat32_bytes(void);
 unsigned long kernel_sdhci_fat32_checksum(void);
 unsigned long kernel_sdhci_fat32_step(void);
 
+// Runtime V58: VideoCore ARM->GPU property mailbox probe (firmware revision).
+int kernel_vc_mbox_probe(void);
+unsigned long kernel_vc_mbox_fw_rev(void);
+int kernel_vc_mbox_selftest(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.
