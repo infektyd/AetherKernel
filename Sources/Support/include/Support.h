@@ -922,6 +922,11 @@ int kernel_sdhci_card_init_selftest(void);
 unsigned long kernel_sdhci_card_rca(void);
 unsigned long kernel_sdhci_card_ocr(void);
 
+// Runtime V56: Single block read via CMD17; MBR 0x55AA verification.
+int kernel_sdhci_block_read(void);
+int kernel_sdhci_block_read_selftest(void);
+unsigned long kernel_sdhci_mbr_magic(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

@@ -190,6 +190,10 @@ static int sdhci_send_cmd(unsigned int cmdtm, unsigned int arg, unsigned int res
     // Wait for CMD line not inhibited.
     if (!sdhci_wait_bits(SDHCI_STATUS, SDHCI_STATUS_CMD_INHIBIT, 0, 200000))
         return 0;
+    // Data commands also require the DAT line to be idle.
+    if ((cmdtm & CMD_IS_DATA) &&
+        !sdhci_wait_bits(SDHCI_STATUS, SDHCI_STATUS_DATA_INHIBIT, 0, 200000))
+        return 0;
 
     // Clear all interrupt flags before issuing command.
     mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, 0xFFFFFFFFu);
@@ -314,3 +318,92 @@ unsigned long kernel_sdhci_card_rca(void) {
 unsigned long kernel_sdhci_card_ocr(void) {
     return (unsigned long)sdhci_card_ocr;
 }
+
+// ============================================================================
+// Runtime V56: Single block read via CMD17; MBR 0x55AA verification.
+// ============================================================================
+
+static int          sdhci_mbr_ok    = 0;
+static unsigned int sdhci_mbr_magic = 0; // bits[15:0] of word[127] >> 16
+
+// CMD7: SELECT_CARD — moves card from STAND-BY to TRANSFER state.
+// R1b response: waits for DAT0 busy to clear.
+static int sdhci_card_select(void) {
+    unsigned int resp[4];
+    if (!sdhci_send_cmd(CMDTM_CMD(7, CMD_RESP_48B, CMD_CRC_CHK | CMD_IXCHK_EN),
+                        (unsigned int)(sdhci_card_rca) << 16, resp))
+        return 0;
+    // R1b: card holds DAT0 low while busy; wait for DATA_INHIBIT to clear.
+    return sdhci_wait_bits(SDHCI_STATUS, SDHCI_STATUS_DATA_INHIBIT, 0, 200000);
+}
+
+// PIO read of one 512-byte sector into buf[128 words].
+static int sdhci_read_block_pio(unsigned int lba, unsigned int buf[128]) {
+    unsigned int resp[4];
+    unsigned int arg = sdhci_card_is_hc ? lba : (lba * 512u);
+
+    // Block size = 512 bytes, block count = 1.
+    mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 512u);
+
+    // CMD17: READ_SINGLE_BLOCK — R1, data present, read direction.
+    if (!sdhci_send_cmd(
+            CMDTM_CMD(17, CMD_RESP_48, CMD_CRC_CHK | CMD_IXCHK_EN | CMD_IS_DATA | TM_DAT_DIR_RD),
+            arg, resp))
+        return 0;
+
+    // Wait for READ_RDY or error.
+    unsigned int irpt = 0;
+    for (unsigned int i = 0; i < 200000; i++) {
+        irpt = mmio_read32(EMMC2_BASE + SDHCI_INTERRUPT);
+        if (irpt & (SDHCI_INT_READ_RDY | SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))
+            break;
+        sdhci_delay_us(1);
+    }
+    if (!(irpt & SDHCI_INT_READ_RDY) || (irpt & (SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))) {
+        mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, 0xFFFFFFFFu);
+        return 0;
+    }
+    mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, SDHCI_INT_READ_RDY);
+
+    // Read 128 words (512 bytes) from the SDHCI internal buffer.
+    for (unsigned int i = 0; i < 128; i++) {
+        buf[i] = mmio_read32(EMMC2_BASE + SDHCI_DATA);
+    }
+
+    // Wait for DATA_DONE.
+    irpt = 0;
+    for (unsigned int i = 0; i < 200000; i++) {
+        irpt = mmio_read32(EMMC2_BASE + SDHCI_INTERRUPT);
+        if (irpt & (SDHCI_INT_DATA_DONE | SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))
+            break;
+        sdhci_delay_us(1);
+    }
+    if (!(irpt & SDHCI_INT_DATA_DONE) || (irpt & (SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))) {
+        mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, 0xFFFFFFFFu);
+        return 0;
+    }
+    mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, SDHCI_INT_DATA_DONE);
+    return 1;
+}
+
+int kernel_sdhci_block_read(void) {
+    if (!sdhci_card_init_ok) return 0;
+
+    // Select card: STAND-BY → TRANSFER state.
+    if (!sdhci_card_select()) return 0;
+
+    // Read sector 0 (MBR).
+    unsigned int buf[128];
+    if (!sdhci_read_block_pio(0, buf)) return 0;
+
+    // MBR boot signature: byte[510]=0x55, byte[511]=0xAA.
+    // In little-endian 32-bit word[127]: bytes are {[508],[509],[510],[511]}.
+    // (buf[127] >> 16) extracts bytes [510:511] as a 16-bit value = 0xAA55.
+    sdhci_mbr_magic = (buf[127] >> 16) & 0xFFFFu;
+    if (sdhci_mbr_magic == 0xAA55u)
+        sdhci_mbr_ok = 1;
+    return sdhci_mbr_ok;
+}
+
+int kernel_sdhci_block_read_selftest(void) { return sdhci_mbr_ok; }
+unsigned long kernel_sdhci_mbr_magic(void)  { return (unsigned long)sdhci_mbr_magic; }
