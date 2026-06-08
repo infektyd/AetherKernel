@@ -2,8 +2,9 @@
 // Runtime V62: VL805 USB 3.0 controller discovery (config space + BAR0 assignment).
 // Sources/Support/kernel_pcie.c
 //
-// BCM2711 PCIe outbound window: ARM phys 0x600000000 → PCIe bus 0xF8000000, 64MB.
-// VL805 BAR0 is assigned at PCIe 0xF8000000; CPU accesses xHCI MMIO at ARM 0x600000000.
+// BCM2711 PCIe outbound window: ARM phys 0x600000000 → PCIe bus 0x600000000, 64MB (identity).
+// VL805 BAR0 is a 64-bit BAR; assigned at PCIe 0x600000000 (4DW TLPs, above 4GB boundary).
+// CPU accesses xHCI MMIO at ARM 0x600000000 (Device nGnRnE in MMU).
 // Inbound DMA window: PCIe bus 0x400000000 → ARM phys 0x0 (device DMA addr = phys + 0x400000000).
 
 #include "include/Support.h"
@@ -54,9 +55,12 @@
 #define VL805_VID   0x1106U
 #define VL805_DID   0x3483U
 
-// PCIe outbound window: CPU phys 0x600000000 → PCIe bus 0xF8000000, 64 MB
+// PCIe outbound window: CPU phys 0x600000000 → PCIe bus 0x600000000, 64 MB
+// PCIe address is 64-bit (above 4 GB) so BRCMSTB RC issues 4DW TLPs.
+// VL805 BAR0 is a 64-bit BAR; it only accepts 4DW-addressed memory TLPs.
+// 3DW TLPs (32-bit PCIe addr) targeting a 64-bit BAR return UR → 0xDEADDEAD.
 #define CPU_WIN_BASE  0x600000000ULL
-#define PCIE_WIN_BASE 0xF8000000ULL
+#define PCIE_WIN_BASE 0x600000000ULL   // identity-mapped: same as CPU phys
 #define WIN_SIZE_MB   64U
 
 // ARM phys address of VL805 xHCI MMIO (via outbound window)
