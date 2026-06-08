@@ -961,6 +961,9 @@ unsigned int  kernel_vc_mbox_xhci_reset_payload(void);
 int           kernel_vc_mbox_set_power_state(unsigned int device_id, unsigned int state);
 int           kernel_vc_mbox_pwr_state_result(void);
 unsigned int  kernel_vc_mbox_pwr_state_response(void);
+int           kernel_vc_mbox_set_pcie_reset(unsigned int reset_id, unsigned int state);
+int           kernel_vc_mbox_pcie_reset_result(void);
+unsigned int  kernel_vc_mbox_pcie_reset_response(void);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.

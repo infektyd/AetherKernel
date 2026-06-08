@@ -251,6 +251,15 @@ int kernel_pcie_selftest(void) {
     kernel_vc_mbox_set_power_state(3U, 3U);
     pcie_udelay(100000);  // 100ms for power domain to stabilize
 
+    // Deassert BCM2711 PCIe0 firmware reset domain (RASPBERRYPI_FIRMWARE_RESET_ID_PCIE0=3).
+    // BCM2711 DT: resets = <&pm RASPBERRYPI_FIRMWARE_RESET_ID_PCIE0>.
+    // Linux pcie-brcmstb.c calls reset_control_deassert(pcie->reset) before PERST# deassertion.
+    // Without this, the BCM2711 AXI→PCIe translation bridge fabric stays gated after link
+    // training: ARM reads at 0x600000000 intercept at the AXI fabric (0 ticks) and return
+    // 0xDEADDEAD despite WIN0 registers being correctly programmed.
+    kernel_vc_mbox_set_pcie_reset(3U, 1U);  // PCIE0 id=3, deassert=1
+    pcie_udelay(10000);  // 10ms for domain to enable
+
     // Snapshot Pi firmware register state before we reset anything.
     pcie_win0_lo_pre_val = PCIE32(OFF_MISC_WIN0_LO);
     pcie_win0_bl_pre_val = PCIE32(OFF_MISC_WIN0_BL);

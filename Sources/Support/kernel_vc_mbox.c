@@ -275,3 +275,33 @@ int kernel_vc_mbox_set_power_state(unsigned int device_id, unsigned int state) {
 
 int          kernel_vc_mbox_pwr_state_result(void)   { return pwr_state_result;                  }
 unsigned int kernel_vc_mbox_pwr_state_response(void) { return (unsigned int)pwr_state_response;  }
+
+// RPI_FIRMWARE_SET_RESETS (0x00030042)
+// Controls BCM2711 hardware reset domains managed by Pi firmware.
+// RASPBERRYPI_FIRMWARE_RESET_ID_PCIE0 = 3.
+// state=1 = deassert (enable the domain); state=0 = assert (hold in reset).
+// Linux calls reset_control_deassert(pcie->reset) which invokes this tag before
+// PERST# deassertion.  Without this call, the BCM2711 AXI→PCIe translation
+// bridge fabric remains gated after link training — ARM reads at 0x600000000
+// return 0xDEADDEAD in 0 ticks (AXI intercept) despite WIN0 being correct.
+#define TAG_SET_RESETS 0x00030042U
+
+static int pcie_reset_result = -1;
+static uint32_t pcie_reset_response = 0xFFFFFFFFU;
+
+int kernel_vc_mbox_set_pcie_reset(unsigned int reset_id, unsigned int state) {
+    vc_buf[0] = 8U * 4U;           // 32 bytes total
+    vc_buf[1] = MBOX_REQ;
+    vc_buf[2] = TAG_SET_RESETS;
+    vc_buf[3] = 8U;                // value buffer size: 8 bytes
+    vc_buf[4] = 8U;                // request length: 8 bytes
+    vc_buf[5] = (uint32_t)reset_id;
+    vc_buf[6] = (uint32_t)state;
+    vc_buf[7] = TAG_END;
+    pcie_reset_result   = vc_call(32U);
+    pcie_reset_response = vc_buf[6];
+    return pcie_reset_result;
+}
+
+int          kernel_vc_mbox_pcie_reset_result(void)   { return pcie_reset_result;                  }
+unsigned int kernel_vc_mbox_pcie_reset_response(void) { return (unsigned int)pcie_reset_response;  }
