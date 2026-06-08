@@ -2100,6 +2100,14 @@ func printVl805() {
   uartPutHexCompact(UInt64(kernel_vl805_rgr1()))
   uartPuts(" busnr=")
   uartPutHexCompact(UInt64(kernel_vl805_busnr()))
+  uartPuts(" bar0_lo=")
+  uartPutHexCompact(UInt64(kernel_vl805_bar0_lo()))
+  uartPuts(" bar0_hi=")
+  uartPutHexCompact(UInt64(kernel_vl805_bar0_hi()))
+  uartPuts(" cmd_reg=")
+  uartPutHexCompact(UInt64(kernel_vl805_cmd_reg()))
+  uartPuts(" mmio_raw0=")
+  uartPutHexCompact(UInt64(kernel_vl805_mmio_raw0()))
   uartPuts("\n")
 }
 

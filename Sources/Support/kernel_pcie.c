@@ -260,6 +260,15 @@ int          kernel_pcie_ok(void)    { return pcie_link_ok;    }
 unsigned int kernel_pcie_speed(void) { return pcie_speed_val;  }
 unsigned int kernel_pcie_width(void) { return pcie_width_val;  }
 
+// Live register readbacks for diagnostics
+unsigned int kernel_pcie_win0_lo(void)  { return (unsigned int)PCIE32(OFF_MISC_WIN0_LO);  }
+unsigned int kernel_pcie_win0_hi(void)  { return (unsigned int)PCIE32(OFF_MISC_WIN0_HI);  }
+unsigned int kernel_pcie_win0_bl(void)  { return (unsigned int)PCIE32(OFF_MISC_WIN0_BL);  }
+unsigned int kernel_pcie_win0_bhi(void) { return (unsigned int)PCIE32(OFF_MISC_WIN0_BHI); }
+unsigned int kernel_pcie_win0_lhi(void) { return (unsigned int)PCIE32(OFF_MISC_WIN0_LHI); }
+unsigned int kernel_pcie_misc_ctrl(void){ return (unsigned int)PCIE32(OFF_MISC_MISC_CTRL); }
+unsigned int kernel_pcie_status(void)   { return (unsigned int)PCIE32(OFF_MISC_PCIE_STATUS); }
+
 // ── V62: VL805 config-space probe + BAR0 assignment ───────────────────────
 static int vl805_probed;
 
@@ -346,3 +355,10 @@ unsigned int kernel_vl805_busnr(void) { return (unsigned int)vl805_busnr_val; }
 // Exposed for shell / certificate
 unsigned int kernel_vl805_vendor(void) { return VL805_VID; }
 unsigned int kernel_vl805_device(void) { return VL805_DID; }
+
+// Live config-space readbacks for diagnostics (call only after selftest has run).
+unsigned int kernel_vl805_bar0_lo(void) { return pcie_cfg_rd(1, 0, 0, 0x10); }
+unsigned int kernel_vl805_bar0_hi(void) { return pcie_cfg_rd(1, 0, 0, 0x14); }
+unsigned int kernel_vl805_cmd_reg(void) { return pcie_cfg_rd(1, 0, 0, 0x04); }
+// Raw MMIO read: first 32-bit word at XHCI_BASE (phys 0x600000000).
+unsigned int kernel_vl805_mmio_raw0(void) { return *(volatile unsigned int *)0x600000000UL; }

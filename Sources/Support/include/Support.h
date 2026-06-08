@@ -991,6 +991,12 @@ unsigned int kernel_vl805_pcie_status(void); // PCIE_STATUS captured during EXT_
 unsigned int kernel_vl805_rgr1(void);        // RGR1_SW_INIT_1 (bit0=PERST#, bit1=BRIDGE_SW_INIT)
 unsigned int kernel_vl805_busnr(void);       // DBI bridge bus numbers (SecBus in byte [15:8])
 
+// Live config-space and MMIO diagnostic readbacks for VL805 (after selftest).
+unsigned int kernel_vl805_bar0_lo(void);
+unsigned int kernel_vl805_bar0_hi(void);
+unsigned int kernel_vl805_cmd_reg(void);
+unsigned int kernel_vl805_mmio_raw0(void);
+
 // Runtime V63: xHCI capability register probe (Sources/Support/kernel_xhci.c).
 // V64: xHCI controller init — DCBAA + rings + USBCMD.RUN + port-connect detect.
 // V65: USB device enumeration — port reset, ENABLE_SLOT, ADDRESS_DEVICE, GET_DESCRIPTOR.
