@@ -375,27 +375,42 @@ int kernel_vl805_selftest(void) {
 
     // Capture BAR0 BEFORE our assignment (reveals Pi firmware's state).
     vl805_bar0_lo_pi_val = pcie_cfg_rd(1, 0, 0, 0x10);
-
-    // Snapshot pre-NOTIFY state (BAR0=0x4, MMIO dead — expected after Pi XHCI-STOP).
     vl805_fw_ver_pre_val = pcie_cfg_rd(1, 0, 0, 0x50);
+
+    // ── Phase 1: assign BAR0 BEFORE NOTIFY, probe MMIO immediately.
+    // Pi firmware's XHCI-STOP clears BAR0 but does NOT PERST# the VL805
+    // endpoint — the MCU firmware is still running.  Re-assigning BAR0
+    // and enabling MemEnable should be enough to read xHCI registers
+    // without any NOTIFY/PERST# cycle at all.
+    vl805_hard_debug_pre_val = PCIE32(OFF_MISC_HARD_DEBUG);
+    pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
+    pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
+    {
+        uint32_t cmd = pcie_cfg_rd(1, 0, 0, 0x04);
+        pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
+    }
+    pcie_udelay(100000);   // 100 ms for PLL + link settle
+
     __asm__ volatile("dsb sy" ::: "memory");
     vl805_mmio_early_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
+    if (vl805_mmio_early_val != 0xDEADDEADU) {
+        // VL805 MCU was alive post-handoff; no NOTIFY needed.
+        vl805_mmio_poll_ms_val = 0U;
+        vl805_hard_debug_post_val = vl805_hard_debug_pre_val;
+        vl805_vc_xhci_reset_val  = -2;  // skipped
+        vl805_ok_val = 1;
+        return 1;
+    }
 
-    // Capture HARD_DEBUG before NOTIFY — Pi firmware may have left CLKREQ_DBG_EN
-    // (bit 0) set which gates the endpoint ref-clock and causes all memory TLPs
-    // to time out with 0xDEADDEAD even after MMIO appears in config space.
-    vl805_hard_debug_pre_val = PCIE32(OFF_MISC_HARD_DEBUG);
-
-    // Linux-exact sequence: NOTIFY first, BAR0 assignment after.
-    // VideoCore reloads VL805 firmware from embedded blob in start4.elf.
-    // PERST# is driven by VC internally; ARM must NOT touch PERST# here.
+    // ── Phase 2: NOTIFY_XHCI_RESET (Pi firmware performs PERST# + MCU reload).
+    // VL805 MCU was not alive (Pi firmware must have PERST#'d it at handoff).
+    // Ask VideoCore to reload MCU firmware and re-initialise the controller.
     vl805_vc_xhci_reset_val = kernel_vc_mbox_notify_xhci_reset();
 
-    // Linux waits 400-500ms.  Use 3s to cover slow EEPROM + PLL re-lock.
+    // Wait 3s for MCU reload + PLL re-lock.
     pcie_udelay(3000000);
 
-    // Re-clear CLKREQ_DBG_EN and SERDES_IDDQ — NOTIFY's internal PERST# cycle
-    // may re-set these bits, re-gating the endpoint ref-clock.
+    // Re-clear CLKREQ_DBG_EN and SERDES_IDDQ (NOTIFY's PERST# may re-set them).
     {
         uint32_t hd = PCIE32(OFF_MISC_HARD_DEBUG);
         hd &= ~HARD_DEBUG_CLKREQ_DBG_EN;
@@ -405,14 +420,14 @@ int kernel_vl805_selftest(void) {
     }
     pcie_udelay(10000);
 
-    // Assign BAR0 now — AFTER NOTIFY's PERST# cycle has completed.
+    // Re-assign BAR0 after NOTIFY's PERST# cycle cleared it again.
     pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
     pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
     {
         uint32_t cmd = pcie_cfg_rd(1, 0, 0, 0x04);
         pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
     }
-    pcie_udelay(100000);  // 100ms settle after BAR0 assignment
+    pcie_udelay(100000);
 
     vl805_vc_xhci_payload_val = kernel_vc_mbox_xhci_reset_payload();
     vl805_rom_status_val = pcie_cfg_rd(1, 0, 0, 0x50);
