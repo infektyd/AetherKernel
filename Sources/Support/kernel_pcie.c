@@ -432,6 +432,16 @@ int kernel_pcie_selftest(void) {
         pcie_mmio_at_l0_ticks = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
     }
 
+    // 11c. Re-assert USB_HCD power domain after link training.
+    //      Theory: the BCM2711 VideoCore auto-powers-off USB_HCD (device 3) when the
+    //      PCIe link trains to L0, because the endpoint (VL805) is now "active" and
+    //      the firmware transitions ownership.  Re-enabling the domain here restores
+    //      the AXI→PCIe routing gate that set_power_state(3,3) opened at line ~271.
+    //      state=3 = power ON + wait for transition.
+    kernel_vc_mbox_set_power_state(3U, 3U);
+    pcie_udelay(50000);  // 50ms for domain to re-stabilise
+    __asm__ volatile("dsb sy" ::: "memory");
+
     // 12. Read link speed + width from LNKSTA.
     {
         uint32_t lnkctl_sta = PCIE32(OFF_LNKCTL_STA);
