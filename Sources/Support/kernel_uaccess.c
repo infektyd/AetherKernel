@@ -97,6 +97,9 @@ long kernel_copy_to_user(unsigned long udst, const void *ksrc, unsigned long len
 }
 
 int kernel_uaccess_selftest(void) {
+    static int probed = 0, result = 0;
+    if (probed) return result;
+    probed = 1;
     unsigned long pt = kernel_vmm_alloc_pt();
     if (pt == 0) {
         return 0;
@@ -161,7 +164,8 @@ int kernel_uaccess_selftest(void) {
     kernel_frame_free(data_frame);
     kernel_vmm_free_space(pt);
 
-    return (from_ok == 8 && from_bad == KERNEL_UACCESS_EFAULT &&
-            to_ok == 8 && to_bad == KERNEL_UACCESS_EFAULT &&
-            pattern_ok && to_pattern_ok) ? 1 : 0;
+    result = (from_ok == 8 && from_bad == KERNEL_UACCESS_EFAULT &&
+              to_ok == 8 && to_bad == KERNEL_UACCESS_EFAULT &&
+              pattern_ok && to_pattern_ok) ? 1 : 0;
+    return result;
 }

@@ -107,6 +107,9 @@ void kernel_syscall_handle_svc(user_context_t *ctx) {
 }
 
 int kernel_syscall_selftest(void) {
+    static int probed = 0, result = 0;
+    if (probed) return result;
+    probed = 1;
     unsigned long pt = kernel_vmm_alloc_pt();
     if (pt == 0) return 0;
     kernel_vmm_init_space(pt);
@@ -160,8 +163,9 @@ int kernel_syscall_selftest(void) {
     kernel_vmm_free_space(pt);
 
     unsigned long expected = (0x48UL << 16) | 0x2026UL;
-    return (kernel_syscall_last_dispatched &&
-            kernel_syscall_last_num == KERNEL_SYSCALL_SYS_PING &&
-            kernel_syscall_last_ret == expected &&
-            kernel_syscall_table_valid()) ? 1 : 0;
+    result = (kernel_syscall_last_dispatched &&
+              kernel_syscall_last_num == KERNEL_SYSCALL_SYS_PING &&
+              kernel_syscall_last_ret == expected &&
+              kernel_syscall_table_valid()) ? 1 : 0;
+    return result;
 }

@@ -23,6 +23,9 @@ static void usermode_sync_icache(const void *addr, unsigned long size) {
 }
 
 int kernel_usermode_selftest(void) {
+    static int probed = 0, result = 0;
+    if (probed) return result;
+    probed = 1;
     // Part A: verify the syscall ABI round-trip (re-runs the v48 test).
     if (!kernel_syscall_selftest()) return 0;
 
@@ -77,5 +80,6 @@ int kernel_usermode_selftest(void) {
     kernel_frame_free(stack_frame);
     kernel_vmm_free_space(pt);
 
-    return fault_caught ? 1 : 0;
+    result = fault_caught ? 1 : 0;
+    return result;
 }

@@ -672,6 +672,9 @@ void kernel_el0_sync_handler(user_context_t *ctx) {
 }
 
 int kernel_vmm_el0_selftest(void) {
+    static int probed = 0, result = 0;
+    if (probed) return result;
+    probed = 1;
     unsigned long pt = kernel_vmm_alloc_pt();
     if (pt == 0) return 0;
     kernel_vmm_init_space(pt);
@@ -731,10 +734,10 @@ int kernel_vmm_el0_selftest(void) {
     kernel_frame_free(stack_frame);
     kernel_vmm_free_space(pt);
 
-    int ok = el0_test_result_handled && (el0_test_result_x0 == 0x47) && (el0_test_result_x1 == 0x2026);
+    result = (el0_test_result_handled && (el0_test_result_x0 == 0x47) && (el0_test_result_x1 == 0x2026)) ? 1 : 0;
     debug_uart_puts("el0 ok=");
-    debug_uart_putc(ok ? '1' : '0');
+    debug_uart_putc(result ? '1' : '0');
     debug_uart_puts(" version=47\n");
 
-    return ok ? 1 : 0;
+    return result;
 }

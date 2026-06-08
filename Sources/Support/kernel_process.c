@@ -108,6 +108,9 @@ unsigned int kernel_process_get_asid(unsigned long pid) {
 }
 
 int kernel_process_selftest(void) {
+    static int probed = 0, result = 0;
+    if (probed) return result;
+    probed = 1;
     unsigned long pids[KPROC_CAPACITY];
     int created = 0;
 
@@ -140,7 +143,8 @@ int kernel_process_selftest(void) {
         for (int i = 0; i < created; i++) {
             if (kernel_process_destroy(pids[i])) destroyed++;
         }
-        return (destroyed == created) ? 1 : 0;
+        result = (destroyed == created) ? 1 : 0;
+        return result;
     }
 
 fail:

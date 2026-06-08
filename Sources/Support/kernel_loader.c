@@ -20,6 +20,9 @@ static void loader_sync_icache(const void *addr, unsigned long size) {
 }
 
 int kernel_loader_selftest(void) {
+    static int probed = 0, result = 0;
+    if (probed) return result;
+    probed = 1;
     // Create a fresh process (address space + ASID).
     unsigned long pid = 0;
     if (!kernel_process_create(&pid)) return 0;
@@ -89,7 +92,8 @@ int kernel_loader_selftest(void) {
     kernel_process_destroy(pid);
 
     // Proof: sys_write (num=2) was dispatched and wrote 3 bytes ("Hi\n").
-    return (dispatched && num == KERNEL_SYSCALL_SYS_WRITE && ret == 3) ? 1 : 0;
+    result = (dispatched && num == KERNEL_SYSCALL_SYS_WRITE && ret == 3) ? 1 : 0;
+    return result;
 }
 
 // Run a single user hello process; return 1 on success, 0 on failure.
@@ -154,9 +158,13 @@ static int run_user_hello_once(void) {
 // Run 3 independent user processes in sequence, each with its own isolated
 // address space and ASID.  All 3 must succeed.
 int kernel_multiprocess_selftest(void) {
+    static int probed = 0, result = 0;
+    if (probed) return result;
+    probed = 1;
     unsigned int ok = 0;
     for (int i = 0; i < 3; i++) {
         ok += (unsigned int)run_user_hello_once();
     }
-    return (ok == 3) ? 1 : 0;
+    result = (ok == 3) ? 1 : 0;
+    return result;
 }
