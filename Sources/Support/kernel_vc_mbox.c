@@ -216,3 +216,25 @@ unsigned long kernel_vc_mbox_fb_raw_addr(void)      { return (unsigned long)fb_r
 unsigned long kernel_vc_mbox_fb_raw_pitch(void)     { return (unsigned long)fb_raw_pitch; }
 unsigned long kernel_vc_mbox_fb_query_w(void)       { return (unsigned long)fb_query_w; }
 unsigned long kernel_vc_mbox_fb_query_h(void)       { return (unsigned long)fb_query_h; }
+
+// RPI_FIRMWARE_NOTIFY_XHCI_RESET (0x00030058)
+// Tells VideoCore to reload VL805 firmware after Pi firmware asserted PERST#
+// during OS handoff without reloading the firmware blob. Without this call,
+// VL805 is in ROM-only state: config TLPs work but MMIO (memory TLPs) do not.
+#define TAG_NOTIFY_XHCI_RESET 0x00030058U
+
+static int xhci_reset_result = -1;
+
+int kernel_vc_mbox_notify_xhci_reset(void) {
+    vc_buf[0] = 7U * 4U;
+    vc_buf[1] = MBOX_REQ;
+    vc_buf[2] = TAG_NOTIFY_XHCI_RESET;
+    vc_buf[3] = 4U;
+    vc_buf[4] = 0U;
+    vc_buf[5] = 0U;
+    vc_buf[6] = TAG_END;
+    xhci_reset_result = vc_call(28U);
+    return xhci_reset_result;
+}
+
+int kernel_vc_mbox_xhci_reset_ok(void) { return xhci_reset_result; }

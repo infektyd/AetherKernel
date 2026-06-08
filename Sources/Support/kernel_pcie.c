@@ -75,6 +75,7 @@ static uint32_t vl805_rgr1_val;        // RGR1_SW_INIT_1 at time of EXT_CFG prob
 static uint32_t vl805_busnr_val;       // DBI bridge bus numbers (SecBus byte)
 static uint32_t vl805_bar0_lo_pi_val;  // BAR0 lo before our probe (Pi firmware state)
 static uint32_t vl805_pm_state_val;    // PM power state at selftest time (0=D0, 3=D3hot)
+static int vl805_vc_xhci_reset_val = -1; // result of RPI_FIRMWARE_NOTIFY_XHCI_RESET mailbox call
 
 // Pre-write snapshots of WIN0 registers (Pi firmware state)
 static uint32_t pcie_win0_lo_pre_val;
@@ -340,6 +341,13 @@ int kernel_vl805_selftest(void) {
         return 0;
     }
 
+    // VL805 is in ROM-only mode after Pi firmware PERST# (bar0_lo_pi=0x4 proves
+    // firmware was not reloaded).  RPI_FIRMWARE_NOTIFY_XHCI_RESET tells VideoCore
+    // to reload the VL805 firmware blob via PCIe config writes; without this,
+    // memory TLPs (MMIO) never complete — they time out as 0xDEADDEAD.
+    vl805_vc_xhci_reset_val = kernel_vc_mbox_notify_xhci_reset();
+    pcie_udelay(500000);  // 500ms: VL805 firmware init + PLL re-lock
+
     // Force D0 power state.  Pi firmware may have placed VL805 in D3hot before
     // handoff (stops xHCI + power down).  D3hot allows config-space access but
     // blocks MMIO — exactly the symptom we see.  Walk the capability list and
@@ -385,8 +393,9 @@ int kernel_vl805_selftest(void) {
     return 1;
 }
 
-unsigned int kernel_vl805_bar0_lo_pi(void) { return (unsigned int)vl805_bar0_lo_pi_val; }
-unsigned int kernel_vl805_pm_state(void)   { return (unsigned int)vl805_pm_state_val;   }
+unsigned int kernel_vl805_bar0_lo_pi(void)    { return (unsigned int)vl805_bar0_lo_pi_val;    }
+unsigned int kernel_vl805_pm_state(void)      { return (unsigned int)vl805_pm_state_val;      }
+int          kernel_vl805_vc_xhci_reset(void) { return vl805_vc_xhci_reset_val;               }
 
 int kernel_vl805_ok(void) { return vl805_ok_val; }
 unsigned int kernel_vl805_raw_viddid(void) { return vl805_raw_viddid_val; }

@@ -2108,6 +2108,8 @@ func printVl805() {
   uartPutHexCompact(UInt64(kernel_vl805_bar0_lo_pi()))
   uartPuts(" pm_state=")
   uartPutDec(UInt64(kernel_vl805_pm_state()))
+  uartPuts(" vc_xhci_ok=")
+  uartPutDec(UInt64(bitPattern: Int64(kernel_vl805_vc_xhci_reset())))
   uartPuts(" bar0_lo=")
   uartPutHexCompact(UInt64(kernel_vl805_bar0_lo()))
   uartPuts(" bar0_hi=")
