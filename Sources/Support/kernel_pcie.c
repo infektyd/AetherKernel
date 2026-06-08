@@ -2,8 +2,9 @@
 // Runtime V62: VL805 USB 3.0 controller discovery (config space + BAR0 assignment).
 // Sources/Support/kernel_pcie.c
 //
-// BCM2711 PCIe outbound window: ARM phys 0x600000000 → PCIe bus 0x600000000, 64MB (identity).
-// VL805 BAR0 is a 64-bit BAR; assigned at PCIe 0x600000000 (4DW TLPs, above 4GB boundary).
+// BCM2711 PCIe outbound window: ARM phys 0x600000000 → PCIe bus 0xf8000000, 64MB (non-identity).
+// Matches Pi4 DT ranges: <0x02000000 0x0 0xf8000000  0x6 0x00000000  0x0 0x04000000>
+// VL805 BAR0 lo=0xf8000000 hi=0 (32-bit PCIe addr; 64-bit BAR with hi=0 decodes 3DW TLPs fine).
 // CPU accesses xHCI MMIO at ARM 0x600000000 (Device nGnRnE in MMU).
 // Inbound DMA window: PCIe bus 0x400000000 → ARM phys 0x0 (device DMA addr = phys + 0x400000000).
 
@@ -55,12 +56,11 @@
 #define VL805_VID   0x1106U
 #define VL805_DID   0x3483U
 
-// PCIe outbound window: CPU phys 0x600000000 → PCIe bus 0x600000000, 64 MB
-// PCIe address is 64-bit (above 4 GB) so BRCMSTB RC issues 4DW TLPs.
-// VL805 BAR0 is a 64-bit BAR; it only accepts 4DW-addressed memory TLPs.
-// 3DW TLPs (32-bit PCIe addr) targeting a 64-bit BAR return UR → 0xDEADDEAD.
+// PCIe outbound window: CPU phys 0x600000000 → PCIe bus 0xf8000000, 64 MB (non-identity).
+// VL805 BAR0 lo=0xf8000000, hi=0.  A 64-bit BAR with hi=0 is a 32-bit PCIe address;
+// BRCMSTB RC issues ordinary 3DW TLPs which the VL805 decodes normally.
 #define CPU_WIN_BASE  0x600000000ULL
-#define PCIE_WIN_BASE 0x600000000ULL   // identity-mapped: same as CPU phys
+#define PCIE_WIN_BASE 0xf8000000ULL    // PCIe bus addr (non-identity; DT ranges 0xf8000000)
 #define WIN_SIZE_MB   64U
 
 // ARM phys address of VL805 xHCI MMIO (via outbound window)
@@ -251,7 +251,7 @@ int kernel_pcie_selftest(void) {
         PCIE32(OFF_MISC_HARD_DEBUG) = hd;
     }
 
-    // 9. Configure outbound MMIO window 0: CPU phys 0x600000000 → PCIe 0xF8000000, 64MB
+    // 9. Configure outbound MMIO window 0: CPU phys 0x600000000 → PCIe 0xf8000000, 64MB.
     // Snapshot what Pi firmware left BEFORE we overwrite.
     pcie_win0_lo_pre_val = PCIE32(OFF_MISC_WIN0_LO);
     pcie_win0_bl_pre_val = PCIE32(OFF_MISC_WIN0_BL);
