@@ -132,6 +132,10 @@ static uint32_t pcie_mmio_pre_perst_ticks;
 // Tells us: does the PERST# bit clear ITSELF cause the ticks transition (0 vs 24+)?
 static uint32_t pcie_mmio_post_perst_val;
 static uint32_t pcie_mmio_post_perst_ticks;
+// MMIO read at 0x600000000 immediately at L0 (after DL_ACTIVE, before any post-link code).
+// Tells us: does link training itself break routing, or do our step-13 writes cause it?
+static uint32_t pcie_mmio_at_l0_val;
+static uint32_t pcie_mmio_at_l0_ticks;
 // MMIO read at 0x600000000 after link-up + second SET_RESETS(1,0) call.
 // Tells us: does re-applying PCIe0 reset deassert after link-up restore routing?
 static uint32_t pcie_mmio_post_link_val;
@@ -415,6 +419,19 @@ int kernel_pcie_selftest(void) {
         if (!linked) return 0;
     }
 
+    // 11b. Probe MMIO immediately at L0, before any step-13 writes.
+    //      at_l0_ticks=0  → routing broke during LTSSM training itself
+    //      at_l0_ticks>0  → routing still works at L0; step 13 code is responsible for breakage
+    __asm__ volatile("dsb sy" ::: "memory");
+    {
+        uint64_t _t0, _t1;
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t0));
+        pcie_mmio_at_l0_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t1));
+        uint64_t _dt = _t1 - _t0;
+        pcie_mmio_at_l0_ticks = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
+    }
+
     // 12. Read link speed + width from LNKSTA.
     {
         uint32_t lnkctl_sta = PCIE32(OFF_LNKCTL_STA);
@@ -473,6 +490,8 @@ unsigned int kernel_pcie_mmio_pre_perst(void)   { return (unsigned int)pcie_mmio
 unsigned int kernel_pcie_mmio_pre_perst_ticks(void) { return (unsigned int)pcie_mmio_pre_perst_ticks; }
 unsigned int kernel_pcie_mmio_post_perst(void)  { return (unsigned int)pcie_mmio_post_perst_val;    }
 unsigned int kernel_pcie_mmio_post_perst_ticks(void){ return (unsigned int)pcie_mmio_post_perst_ticks;}
+unsigned int kernel_pcie_mmio_at_l0(void)       { return (unsigned int)pcie_mmio_at_l0_val;         }
+unsigned int kernel_pcie_mmio_at_l0_ticks(void) { return (unsigned int)pcie_mmio_at_l0_ticks;       }
 unsigned int kernel_pcie_mmio_post_link(void)   { return (unsigned int)pcie_mmio_post_link_val;     }
 unsigned int kernel_pcie_mmio_post_link_ticks(void) { return (unsigned int)pcie_mmio_post_link_ticks; }
 unsigned int kernel_pcie_rgr1_pi(void)          { return (unsigned int)pcie_rgr1_pi_val;            }

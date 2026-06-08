@@ -1051,6 +1051,8 @@ unsigned int kernel_pcie_mmio_pre_perst(void);
 unsigned int kernel_pcie_mmio_pre_perst_ticks(void);
 unsigned int kernel_pcie_mmio_post_perst(void);
 unsigned int kernel_pcie_mmio_post_perst_ticks(void);
+unsigned int kernel_pcie_mmio_at_l0(void);
+unsigned int kernel_pcie_mmio_at_l0_ticks(void);
 unsigned int kernel_pcie_mmio_post_link(void);
 unsigned int kernel_pcie_mmio_post_link_ticks(void);
 unsigned int kernel_pcie_rgr1_pi(void);
