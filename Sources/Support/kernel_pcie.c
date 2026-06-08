@@ -102,6 +102,13 @@ static uint32_t vl805_mmio_early_ticks_val;  // 54MHz ticks for Phase 1 MMIO rea
 static uint32_t pcie_win0_lo_pre_val;
 static uint32_t pcie_win0_bl_pre_val;
 
+// MMIO probe BEFORE any PCIe RC manipulation — captures Pi firmware handoff state.
+// If non-0xDEADDEAD: Pi firmware leaves MMIO accessible; our reset breaks it.
+// If 0xDEADDEAD: Pi firmware already disabled MMIO at XHCI_STOP; need to find that path.
+static uint32_t pcie_mmio_pre_reset_val;
+// Pre-reset BAR0 from config space (Pi firmware's BAR assignment before our VL805 probe).
+static uint32_t pcie_bar0_pre_reset_val;
+
 // ── Timing (generic timer at 54 MHz on Pi4) ────────────────────────────────
 static void pcie_udelay(unsigned int us) {
     uint64_t freq, start, now;
@@ -178,6 +185,32 @@ int kernel_pcie_selftest(void) {
     if (pcie_probed) return pcie_link_ok;
     pcie_probed = 1;
     pcie_link_ok = 0;
+
+    // Pre-reset MMIO probe: read VL805 MMIO before ANY PCIe manipulation.
+    // If non-0xDEADDEAD → Pi firmware left MMIO accessible; our reset sequence breaks it.
+    // If 0xDEADDEAD → XHCI_STOP already disabled MMIO; need to find the teardown path.
+    // Also snapshot BAR0 before anything (reveals Pi firmware's BAR assignment).
+    {
+        uint32_t link_st = PCIE32(OFF_MISC_PCIE_STATUS);
+        if ((link_st & (STATUS_PHYLINKUP | STATUS_DL_ACTIVE)) ==
+                (STATUS_PHYLINKUP | STATUS_DL_ACTIVE)) {
+            // Pi firmware left link up; try config-space BAR0 read before our reset.
+            PCIE32(OFF_EXT_CFG_INDEX) = (1U << 20) | (0U << 15) | (0U << 12);
+            __asm__ volatile("dsb sy" ::: "memory");
+            uint32_t raw_bar0 = PCIE32(OFF_EXT_CFG_DATA + 0x10U);
+            pcie_bar0_pre_reset_val = raw_bar0;
+            // If BAR0 is assigned (bits[31:4] != 0), probe MMIO at that translated address.
+            if ((raw_bar0 & ~0xFU) != 0U) {
+                __asm__ volatile("dsb sy" ::: "memory");
+                pcie_mmio_pre_reset_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
+            } else {
+                pcie_mmio_pre_reset_val = 0xBAADBAADU;  // BAR0 not assigned by firmware
+            }
+        } else {
+            pcie_mmio_pre_reset_val = 0xBAADBAADU;  // link was down before our reset
+            pcie_bar0_pre_reset_val = 0xBAADBAADU;
+        }
+    }
 
     // Re-enable USB HCD power domain (device_id=3) before touching PCIe RC registers.
     // Pi firmware's XHCI_STOP calls SET_POWER_STATE(USB_HCD=3, OFF), disabling the
@@ -301,8 +334,10 @@ unsigned int kernel_pcie_win0_bhi(void) { return (unsigned int)PCIE32(OFF_MISC_W
 unsigned int kernel_pcie_win0_lhi(void) { return (unsigned int)PCIE32(OFF_MISC_WIN0_LHI); }
 unsigned int kernel_pcie_misc_ctrl(void){ return (unsigned int)PCIE32(OFF_MISC_MISC_CTRL); }
 unsigned int kernel_pcie_status(void)   { return (unsigned int)PCIE32(OFF_MISC_PCIE_STATUS); }
-unsigned int kernel_pcie_win0_lo_pre(void) { return (unsigned int)pcie_win0_lo_pre_val; }
-unsigned int kernel_pcie_win0_bl_pre(void) { return (unsigned int)pcie_win0_bl_pre_val; }
+unsigned int kernel_pcie_win0_lo_pre(void)     { return (unsigned int)pcie_win0_lo_pre_val;      }
+unsigned int kernel_pcie_win0_bl_pre(void)     { return (unsigned int)pcie_win0_bl_pre_val;      }
+unsigned int kernel_pcie_mmio_pre_reset(void)  { return (unsigned int)pcie_mmio_pre_reset_val;   }
+unsigned int kernel_pcie_bar0_pre_reset(void)  { return (unsigned int)pcie_bar0_pre_reset_val;   }
 
 // ── V62: VL805 config-space probe + BAR0 assignment ───────────────────────
 static int vl805_probed;
