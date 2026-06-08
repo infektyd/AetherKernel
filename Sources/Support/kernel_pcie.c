@@ -136,6 +136,11 @@ static uint32_t pcie_mmio_post_perst_ticks;
 // Tells us: does link training itself break routing, or do our step-13 writes cause it?
 static uint32_t pcie_mmio_at_l0_val;
 static uint32_t pcie_mmio_at_l0_ticks;
+// WIN0 CPU-range registers captured at L0 — if any read back 0 the AXI routing table lost
+// the address translation during LTSSM training (explains at_l0_ticks=0 / DECERR).
+static uint32_t pcie_win0_bl_at_l0;
+static uint32_t pcie_win0_bhi_at_l0;
+static uint32_t pcie_win0_lhi_at_l0;
 // MMIO read at 0x600000000 after link-up + second SET_RESETS(1,0) call.
 // Tells us: does re-applying PCIe0 reset deassert after link-up restore routing?
 static uint32_t pcie_mmio_post_link_val;
@@ -394,23 +399,14 @@ int kernel_pcie_selftest(void) {
     //     (ticks 39→1), so the MemBase/MemLimit write was moved to AFTER link-up.
     PCIE32(OFF_LNKCTL_STA) &= ~0x3U;  // LNKCTL bits[1:0] = 00 = ASPM disabled
 
-    // 9d. Force Gen1 link speed before PERST# deassertion.
-    //     Hypothesis: BCM2711 BCM2711 AXI routing block (at_l0_ticks=0) is triggered by
-    //     the Gen1→Gen2 speed-change recovery sequence during LTSSM training.  The RC
-    //     sends a Directed Speed Change TLP; the PHY retrains; during recovery the AXI
-    //     fabric loses routing and never recovers.  Forcing Gen1-only eliminates the
-    //     speed-change TLP entirely.
-    //     PRIV1_LINK_CAPABILITY (0x04DC): BRCMSTB proprietary; bits[3:0]=Max/Target speed.
-    //     LNKCTL2 (0x00DC): Standard PCIe; bits[3:0]=Target_Link_Speed.
-    {
-        pcie_priv1_lnkcap_pre_val = PCIE32(0x04DCU);
-        pcie_lnkctl2_pre_val      = PCIE32(0x00DCU);
-        PCIE32(0x04DCU) = (pcie_priv1_lnkcap_pre_val & ~0xFU) | 0x1U;
-        PCIE32(0x00DCU) = (pcie_lnkctl2_pre_val       & ~0xFU) | 0x1U;
-        __asm__ volatile("dsb sy" ::: "memory");
-        pcie_priv1_lnkcap_post_val = PCIE32(0x04DCU);
-        pcie_lnkctl2_post_val      = PCIE32(0x00DCU);
-    }
+    // DISPROVED 9d: Gen1 forcing via PRIV1_LINK_CAPABILITY(0x04DC) + LNKCTL2(0x00DC).
+    //   Writing 0x04DC BEFORE PERST# caused postperst_ticks=0 (routing breaks at PERST#
+    //   deassertion, earlier than the previous at_l0=0 breakpoint).  Link still trained
+    //   to Gen1 speed=1 but routing stayed broken.  HYPOTHESIS DISPROVED.  Removed.
+    pcie_priv1_lnkcap_pre_val  = PCIE32(0x04DCU);  // capture only, no write
+    pcie_priv1_lnkcap_post_val = pcie_priv1_lnkcap_pre_val;
+    pcie_lnkctl2_pre_val       = PCIE32(0x00DCU);  // capture only, no write
+    pcie_lnkctl2_post_val      = pcie_lnkctl2_pre_val;
 
     // 10. Deassert PERST# — VL805 starts EEPROM firmware load + link training.
     PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_PERST;
@@ -446,10 +442,30 @@ int kernel_pcie_selftest(void) {
     }
 
     // 11b. Probe MMIO immediately at L0, before any step-13 writes.
+    //      Capture WIN0 CPU-range regs first: if bl_at_l0=0 or bhi_at_l0=0 the AXI
+    //      fabric lost the address translation during LTSSM → that explains DECERR (0 ticks).
     //      at_l0_ticks=0  → routing broke during LTSSM training itself
     //      at_l0_ticks>0  → routing still works at L0; step 13 code is responsible for breakage
     __asm__ volatile("dsb sy" ::: "memory");
+    pcie_win0_bl_at_l0  = PCIE32(OFF_MISC_WIN0_BL);
+    pcie_win0_bhi_at_l0 = PCIE32(OFF_MISC_WIN0_BHI);
+    pcie_win0_lhi_at_l0 = PCIE32(OFF_MISC_WIN0_LHI);
     {
+        uint64_t _t0, _t1;
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t0));
+        pcie_mmio_at_l0_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t1));
+        uint64_t _dt = _t1 - _t0;
+        pcie_mmio_at_l0_ticks = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
+    }
+    // If at_l0_ticks=0 and win0_bl_at_l0=0: WIN0 CPU range was reset during LTSSM.
+    // Fix: re-write WIN0 here (pcie_set_outbound_win0 again) and re-test.
+    // If at_l0_ticks=0 and win0_bl_at_l0 correct: AXI routing is blocked by something
+    // independent of WIN0 register values (power domain, clock gate, or AXI bus error).
+    if (pcie_mmio_at_l0_ticks == 0 && pcie_win0_bl_at_l0 == 0) {
+        // WIN0_BL was cleared during LTSSM — re-apply outbound window and re-probe.
+        pcie_set_outbound_win0(CPU_WIN_BASE, PCIE_WIN_BASE, WIN_SIZE_MB);
+        __asm__ volatile("dsb sy" ::: "memory");
         uint64_t _t0, _t1;
         __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t0));
         pcie_mmio_at_l0_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
@@ -536,6 +552,9 @@ unsigned int kernel_pcie_priv1_lnkcap_pre(void) { return (unsigned int)pcie_priv
 unsigned int kernel_pcie_priv1_lnkcap_post(void){ return (unsigned int)pcie_priv1_lnkcap_post_val; }
 unsigned int kernel_pcie_lnkctl2_pre(void)      { return (unsigned int)pcie_lnkctl2_pre_val;       }
 unsigned int kernel_pcie_lnkctl2_post(void)     { return (unsigned int)pcie_lnkctl2_post_val;      }
+unsigned int kernel_pcie_win0_bl_at_l0(void)    { return (unsigned int)pcie_win0_bl_at_l0;         }
+unsigned int kernel_pcie_win0_bhi_at_l0(void)   { return (unsigned int)pcie_win0_bhi_at_l0;        }
+unsigned int kernel_pcie_win0_lhi_at_l0(void)   { return (unsigned int)pcie_win0_lhi_at_l0;        }
 unsigned int kernel_pcie_lnkctl(void)           { return (unsigned int)pcie_lnkctl_val;             }
 unsigned int kernel_pcie_hard_debug_post(void)  { return (unsigned int)pcie_hard_debug_post_val;    }
 unsigned int kernel_pcie_misc_ctrl_post(void)   { return (unsigned int)pcie_misc_ctrl_post_val;     }
