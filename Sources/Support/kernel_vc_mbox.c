@@ -278,10 +278,12 @@ unsigned int kernel_vc_mbox_pwr_state_response(void) { return (unsigned int)pwr_
 
 // RPI_FIRMWARE_SET_RESETS (0x00030042)
 // Controls BCM2711 hardware reset domains managed by Pi firmware.
-// RASPBERRYPI_FIRMWARE_RESET_ID_PCIE0 = 3.
-// state=1 = deassert (enable the domain); state=0 = assert (hold in reset).
-// Linux calls reset_control_deassert(pcie->reset) which invokes this tag before
-// PERST# deassertion.  Without this call, the BCM2711 AXI→PCIe translation
+// RASPBERRYPI_FIRMWARE_RESET_ID_USB   = 0 (from dt-binding header)
+// RASPBERRYPI_FIRMWARE_RESET_ID_PCIE0 = 1 (from dt-binding header)
+// state=0 = deassert (take out of reset); state=1 = assert (hold in reset).
+// Linux reset driver: assert → packet[1]=1, deassert → packet[1]=0.
+// Linux calls reset_control_deassert(pcie->reset) as first step in pcie-brcmstb.c.
+// Without this call (state=0 for PCIE0), the BCM2711 AXI→PCIe translation
 // bridge fabric remains gated after link training — ARM reads at 0x600000000
 // return 0xDEADDEAD in 0 ticks (AXI intercept) despite WIN0 being correct.
 #define TAG_SET_RESETS 0x00030042U

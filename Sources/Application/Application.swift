@@ -511,6 +511,8 @@ struct Application {
     uartPutHexCompact(UInt64(kernel_vl805_device()))
     uartPuts(" mmio_raw0=")
     uartPutHexCompact(UInt64(kernel_vl805_mmio_early()))
+    uartPuts(" mmio_ticks=")
+    uartPutDec(UInt64(kernel_vl805_mmio_early_ticks()))
     uartPuts(" mmio_ms=")
     uartPutDec(UInt64(kernel_vl805_mmio_poll_ms()))
     uartPuts(" rgr1=")
