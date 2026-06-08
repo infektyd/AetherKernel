@@ -14,6 +14,7 @@
 // ── BCM2711 PCIe RC MMIO (ARM phys) ───────────────────────────────────────
 #define PCIE_BASE 0xFD500000UL
 #define PCIE32(off) (*(volatile uint32_t *)(PCIE_BASE + (unsigned long)(off)))
+#define PCIE16(off) (*(volatile uint16_t *)(PCIE_BASE + (unsigned long)(off)))
 
 // BCM2711 CPRMAN clock manager — PCIe LP clock (BCM2711_CLK_PCIE0_LP).
 // Linux performs clk_prepare_enable(sw_pcie) as the FIRST step in pcie-brcmstb.c.
@@ -354,8 +355,10 @@ int kernel_pcie_selftest(void) {
     PCIE32(0x0018U) = 0x00010100U;
 
     // 9a. RC command register: enable MemSpace (bit1) + BusMaster (bit2) on the RC itself.
-    //     Some BRCMSTB controllers require this before PERST# deassertion for outbound TLPs.
-    PCIE32(0x0004U) |= 0x6U;
+    //     Must be a 16-bit write to offset 0x0004 (Command register only).
+    //     A 32-bit RMW also touches the Status register upper 16 bits (W1C bits) which
+    //     causes BCM2711 to reject the write — rc_cmd read back showed Command=0x0000.
+    PCIE16(0x0004U) |= 0x0006U;
     pcie_rc_cmd_val = PCIE32(0x0004U);
 
     // 9b. Pre-PERST# MMIO probe: read VL805 MMIO with link STILL DOWN.
