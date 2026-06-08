@@ -939,6 +939,23 @@ int kernel_vc_mbox_probe(void);
 unsigned long kernel_vc_mbox_fw_rev(void);
 int kernel_vc_mbox_selftest(void);
 
+// Runtime V59: VideoCore framebuffer allocation (width, height, depth, pitch, addr).
+int kernel_vc_mbox_fb_alloc(void);
+unsigned long kernel_vc_mbox_fb_width(void);
+unsigned long kernel_vc_mbox_fb_height(void);
+unsigned long kernel_vc_mbox_fb_depth(void);
+unsigned long kernel_vc_mbox_fb_pitch(void);
+unsigned long kernel_vc_mbox_fb_addr(void);
+unsigned long kernel_vc_mbox_fb_size(void);
+int kernel_vc_mbox_fb_selftest(void);
+// Diagnostic state from most recent fb_alloc call.
+int           kernel_vc_mbox_fb_last_call_ok(void);
+unsigned long kernel_vc_mbox_fb_last_resp(void);
+unsigned long kernel_vc_mbox_fb_raw_addr(void);
+unsigned long kernel_vc_mbox_fb_raw_pitch(void);
+unsigned long kernel_vc_mbox_fb_query_w(void);
+unsigned long kernel_vc_mbox_fb_query_h(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

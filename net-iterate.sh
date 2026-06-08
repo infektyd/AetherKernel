@@ -35,12 +35,12 @@ die() {
 print_tftp_diagnostics() {
   local dns_delta="$1"
 
-  if printf '%s' "$dns_delta" | grep -Eq "failed sending .*/start4\\.elf|timeout sending .*/start4\\.elf"; then
+  if printf '%s' "$dns_delta" | grep -Eqa "failed sending .*/start4\\.elf|timeout sending .*/start4\\.elf"; then
     echo "diagnostic: Pi bootloader did not reliably receive start4.elf over TFTP."
     echo "diagnostic: kernel was not reached; try restarting serve-netboot with AETHER_TFTP_NO_BLOCKSIZE=1 for an A/B test."
   fi
 
-  if printf '%s' "$dns_delta" | grep -Eq "failed sending .*/kernel8\\.img|timeout sending .*/kernel8\\.img"; then
+  if printf '%s' "$dns_delta" | grep -Eqa "failed sending .*/kernel8\\.img|timeout sending .*/kernel8\\.img"; then
     echo "diagnostic: kernel8.img transfer was attempted but not cleanly completed before fallback/retry."
   fi
 }
@@ -159,90 +159,92 @@ while [ "$attempt" -le "$RETRIES" ]; do
     dns_delta="$(file_delta "$DNSMASQ_LOG" "$dns_start")"
     serial_delta="$(file_delta "$SERIAL_LOG" "$serial_start")"
 
-    if printf '%s' "$serial_delta" | grep -q "async heartbeat: timer-backed sleep 1s"; then
+    if printf '%s' "$serial_delta" | grep -qa "async heartbeat: timer-backed sleep 1s"; then
       echo "netboot attempt ${attempt}/${RETRIES} booted stale SD fallback image detected"
       echo "--- serial delta from stale fallback ---"
       printf '%s\n' "$serial_delta" | tail -n 120
       exit 2
     fi
 
-    if printf '%s' "$dns_delta" | grep -q "$PREFIX/.*kernel8.img" \
-      && printf '%s' "$serial_delta" | grep -q "=== AetherKernel ===" \
-      && printf '%s' "$serial_delta" | grep -q "rtv2 fast 0x0000000000000000" \
-      && printf '%s' "$serial_delta" | grep -q "rtv2 slow 0x0000000000000000" \
-      && printf '%s' "$serial_delta" | grep -q "rtv2 long 0x0000000000000000" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v5: diagnostics shell" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v6: retained panic/fault records" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v7: memory map + frame allocator" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v8: allocator guardrails" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v9: bounded memory pressure self-tests" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v10: explicit guard probes" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v11: boot and soak invariants" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v12: kernel object table + task registry" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v13: bounded mailbox message queues" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v14: deterministic task supervisor" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v15: capability-tagged kernel handles" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v16: kernel event log ring" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v17: deterministic boot certificate" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v18: cooperative cancellation tokens" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v19: structured aether task spawn" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v20: bounded async channels" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v21: mmu ownership boundary" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v22: guarded typed pools" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v23: allocator and pool pressure telemetry" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v24: fixed driver registry" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v25: scriptable command protocol v2" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v27: panic taxonomy and symbolic retained records" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v28: swift runtime dependency audit" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v29: agent-oriented control session" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v30: swift-native kernel substrate certificate" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v31: preemptive scheduler substrate" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v32: smp secondary-core bring-up" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v33: atomics spinlocks per-core run queues" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v34: timer-driven smp scheduler dispatch" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v35: secondary-owned scheduler workers" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v36: timer-fed secondary scheduler workers" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v37: timer-fed secondary C scheduler jobs" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v38: secondary scheduler wake protocol" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v39: secondary scheduler handoff protocol" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v40: scheduler backpressure protocol" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v41: secondary scheduler work stealing" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v42: secondary scheduler load balancing" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v45: dynamic virtual memory (page tables + TLB)" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v46: kernel/user address-space split (isolated page tables)" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v47: EL0 entry/exit and context save/restore" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v48: syscall ABI via SVC from EL0" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v49: fault-safe copy_from_user / copy_to_user" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v50: EPIC A capstone" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v51: process abstraction" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v52: user binary loader" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v53: multi-process user execution" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v54: BCM2711 EMMC2/SDHCI register probe" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v55: SD card identification (CMD0/CMD8/ACMD41/CMD2/CMD3)" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v56: single block read CMD17 + MBR 0x55AA verification" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v57: FAT32 file read (config.txt bytes + checksum)" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v58: VideoCore mailbox property interface (firmware revision)" \
-      && printf '%s' "$serial_delta" | grep -q "sdhci ok=1 version=54" \
-      && printf '%s' "$serial_delta" | grep -q "card ok=1 version=55" \
-      && printf '%s' "$serial_delta" | grep -q "block ok=1 version=56" \
-      && printf '%s' "$serial_delta" | grep -q "fat32 ok=1 version=57" \
-      && printf '%s' "$serial_delta" | grep -q "mailbox ok=1 version=58" \
-      && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
-      && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \
-      && printf '%s' "$serial_delta" | grep -q "syscall ok=1 version=48" \
-      && printf '%s' "$serial_delta" | grep -q "uaccess ok=1 version=49" \
-      && printf '%s' "$serial_delta" | grep -q "usermode ok=1 version=50 fault_contained=1" \
-      && printf '%s' "$serial_delta" | grep -q "process ok=1 version=51" \
-      && printf '%s' "$serial_delta" | grep -q "processes ok=1 version=52" \
-      && printf '%s' "$serial_delta" | grep -q "multiprocess ok=1 version=53" \
-      && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
-      && printf '%s' "$serial_delta" | grep -q "rtv13 mail tx 0x0000000000000000" \
-      && printf '%s' "$serial_delta" | grep -q "rtv13 mail rx 0x0000000000000000" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox"; then
+    if printf '%s' "$dns_delta" | grep -qa "$PREFIX/.*kernel8.img" \
+      && printf '%s' "$serial_delta" | grep -qa "=== AetherKernel ===" \
+      && printf '%s' "$serial_delta" | grep -qa "rtv2 fast 0x0000000000000000" \
+      && printf '%s' "$serial_delta" | grep -qa "rtv2 slow 0x0000000000000000" \
+      && printf '%s' "$serial_delta" | grep -qa "rtv2 long 0x0000000000000000" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v5: diagnostics shell" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v6: retained panic/fault records" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v7: memory map + frame allocator" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v8: allocator guardrails" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v9: bounded memory pressure self-tests" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v10: explicit guard probes" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v11: boot and soak invariants" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v12: kernel object table + task registry" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v13: bounded mailbox message queues" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v14: deterministic task supervisor" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v15: capability-tagged kernel handles" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v16: kernel event log ring" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v17: deterministic boot certificate" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v18: cooperative cancellation tokens" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v19: structured aether task spawn" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v20: bounded async channels" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v21: mmu ownership boundary" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v22: guarded typed pools" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v23: allocator and pool pressure telemetry" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v24: fixed driver registry" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v25: scriptable command protocol v2" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v27: panic taxonomy and symbolic retained records" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v28: swift runtime dependency audit" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v29: agent-oriented control session" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v30: swift-native kernel substrate certificate" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v31: preemptive scheduler substrate" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v32: smp secondary-core bring-up" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v33: atomics spinlocks per-core run queues" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v34: timer-driven smp scheduler dispatch" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v35: secondary-owned scheduler workers" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v36: timer-fed secondary scheduler workers" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v37: timer-fed secondary C scheduler jobs" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v38: secondary scheduler wake protocol" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v39: secondary scheduler handoff protocol" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v40: scheduler backpressure protocol" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v41: secondary scheduler work stealing" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v42: secondary scheduler load balancing" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v43: secondary scheduler priority preemption" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v44: bounded smp concurrency soak" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v44: bounded smp concurrency soak" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v45: dynamic virtual memory (page tables + TLB)" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v46: kernel/user address-space split (isolated page tables)" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v47: EL0 entry/exit and context save/restore" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v48: syscall ABI via SVC from EL0" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v49: fault-safe copy_from_user / copy_to_user" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v50: EPIC A capstone" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v51: process abstraction" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v52: user binary loader" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v53: multi-process user execution" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v54: BCM2711 EMMC2/SDHCI register probe" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v55: SD card identification (CMD0/CMD8/ACMD41/CMD2/CMD3)" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v56: single block read CMD17 + MBR 0x55AA verification" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v57: FAT32 file read (config.txt bytes + checksum)" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v58: VideoCore mailbox property interface (firmware revision)" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v59: VideoCore framebuffer allocation (width/height/pitch/addr)" \
+      && printf '%s' "$serial_delta" | grep -qa "sdhci ok=1 version=54" \
+      && printf '%s' "$serial_delta" | grep -qa "card ok=1 version=55" \
+      && printf '%s' "$serial_delta" | grep -qa "block ok=1 version=56" \
+      && printf '%s' "$serial_delta" | grep -qa "fat32 ok=1 version=57" \
+      && printf '%s' "$serial_delta" | grep -qa "mailbox ok=1 version=58" \
+      && printf '%s' "$serial_delta" | grep -qa "framebuf ok=1 version=59" \
+      && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
+      && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
+      && printf '%s' "$serial_delta" | grep -qa "syscall ok=1 version=48" \
+      && printf '%s' "$serial_delta" | grep -qa "uaccess ok=1 version=49" \
+      && printf '%s' "$serial_delta" | grep -qa "usermode ok=1 version=50 fault_contained=1" \
+      && printf '%s' "$serial_delta" | grep -qa "process ok=1 version=51" \
+      && printf '%s' "$serial_delta" | grep -qa "processes ok=1 version=52" \
+      && printf '%s' "$serial_delta" | grep -qa "multiprocess ok=1 version=53" \
+      && printf '%s' "$serial_delta" | grep -qa "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
+      && printf '%s' "$serial_delta" | grep -qa "rtv13 mail tx 0x0000000000000000" \
+      && printf '%s' "$serial_delta" | grep -qa "rtv13 mail rx 0x0000000000000000" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf"; then
       echo "netboot iteration verified on attempt ${attempt}/${RETRIES}"
       if [ "${AETHER_NETITERATE_SKIP_SHELL_PROBES:-0}" != "1" ]; then
         export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
@@ -326,11 +328,11 @@ while [ "$attempt" -le "$RETRIES" ]; do
           probe_shell "req id=45 cmd=sched12" "^resp id=45 ok=1 cmd=sched12 end"
         # probe shell: bootcert
         AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
-          probe_shell "bootcert" "^bootcert ok=1 version=58 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*events_lost=0"
+          probe_shell "bootcert" "^bootcert ok=1 version=59 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*framebuf=1 .*events_lost=0"
         export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
         # probe shell: certificate
         AETHER_SERIAL_PROBE_TIMEOUT="${AETHER_NETITERATE_SLOW_PROBE_TIMEOUT:-180}" \
-          probe_shell "certificate" "^certificate ok=1 version=58 substrate=1 .*bootcert=1 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*vmm=1 .*asplit=1 .*el0=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*events_lost=0"
+          probe_shell "certificate" "^certificate ok=1 version=59 substrate=1 .*bootcert=1 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*vmm=1 .*asplit=1 .*el0=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*framebuf=1 .*events_lost=0"
         export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
@@ -384,10 +386,22 @@ while [ "$attempt" -le "$RETRIES" ]; do
       exit 0
     fi
 
-    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v57: FAT32 file read (config.txt bytes + checksum)" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v58: VideoCore mailbox property interface (firmware revision)"; then
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v58: VideoCore mailbox property interface (firmware revision)" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v59: VideoCore framebuffer allocation (width/height/pitch/addr)"; then
+      echo "netboot attempt ${attempt}/${RETRIES} stale pre-V59 SD fallback image detected"
+      echo "TFTP kernel fetch was not verified; staged network image is not proven."
+      print_tftp_diagnostics "$dns_delta"
+      last_dns_delta="$dns_delta"
+      last_serial_delta="$serial_delta"
+      sd_fallback_seen=1
+      break
+    fi
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v57: FAT32 file read (config.txt bytes + checksum)" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v58: VideoCore mailbox property interface (firmware revision)"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V58 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
@@ -396,10 +410,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
       sd_fallback_seen=1
       break
     fi
-    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v55: SD card identification (CMD0/CMD8/ACMD41/CMD2/CMD3)" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v56: single block read CMD17 + MBR 0x55AA verification"; then
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v55: SD card identification (CMD0/CMD8/ACMD41/CMD2/CMD3)" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v56: single block read CMD17 + MBR 0x55AA verification"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V56 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
@@ -408,10 +422,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
       sd_fallback_seen=1
       break
     fi
-    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v54: BCM2711 EMMC2/SDHCI register probe" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v55: SD card identification (CMD0/CMD8/ACMD41/CMD2/CMD3)"; then
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v54: BCM2711 EMMC2/SDHCI register probe" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v55: SD card identification (CMD0/CMD8/ACMD41/CMD2/CMD3)"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V55 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
@@ -420,10 +434,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
       sd_fallback_seen=1
       break
     fi
-    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v53: multi-process user execution" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v54: BCM2711 EMMC2/SDHCI register probe"; then
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v53: multi-process user execution" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v54: BCM2711 EMMC2/SDHCI register probe"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V54 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
@@ -432,10 +446,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
       sd_fallback_seen=1
       break
     fi
-    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v52: user binary loader" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v53: multi-process user execution"; then
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v52: user binary loader" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v53: multi-process user execution"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V53 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
@@ -444,10 +458,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
       sd_fallback_seen=1
       break
     fi
-    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v51: process abstraction" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v52: user binary loader"; then
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v51: process abstraction" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v52: user binary loader"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V52 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
@@ -456,10 +470,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
       sd_fallback_seen=1
       break
     fi
-    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v50: EPIC A capstone" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v51: process abstraction"; then
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v50: EPIC A capstone" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v51: process abstraction"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V51 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
@@ -468,10 +482,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
       sd_fallback_seen=1
       break
     fi
-    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v46: kernel/user address-space split (isolated page tables)" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v47: EL0 entry/exit and context save/restore"; then
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v46: kernel/user address-space split (isolated page tables)" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v47: EL0 entry/exit and context save/restore"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V47 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
@@ -481,10 +495,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
       break
     fi
 
-    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v45: dynamic virtual memory (page tables + TLB)"; then
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v44: bounded smp concurrency soak" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v45: dynamic virtual memory (page tables + TLB)"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V45 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
@@ -493,10 +507,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
       sd_fallback_seen=1
       break
     fi
-    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v44: bounded smp concurrency soak"; then
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v43: secondary scheduler priority preemption" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v44: bounded smp concurrency soak"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V44 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
@@ -505,10 +519,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
       sd_fallback_seen=1
       break
     fi
-    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v42: secondary scheduler load balancing" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption"; then
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v42: secondary scheduler load balancing" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v43: secondary scheduler priority preemption"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V43 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
@@ -517,10 +531,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
       sd_fallback_seen=1
       break
     fi
-    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v41: secondary scheduler work stealing" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v42: secondary scheduler load balancing"; then
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v41: secondary scheduler work stealing" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v42: secondary scheduler load balancing"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V42 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
@@ -529,9 +543,9 @@ while [ "$attempt" -le "$RETRIES" ]; do
       sd_fallback_seen=1
       break
     fi
-    if printf '%s' "$serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-      && printf '%s' "$serial_delta" | grep -q "shell ready commands=" \
-      && ! printf '%s' "$serial_delta" | grep -q "runtime v41: secondary scheduler work stealing"; then
+    if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+      && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
+      && ! printf '%s' "$serial_delta" | grep -qa "runtime v41: secondary scheduler work stealing"; then
       echo "netboot attempt ${attempt}/${RETRIES} stale pre-V41 SD fallback image detected"
       echo "TFTP kernel fetch was not verified; staged network image is not proven."
       print_tftp_diagnostics "$dns_delta"
@@ -551,17 +565,17 @@ while [ "$attempt" -le "$RETRIES" ]; do
 
     if [ "$attempt" -lt "$RETRIES" ]; then
       if [ "$sd_fallback_seen" = "1" ]; then
-        if printf '%s' "$last_serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
-          && ! printf '%s' "$last_serial_delta" | grep -q "runtime v45: dynamic virtual memory (page tables + TLB)"; then
+        if printf '%s' "$last_serial_delta" | grep -qa "runtime v44: bounded smp concurrency soak" \
+          && ! printf '%s' "$last_serial_delta" | grep -qa "runtime v45: dynamic virtual memory (page tables + TLB)"; then
           echo "retrying after stale pre-V45 SD fallback..."
-        elif printf '%s' "$last_serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption" \
-          && ! printf '%s' "$last_serial_delta" | grep -q "runtime v44: bounded smp concurrency soak"; then
+        elif printf '%s' "$last_serial_delta" | grep -qa "runtime v43: secondary scheduler priority preemption" \
+          && ! printf '%s' "$last_serial_delta" | grep -qa "runtime v44: bounded smp concurrency soak"; then
           echo "retrying after stale pre-V44 SD fallback..."
-        elif printf '%s' "$last_serial_delta" | grep -q "runtime v42: secondary scheduler load balancing" \
-          && ! printf '%s' "$last_serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption"; then
+        elif printf '%s' "$last_serial_delta" | grep -qa "runtime v42: secondary scheduler load balancing" \
+          && ! printf '%s' "$last_serial_delta" | grep -qa "runtime v43: secondary scheduler priority preemption"; then
           echo "retrying after stale pre-V43 SD fallback..."
-        elif printf '%s' "$last_serial_delta" | grep -q "runtime v41: secondary scheduler work stealing" \
-          && ! printf '%s' "$last_serial_delta" | grep -q "runtime v42: secondary scheduler load balancing"; then
+        elif printf '%s' "$last_serial_delta" | grep -qa "runtime v41: secondary scheduler work stealing" \
+          && ! printf '%s' "$last_serial_delta" | grep -qa "runtime v42: secondary scheduler load balancing"; then
           echo "retrying after stale pre-V42 SD fallback..."
         else
           echo "retrying after stale pre-V41 SD fallback..."
@@ -580,28 +594,28 @@ done
 
 echo "netboot iteration did not verify after ${RETRIES} attempt(s)"
 print_tftp_diagnostics "$last_dns_delta"
-if printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-  && printf '%s' "$last_serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
-  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v45: dynamic virtual memory (page tables + TLB)"; then
+if printf '%s' "$last_serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+  && printf '%s' "$last_serial_delta" | grep -qa "runtime v44: bounded smp concurrency soak" \
+  && ! printf '%s' "$last_serial_delta" | grep -qa "runtime v45: dynamic virtual memory (page tables + TLB)"; then
   echo "final result: stale pre-V45 SD fallback image booted, but staged network image is not proven."
   final_exit=3
-elif printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-  && printf '%s' "$last_serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption" \
-  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v44: bounded smp concurrency soak"; then
+elif printf '%s' "$last_serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+  && printf '%s' "$last_serial_delta" | grep -qa "runtime v43: secondary scheduler priority preemption" \
+  && ! printf '%s' "$last_serial_delta" | grep -qa "runtime v44: bounded smp concurrency soak"; then
   echo "final result: stale pre-V44 SD fallback image booted, but staged network image is not proven."
   final_exit=3
-elif printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-  && printf '%s' "$last_serial_delta" | grep -q "runtime v42: secondary scheduler load balancing" \
-  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption"; then
+elif printf '%s' "$last_serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+  && printf '%s' "$last_serial_delta" | grep -qa "runtime v42: secondary scheduler load balancing" \
+  && ! printf '%s' "$last_serial_delta" | grep -qa "runtime v43: secondary scheduler priority preemption"; then
   echo "final result: stale pre-V43 SD fallback image booted, but staged network image is not proven."
   final_exit=3
-elif printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-  && printf '%s' "$last_serial_delta" | grep -q "runtime v41: secondary scheduler work stealing" \
-  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v42: secondary scheduler load balancing"; then
+elif printf '%s' "$last_serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+  && printf '%s' "$last_serial_delta" | grep -qa "runtime v41: secondary scheduler work stealing" \
+  && ! printf '%s' "$last_serial_delta" | grep -qa "runtime v42: secondary scheduler load balancing"; then
   echo "final result: stale pre-V42 SD fallback image booted, but staged network image is not proven."
   final_exit=3
-elif printf '%s' "$last_serial_delta" | grep -q "runtime v4: irq-backed uart shell" \
-  && ! printf '%s' "$last_serial_delta" | grep -q "runtime v41: secondary scheduler work stealing"; then
+elif printf '%s' "$last_serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
+  && ! printf '%s' "$last_serial_delta" | grep -qa "runtime v41: secondary scheduler work stealing"; then
   echo "final result: stale pre-V41 SD fallback image booted, but staged network image is not proven."
   final_exit=3
 else

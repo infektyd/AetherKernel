@@ -11,3 +11,8 @@ dtoverlay=disable-bt
 # divisor yields exactly 115200 baud regardless of firmware clock scaling.
 init_uart_clock=48000000
 enable_gic=1
+# Force HDMI output even without a physical display (needed for framebuffer allocation).
+# group=1 (CEA) mode=4 = 1280x720 @60Hz (720p).
+hdmi_force_hotplug=1
+hdmi_group=1
+hdmi_mode=4
