@@ -98,7 +98,7 @@ static uint32_t encode_ibar_size(uint64_t sz) {
 // ── Outbound window (win 0) ────────────────────────────────────────────────
 static void pcie_set_outbound_win0(uint64_t cpu_phys, uint64_t pcie_addr, uint32_t size_mb) {
     // PCIe target address
-    PCIE32(OFF_MISC_WIN0_LO) = (uint32_t)(pcie_addr & 0xFFFFFFFFU) | 1U; // WIN_SIZE_UNIT=BIT(0) enables window
+    PCIE32(OFF_MISC_WIN0_LO) = (uint32_t)(pcie_addr & 0xFFFFFFFFU); // BCM2711: no size bits in WIN0_LO (mainline Linux approach)
     PCIE32(OFF_MISC_WIN0_HI) = (uint32_t)(pcie_addr >> 32);
 
     // CPU physical range in MB units
