@@ -996,6 +996,14 @@ unsigned int kernel_vl805_bar0_lo(void);
 unsigned int kernel_vl805_bar0_hi(void);
 unsigned int kernel_vl805_cmd_reg(void);
 unsigned int kernel_vl805_mmio_raw0(void);
+unsigned int kernel_vl805_mmio_raw4(void);
+// Diagnostic: BAR0 value captured BEFORE our probe/assignment (Pi firmware state).
+unsigned int kernel_vl805_bar0_lo_pi(void);
+// Diagnostic: PM power state captured during selftest (0=D0, 3=D3hot).
+unsigned int kernel_vl805_pm_state(void);
+// Diagnostic: WIN0_LO captured before our call to pcie_set_outbound_win0().
+unsigned int kernel_pcie_win0_lo_pre(void);
+unsigned int kernel_pcie_win0_bl_pre(void);
 
 // Runtime V63: xHCI capability register probe (Sources/Support/kernel_xhci.c).
 // V64: xHCI controller init — DCBAA + rings + USBCMD.RUN + port-connect detect.

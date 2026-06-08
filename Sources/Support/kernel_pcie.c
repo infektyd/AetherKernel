@@ -73,6 +73,12 @@ static uint32_t vl805_hw_rev_val;
 static uint32_t vl805_pcie_status_val; // PCIE_STATUS captured during EXT_CFG attempts
 static uint32_t vl805_rgr1_val;        // RGR1_SW_INIT_1 at time of EXT_CFG probe
 static uint32_t vl805_busnr_val;       // DBI bridge bus numbers (SecBus byte)
+static uint32_t vl805_bar0_lo_pi_val;  // BAR0 lo before our probe (Pi firmware state)
+static uint32_t vl805_pm_state_val;    // PM power state at selftest time (0=D0, 3=D3hot)
+
+// Pre-write snapshots of WIN0 registers (Pi firmware state)
+static uint32_t pcie_win0_lo_pre_val;
+static uint32_t pcie_win0_bl_pre_val;
 
 // ── Timing (generic timer at 54 MHz on Pi4) ────────────────────────────────
 static void pcie_udelay(unsigned int us) {
@@ -234,7 +240,11 @@ int kernel_pcie_selftest(void) {
     }
 
     // 9. Configure outbound MMIO window 0: CPU phys 0x600000000 → PCIe 0xF8000000, 64MB
+    // Snapshot what Pi firmware left BEFORE we overwrite.
+    pcie_win0_lo_pre_val = PCIE32(OFF_MISC_WIN0_LO);
+    pcie_win0_bl_pre_val = PCIE32(OFF_MISC_WIN0_BL);
     pcie_set_outbound_win0(CPU_WIN_BASE, PCIE_WIN_BASE, WIN_SIZE_MB);
+    __asm__ volatile("dsb sy" ::: "memory");
 
     // 9b. Program bridge bus numbers.  Linux's brcm_pcie driver maps bus=0
     //     config accesses as (base + where), so PCI standard bridge config
@@ -268,6 +278,8 @@ unsigned int kernel_pcie_win0_bhi(void) { return (unsigned int)PCIE32(OFF_MISC_W
 unsigned int kernel_pcie_win0_lhi(void) { return (unsigned int)PCIE32(OFF_MISC_WIN0_LHI); }
 unsigned int kernel_pcie_misc_ctrl(void){ return (unsigned int)PCIE32(OFF_MISC_MISC_CTRL); }
 unsigned int kernel_pcie_status(void)   { return (unsigned int)PCIE32(OFF_MISC_PCIE_STATUS); }
+unsigned int kernel_pcie_win0_lo_pre(void) { return (unsigned int)pcie_win0_lo_pre_val; }
+unsigned int kernel_pcie_win0_bl_pre(void) { return (unsigned int)pcie_win0_bl_pre_val; }
 
 // ── V62: VL805 config-space probe + BAR0 assignment ───────────────────────
 static int vl805_probed;
@@ -328,6 +340,33 @@ int kernel_vl805_selftest(void) {
         return 0;
     }
 
+    // Force D0 power state.  Pi firmware may have placed VL805 in D3hot before
+    // handoff (stops xHCI + power down).  D3hot allows config-space access but
+    // blocks MMIO — exactly the symptom we see.  Walk the capability list and
+    // write PMCSR[1:0]=00 if the device isn't already in D0.
+    {
+        uint32_t cmd_st = pcie_cfg_rd(1, 0, 0, 0x04);
+        if ((cmd_st >> 16) & (1U << 4)) {  // Capabilities List present
+            unsigned int caps = pcie_cfg_rd(1, 0, 0, 0x34) & 0xFCU;
+            for (int walk = 0; walk < 16 && caps != 0 && caps < 0x100U; walk++) {
+                uint32_t cap = pcie_cfg_rd(1, 0, 0, caps);
+                if ((cap & 0xFFU) == 0x01U) {  // Power Management capability
+                    uint32_t pmcsr = pcie_cfg_rd(1, 0, 0, caps + 4U);
+                    vl805_pm_state_val = pmcsr & 0x3U;
+                    if (vl805_pm_state_val != 0U) {
+                        pcie_cfg_wr(1, 0, 0, caps + 4U, pmcsr & ~0x3U);
+                        pcie_udelay(10000);  // spec: ≤10ms D3→D0 transition
+                    }
+                    break;
+                }
+                caps = (cap >> 8) & 0xFCU;
+            }
+        }
+    }
+
+    // Capture BAR0 BEFORE our assignment (reveals Pi firmware's assignment).
+    vl805_bar0_lo_pi_val = pcie_cfg_rd(1, 0, 0, 0x10);
+
     // BAR0 at config offset 0x10/0x14 (64-bit BAR).
     // Write ~0 to probe size (result discarded; we assign a fixed address).
     pcie_cfg_wr(1, 0, 0, 0x10, 0xFFFFFFFFU);
@@ -337,13 +376,17 @@ int kernel_vl805_selftest(void) {
     pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
     pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
 
-    // Enable Memory Space + Bus Master
+    // Enable Memory Space + Bus Master, then wait for VL805 to latch the assignment.
     uint32_t cmd = pcie_cfg_rd(1, 0, 0, 0x04);
     pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
+    pcie_udelay(10000);  // 10ms: give VL805 time to activate BAR decode
 
     vl805_ok_val = 1;
     return 1;
 }
+
+unsigned int kernel_vl805_bar0_lo_pi(void) { return (unsigned int)vl805_bar0_lo_pi_val; }
+unsigned int kernel_vl805_pm_state(void)   { return (unsigned int)vl805_pm_state_val;   }
 
 int kernel_vl805_ok(void) { return vl805_ok_val; }
 unsigned int kernel_vl805_raw_viddid(void) { return vl805_raw_viddid_val; }
@@ -360,5 +403,12 @@ unsigned int kernel_vl805_device(void) { return VL805_DID; }
 unsigned int kernel_vl805_bar0_lo(void) { return pcie_cfg_rd(1, 0, 0, 0x10); }
 unsigned int kernel_vl805_bar0_hi(void) { return pcie_cfg_rd(1, 0, 0, 0x14); }
 unsigned int kernel_vl805_cmd_reg(void) { return pcie_cfg_rd(1, 0, 0, 0x04); }
-// Raw MMIO read: first 32-bit word at XHCI_BASE (phys 0x600000000).
-unsigned int kernel_vl805_mmio_raw0(void) { return *(volatile unsigned int *)0x600000000UL; }
+// Raw MMIO reads at XHCI_BASE (phys 0x600000000) — diagnostics for outbound window.
+unsigned int kernel_vl805_mmio_raw0(void) {
+    __asm__ volatile("dsb sy" ::: "memory");
+    return *(volatile unsigned int *)0x600000000UL;
+}
+unsigned int kernel_vl805_mmio_raw4(void) {
+    __asm__ volatile("dsb sy" ::: "memory");
+    return *(volatile unsigned int *)0x600000004UL;
+}
