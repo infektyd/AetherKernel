@@ -139,6 +139,14 @@ static uint32_t pcie_mmio_post_link_ticks;
 static uint32_t pcie_rgr1_pi_val;
 // RC command register after our bring-up.
 static uint32_t pcie_rc_cmd_val;
+// LNKCTL register at L0 (lower 16 bits of PCIE32(OFF_LNKCTL_STA)):
+//   bits[1:0] = ASPM control (00=disabled, 01=L0s, 10=L1, 11=both).
+//   If non-zero, ASPM is active and endpoint may have entered L1/L0s.
+static uint32_t pcie_lnkctl_val;
+// HARD_DEBUG register captured after link-up (baseline; before Phase 1 MMIO probe).
+static uint32_t pcie_hard_debug_post_val;
+// MISC_CTRL captured after link-up (verify SCB_ACCESS_EN=bit12 is still set).
+static uint32_t pcie_misc_ctrl_post_val;
 
 // ── Timing (generic timer at 54 MHz on Pi4) ────────────────────────────────
 static void pcie_udelay(unsigned int us) {
@@ -363,15 +371,13 @@ int kernel_pcie_selftest(void) {
         pcie_mmio_pre_perst_ticks = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
     }
 
-    // 9c. PCI Type 1 bridge Memory Base/Limit (config offset 0x20):
-    //     BRCMSTB RC is a PCI-to-PCI bridge (class 0x0604, Type 1 header).
-    //     After bridge_sw_init reset these default to 0x0000 → window [0, 1MB).
-    //     In L0 state the bridge enforces this window: outbound TLPs to
-    //     0xf8000000 (VL805 BAR0) are dropped → AXI returns 0xDEADDEAD in 0 ticks.
-    //     During LTSSM training (<L0) the window is not enforced (preperst_ticks~25).
-    //     Set to cover PCIe bus 0xf8000000–0xfbffffff (= WIN0 64MB target range).
-    PCIE32(0x0020U) = (0xfbf0U << 16) | 0xf800U;  // MemLimit=0xfbffffff, MemBase=0xf8000000
-    __asm__ volatile("dsb sy" ::: "memory");
+    // 9c. Disable ASPM on the RC side before PERST# deassertion.
+    //     LNKCTL bits[1:0] = 00 → ASPM disabled (no L0s or L1 negotiation).
+    //     Without this the endpoint may negotiate L0s/L1 immediately after L0 entry,
+    //     causing the BCM2711 AXI fabric to return 0xDEADDEAD in 0 ticks (L1 state).
+    //     Note: WRITING PCIE32(0x0020) BEFORE PERST# caused postperst regression
+    //     (ticks 39→1), so the MemBase/MemLimit write was moved to AFTER link-up.
+    PCIE32(OFF_LNKCTL_STA) &= ~0x3U;  // LNKCTL bits[1:0] = 00 = ASPM disabled
 
     // 10. Deassert PERST# — VL805 starts EEPROM firmware load + link training.
     PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_PERST;
@@ -413,11 +419,19 @@ int kernel_pcie_selftest(void) {
         pcie_width_val = (lnkctl_sta >> 20) & 0x3FU;
     }
 
-    // 13. Post-link-up: re-apply PCIe0 firmware domain deassert and probe MMIO.
-    //     PERST# deassertion or link training may trigger BCM2711 AXI auto-reset.
-    //     If ticks>0 here but 0 in Phase 1 (500ms later), ASPM/CLKREQ is gating.
-    //     If ticks>0 here AND in Phase 1, this call is the missing fix.
-    //     If ticks=0 here, neither SET_RESETS nor timing is the gate mechanism.
+    // 13. Post-link-up: diagnostics, MemBase/MemLimit, ASPM re-check, MMIO probe.
+    // 13a. Snapshot LNKCTL, HARD_DEBUG, MISC_CTRL after L0 (diagnostic baselines).
+    pcie_lnkctl_val         = PCIE32(OFF_LNKCTL_STA) & 0xFFFFU;
+    pcie_hard_debug_post_val = PCIE32(OFF_MISC_HARD_DEBUG);
+    pcie_misc_ctrl_post_val  = PCIE32(OFF_MISC_MISC_CTRL);
+
+    // 13b. Write Type 1 bridge MemBase/MemLimit AFTER link-up.
+    //      Writing before PERST# caused postperst regression (ticks 39→1).
+    //      Writing after L0: bridge enforces window correctly for 0xf8000000→0xfbffffff.
+    PCIE32(0x0020U) = (0xfbf0U << 16) | 0xf800U;  // MemLimit=0xfbffffff, MemBase=0xf8000000
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    // 13c. Re-apply PCIe0 firmware domain deassert and probe MMIO.
     kernel_vc_mbox_set_pcie_reset(1U, 0U);
     pcie_udelay(5000);
     __asm__ volatile("dsb sy" ::: "memory");
@@ -460,6 +474,9 @@ unsigned int kernel_pcie_mmio_post_link(void)   { return (unsigned int)pcie_mmio
 unsigned int kernel_pcie_mmio_post_link_ticks(void) { return (unsigned int)pcie_mmio_post_link_ticks; }
 unsigned int kernel_pcie_rgr1_pi(void)          { return (unsigned int)pcie_rgr1_pi_val;            }
 unsigned int kernel_pcie_rc_cmd(void)           { return (unsigned int)pcie_rc_cmd_val;             }
+unsigned int kernel_pcie_lnkctl(void)           { return (unsigned int)pcie_lnkctl_val;             }
+unsigned int kernel_pcie_hard_debug_post(void)  { return (unsigned int)pcie_hard_debug_post_val;    }
+unsigned int kernel_pcie_misc_ctrl_post(void)   { return (unsigned int)pcie_misc_ctrl_post_val;     }
 
 // ── V62: VL805 config-space probe + BAR0 assignment ───────────────────────
 static int vl805_probed;

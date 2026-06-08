@@ -1055,6 +1055,9 @@ unsigned int kernel_pcie_mmio_post_link(void);
 unsigned int kernel_pcie_mmio_post_link_ticks(void);
 unsigned int kernel_pcie_rgr1_pi(void);
 unsigned int kernel_pcie_rc_cmd(void);
+unsigned int kernel_pcie_lnkctl(void);
+unsigned int kernel_pcie_hard_debug_post(void);
+unsigned int kernel_pcie_misc_ctrl_post(void);
 
 // Runtime V63: xHCI capability register probe (Sources/Support/kernel_xhci.c).
 // V64: xHCI controller init — DCBAA + rings + USBCMD.RUN + port-connect detect.
