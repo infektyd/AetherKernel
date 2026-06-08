@@ -970,6 +970,14 @@ int          kernel_pcie_selftest(void);
 int          kernel_pcie_ok(void);
 unsigned int kernel_pcie_speed(void);
 unsigned int kernel_pcie_width(void);
+// Live outbound-window register readbacks (diagnostic).
+unsigned int kernel_pcie_win0_lo(void);
+unsigned int kernel_pcie_win0_hi(void);
+unsigned int kernel_pcie_win0_bl(void);
+unsigned int kernel_pcie_win0_bhi(void);
+unsigned int kernel_pcie_win0_lhi(void);
+unsigned int kernel_pcie_misc_ctrl(void);
+unsigned int kernel_pcie_status(void);
 
 // Runtime V62: VL805 USB 3.0 controller discovery (Sources/Support/kernel_pcie.c).
 // selftest reads VID/DID at bus 1:0:0, probes BAR0 size, assigns BAR0=PCIe 0xF8000000.
@@ -977,6 +985,11 @@ int          kernel_vl805_selftest(void);
 int          kernel_vl805_ok(void);
 unsigned int kernel_vl805_vendor(void);
 unsigned int kernel_vl805_device(void);
+unsigned int kernel_vl805_raw_viddid(void);
+unsigned int kernel_vl805_hw_rev(void);
+unsigned int kernel_vl805_pcie_status(void); // PCIE_STATUS captured during EXT_CFG probe
+unsigned int kernel_vl805_rgr1(void);        // RGR1_SW_INIT_1 (bit0=PERST#, bit1=BRIDGE_SW_INIT)
+unsigned int kernel_vl805_busnr(void);       // DBI bridge bus numbers (SecBus in byte [15:8])
 
 // Runtime V63: xHCI capability register probe (Sources/Support/kernel_xhci.c).
 // V64: xHCI controller init — DCBAA + rings + USBCMD.RUN + port-connect detect.
