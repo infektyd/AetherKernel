@@ -75,7 +75,10 @@ static uint32_t vl805_rgr1_val;        // RGR1_SW_INIT_1 at time of EXT_CFG prob
 static uint32_t vl805_busnr_val;       // DBI bridge bus numbers (SecBus byte)
 static uint32_t vl805_bar0_lo_pi_val;  // BAR0 lo before our probe (Pi firmware state)
 static uint32_t vl805_pm_state_val;    // PM power state at selftest time (0=D0, 3=D3hot)
-static int vl805_vc_xhci_reset_val = -1; // result of RPI_FIRMWARE_NOTIFY_XHCI_RESET mailbox call
+static int vl805_vc_xhci_reset_val = -1;    // result of RPI_FIRMWARE_NOTIFY_XHCI_RESET mailbox call
+static uint32_t vl805_vc_xhci_payload_val;  // vc_buf[5] after call (VC response: 0=success)
+static uint32_t vl805_rom_status_val;        // VL805 config offset 0xB4 (vendor ROM status)
+static uint32_t vl805_mmio_poll_ms_val;      // ms waited before mmio_raw0 became non-0xDEADDEAD
 
 // Pre-write snapshots of WIN0 registers (Pi firmware state)
 static uint32_t pcie_win0_lo_pre_val;
@@ -389,13 +392,36 @@ int kernel_vl805_selftest(void) {
     pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
     pcie_udelay(10000);  // 10ms: give VL805 time to activate BAR decode
 
+    // Capture the VC response payload (0=VC success) and VL805 vendor ROM status.
+    // ROM_STATUS at config 0xB4: bit6=1 means firmware is running (MMIO ready).
+    vl805_vc_xhci_payload_val = kernel_vc_mbox_xhci_reset_payload();
+    vl805_rom_status_val = pcie_cfg_rd(1, 0, 0, 0xB4);
+
+    // Poll MMIO until valid (non-0xDEADDEAD) or 5s timeout.
+    // This disambiguates between "firmware not loaded" and "needs more time".
+    for (unsigned int poll_ms = 0; poll_ms < 5000U; poll_ms += 10U) {
+        __asm__ volatile("dsb sy" ::: "memory");
+        uint32_t v = *(volatile uint32_t *)0x600000000UL;
+        if (v != 0xDEADDEADU) {
+            vl805_mmio_poll_ms_val = poll_ms;
+            vl805_ok_val = 1;
+            return 1;
+        }
+        pcie_udelay(10000);
+    }
+    // MMIO never became valid; proceed anyway and let xhci selftest report the failure.
+    vl805_mmio_poll_ms_val = 0xFFFFU;
+
     vl805_ok_val = 1;
     return 1;
 }
 
-unsigned int kernel_vl805_bar0_lo_pi(void)    { return (unsigned int)vl805_bar0_lo_pi_val;    }
-unsigned int kernel_vl805_pm_state(void)      { return (unsigned int)vl805_pm_state_val;      }
-int          kernel_vl805_vc_xhci_reset(void) { return vl805_vc_xhci_reset_val;               }
+unsigned int kernel_vl805_bar0_lo_pi(void)         { return (unsigned int)vl805_bar0_lo_pi_val;       }
+unsigned int kernel_vl805_pm_state(void)           { return (unsigned int)vl805_pm_state_val;         }
+int          kernel_vl805_vc_xhci_reset(void)      { return vl805_vc_xhci_reset_val;                  }
+unsigned int kernel_vl805_vc_xhci_payload(void)    { return (unsigned int)vl805_vc_xhci_payload_val;  }
+unsigned int kernel_vl805_rom_status(void)         { return (unsigned int)vl805_rom_status_val;       }
+unsigned int kernel_vl805_mmio_poll_ms(void)       { return (unsigned int)vl805_mmio_poll_ms_val;     }
 
 int kernel_vl805_ok(void) { return vl805_ok_val; }
 unsigned int kernel_vl805_raw_viddid(void) { return vl805_raw_viddid_val; }

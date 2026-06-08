@@ -957,6 +957,7 @@ unsigned long kernel_vc_mbox_fb_query_w(void);
 unsigned long kernel_vc_mbox_fb_query_h(void);
 int           kernel_vc_mbox_notify_xhci_reset(void);
 int           kernel_vc_mbox_xhci_reset_ok(void);
+unsigned int  kernel_vc_mbox_xhci_reset_payload(void);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.
@@ -1005,6 +1006,12 @@ unsigned int kernel_vl805_bar0_lo_pi(void);
 unsigned int kernel_vl805_pm_state(void);
 // Diagnostic: result of RPI_FIRMWARE_NOTIFY_XHCI_RESET mailbox call (0=ok, -1=not run, <0=error).
 int          kernel_vl805_vc_xhci_reset(void);
+// Diagnostic: vc_buf[5] response payload after NOTIFY_XHCI_RESET (0=VC success, non-zero=VC error).
+unsigned int kernel_vl805_vc_xhci_payload(void);
+// Diagnostic: VL805 config offset 0xB4 vendor ROM status (bit6=firmware running).
+unsigned int kernel_vl805_rom_status(void);
+// Diagnostic: ms polled before mmio_raw0 became valid (0xFFFF=never valid in 5s).
+unsigned int kernel_vl805_mmio_poll_ms(void);
 // Diagnostic: WIN0_LO captured before our call to pcie_set_outbound_win0().
 unsigned int kernel_pcie_win0_lo_pre(void);
 unsigned int kernel_pcie_win0_bl_pre(void);

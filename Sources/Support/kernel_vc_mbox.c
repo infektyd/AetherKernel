@@ -224,6 +224,7 @@ unsigned long kernel_vc_mbox_fb_query_h(void)       { return (unsigned long)fb_q
 #define TAG_NOTIFY_XHCI_RESET 0x00030058U
 
 static int xhci_reset_result = -1;
+static uint32_t xhci_reset_payload = 0xFFFFFFFFU;  // vc_buf[5] after call (0=VC success, else error)
 
 int kernel_vc_mbox_notify_xhci_reset(void) {
     vc_buf[0] = 7U * 4U;
@@ -234,7 +235,9 @@ int kernel_vc_mbox_notify_xhci_reset(void) {
     vc_buf[5] = 0U;
     vc_buf[6] = TAG_END;
     xhci_reset_result = vc_call(28U);
+    xhci_reset_payload = vc_buf[5];  // VC response: 0=success, non-zero=error
     return xhci_reset_result;
 }
 
-int kernel_vc_mbox_xhci_reset_ok(void) { return xhci_reset_result; }
+int kernel_vc_mbox_xhci_reset_ok(void)      { return xhci_reset_result;  }
+uint32_t kernel_vc_mbox_xhci_reset_payload(void) { return xhci_reset_payload; }
