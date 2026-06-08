@@ -370,48 +370,27 @@ int kernel_vl805_selftest(void) {
     // Capture BAR0 BEFORE our assignment (reveals Pi firmware's state).
     vl805_bar0_lo_pi_val = pcie_cfg_rd(1, 0, 0, 0x10);
 
-    // Assert OUR OWN PERST# first: guarantees VL805 is in clean ROM state and
-    // the BRCMSTB RC has NO accumulated completion-timeout errors before we probe.
-    // (Pi firmware may have left the RC in a dirty state from earlier MMIO timeouts.)
-    PCIE32(OFF_RGR1_SW_INIT_1) |= RGR1_PERST;
-    pcie_udelay(100000);                   // 100ms PERST# hold
-    PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_PERST;
-    pcie_udelay(500000);                   // 500ms: link re-train after PERST#
-
-    // Assign BAR0 (in clean ROM state, before any MMIO probe).
-    pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
-    pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
-    {
-        uint32_t cmd = pcie_cfg_rd(1, 0, 0, 0x04);
-        pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
-    }
-    pcie_udelay(10000);
-
-    // Capture config 0x50 in clean ROM state (before NOTIFY).
+    // Snapshot pre-NOTIFY state (BAR0=0x4, MMIO dead — expected after Pi XHCI-STOP).
     vl805_fw_ver_pre_val = pcie_cfg_rd(1, 0, 0, 0x50);
-    // First MMIO probe in clean state (no prior timeouts to contaminate RC).
     __asm__ volatile("dsb sy" ::: "memory");
     vl805_mmio_early_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
-    if (vl805_mmio_early_val != 0xDEADDEADU) {
-        // ROM responded — unusual but fine.
-        vl805_mmio_poll_ms_val = 0;
-        vl805_ok_val = 1;
-        return 1;
-    }
 
-    // ROM state confirmed.  Call NOTIFY_XHCI_RESET: VC loads firmware from
-    // embedded blob in start4.elf.  RC is clean (no prior timeout errors).
+    // Linux-exact sequence: NOTIFY first, BAR0 assignment after.
+    // VideoCore reloads VL805 firmware from embedded blob in start4.elf.
+    // PERST# is driven by VC internally; ARM must NOT touch PERST# here.
     vl805_vc_xhci_reset_val = kernel_vc_mbox_notify_xhci_reset();
-    pcie_udelay(500000);  // 500ms: VL805 firmware init + PLL re-lock
 
-    // Re-assign BAR0 (NOTIFY may have PERST#'d VL805 again).
+    // Linux waits 400-500ms.  Use 3s to cover slow EEPROM + PLL re-lock.
+    pcie_udelay(3000000);
+
+    // Assign BAR0 now — AFTER NOTIFY's PERST# cycle has completed.
     pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
     pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
     {
         uint32_t cmd = pcie_cfg_rd(1, 0, 0, 0x04);
         pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
     }
-    pcie_udelay(10000);
+    pcie_udelay(100000);  // 100ms settle after BAR0 assignment
 
     vl805_vc_xhci_payload_val = kernel_vc_mbox_xhci_reset_payload();
     vl805_rom_status_val = pcie_cfg_rd(1, 0, 0, 0x50);
