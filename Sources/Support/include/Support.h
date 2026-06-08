@@ -956,6 +956,14 @@ unsigned long kernel_vc_mbox_fb_raw_pitch(void);
 unsigned long kernel_vc_mbox_fb_query_w(void);
 unsigned long kernel_vc_mbox_fb_query_h(void);
 
+// Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
+// selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.
+int          kernel_vc_console_selftest(void);
+int          kernel_vc_console_ok(void);
+unsigned int kernel_vc_console_rows(void);
+unsigned int kernel_vc_console_cols(void);
+unsigned int kernel_vc_console_glyphs(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.
