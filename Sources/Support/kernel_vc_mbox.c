@@ -59,7 +59,7 @@ static int vc_call(unsigned int bytes) {
         uint32_t r = *MBOX_READ;
         if ((r & 0xFU) == MBOX_CH_PROP) {
             vc_cache_flush();
-            return (vc_buf[1] == MBOX_RESP_OK) ? 1 : 0;
+            return (vc_buf[1] & MBOX_RESP_OK) ? 1 : 0;
         }
     }
     return 0;

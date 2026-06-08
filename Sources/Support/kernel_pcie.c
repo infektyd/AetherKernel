@@ -121,6 +121,13 @@ static uint32_t pcie_bar0_pre_reset_val;
 // ENAB=bit4; SRC=bits[3:0]; BUSY=bit9 (read-only).  Pre should be 0 if firmware disabled it.
 static uint32_t pcie_cm_pcie_pre_val;
 static uint32_t pcie_cm_pcie_post_val;
+// MMIO read at 0x600000000 BEFORE PERST# deassertion (link still down).
+// If ticks~0 → AXI intercepts outbound window regardless of link state (routing broken).
+// If ticks~2.7M → AXI routes to PCIe RC which returns CTO (routing works, link just down).
+static uint32_t pcie_mmio_pre_perst_val;
+static uint32_t pcie_mmio_pre_perst_ticks;
+// RC command register after our bring-up.
+static uint32_t pcie_rc_cmd_val;
 
 // ── Timing (generic timer at 54 MHz on Pi4) ────────────────────────────────
 static void pcie_udelay(unsigned int us) {
@@ -315,6 +322,24 @@ int kernel_pcie_selftest(void) {
     //    bus=1 (endpoint); without this, VL805 returns UR → 0xFFFFFFFF.
     PCIE32(0x0018U) = 0x00010100U;
 
+    // 9a. RC command register: enable MemSpace (bit1) + BusMaster (bit2) on the RC itself.
+    //     Some BRCMSTB controllers require this before PERST# deassertion for outbound TLPs.
+    PCIE32(0x0004U) |= 0x6U;
+    pcie_rc_cmd_val = PCIE32(0x0004U);
+
+    // 9b. Pre-PERST# MMIO probe: read VL805 MMIO with link STILL DOWN.
+    //     If ticks~0  → AXI fabric intercepts the address before the PCIe RC sees it.
+    //     If ticks~2.7M → AXI routes to PCIe RC → CTO after 50ms (outbound window works).
+    __asm__ volatile("dsb sy" ::: "memory");
+    {
+        uint64_t _t0, _t1;
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t0));
+        pcie_mmio_pre_perst_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t1));
+        uint64_t _dt = _t1 - _t0;
+        pcie_mmio_pre_perst_ticks = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
+    }
+
     // 10. Deassert PERST# — VL805 starts EEPROM firmware load + link training.
     PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_PERST;
     pcie_udelay(120000);
@@ -361,8 +386,11 @@ unsigned int kernel_pcie_win0_lo_pre(void)     { return (unsigned int)pcie_win0_
 unsigned int kernel_pcie_win0_bl_pre(void)     { return (unsigned int)pcie_win0_bl_pre_val;      }
 unsigned int kernel_pcie_mmio_pre_reset(void)  { return (unsigned int)pcie_mmio_pre_reset_val;   }
 unsigned int kernel_pcie_bar0_pre_reset(void)  { return (unsigned int)pcie_bar0_pre_reset_val;   }
-unsigned int kernel_pcie_cm_pcie_pre(void)     { return (unsigned int)pcie_cm_pcie_pre_val;       }
-unsigned int kernel_pcie_cm_pcie_post(void)    { return (unsigned int)pcie_cm_pcie_post_val;      }
+unsigned int kernel_pcie_cm_pcie_pre(void)      { return (unsigned int)pcie_cm_pcie_pre_val;        }
+unsigned int kernel_pcie_cm_pcie_post(void)     { return (unsigned int)pcie_cm_pcie_post_val;       }
+unsigned int kernel_pcie_mmio_pre_perst(void)   { return (unsigned int)pcie_mmio_pre_perst_val;     }
+unsigned int kernel_pcie_mmio_pre_perst_ticks(void) { return (unsigned int)pcie_mmio_pre_perst_ticks; }
+unsigned int kernel_pcie_rc_cmd(void)           { return (unsigned int)pcie_rc_cmd_val;             }
 
 // ── V62: VL805 config-space probe + BAR0 assignment ───────────────────────
 static int vl805_probed;
