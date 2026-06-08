@@ -49,8 +49,11 @@
 #define OFF_EXT_CFG_DATA     0x8000U
 #define OFF_EXT_CFG_INDEX    0x9000U
 
-// Link status in PCIe standard capability (at cap base 0xAC)
+// PCIe standard capability (base 0xAC in RC config space)
 #define OFF_LNKCTL_STA       0x00BCU   // [31:16]=LNKSTA, [15:0]=LNKCTL
+#define OFF_DEV_CTL_STA      0x00B4U   // [31:16]=DevSts, [15:0]=DevCtl
+// DevSts bits (within the upper 16 bits of the dword at OFF_DEV_CTL_STA):
+// bit19=URD (Unsupported Request Detected), bit18=FED, bit17=NFED, bit16=CED
 
 // VL805 identifiers
 #define VL805_VID   0x1106U
@@ -87,6 +90,13 @@ static uint32_t vl805_mmio_poll_ms_val;      // ms waited before mmio_raw0 becam
 static uint32_t vl805_mmio_early_val;        // MMIO[0] after early probe (before NOTIFY)
 static uint32_t vl805_hard_debug_pre_val;    // HARD_DEBUG before NOTIFY
 static uint32_t vl805_hard_debug_post_val;   // HARD_DEBUG after NOTIFY + settle
+static uint32_t vl805_dev_sts_val;           // PCIe DevSts after first dead MMIO read (URD bit=0x80000 → UR, else timeout)
+static uint32_t vl805_rc_psts_val;           // RC Primary PCI Status (PCIE32(0x04)>>16): bit13=Received Master Abort (UR/CTO)
+static uint32_t vl805_ext_cap0_val;          // Extended cap header at 0x100: bits[15:0]=cap ID (0x0001=AER); 0=none
+static uint32_t vl805_rc_2sts_val;           // RC Bridge Secondary Status (PCIE32(0x1C)>>16): bit13=RMA from secondary
+static uint32_t vl805_aer_sts_val;           // AER Uncorrectable Error Status full 32 bits: bit14=CTO, bit20=UR received
+static uint32_t vl805_aer_msk_val;           // AER Uncorrectable Error Mask full 32 bits: bit14=CTO masked, bit20=UR masked
+static uint32_t vl805_mmio_early_ticks_val;  // 54MHz ticks for Phase 1 MMIO read: <10=AXI, ~30-100=UR, ~2.7M=CTO(50ms)
 
 // Pre-write snapshots of WIN0 registers (Pi firmware state)
 static uint32_t pcie_win0_lo_pre_val;
@@ -169,39 +179,92 @@ int kernel_pcie_selftest(void) {
     pcie_probed = 1;
     pcie_link_ok = 0;
 
-    // If Pi firmware already left the PCIe link up, preserve it — the VL805
-    // needs its EEPROM firmware (loaded autonomously after PERST#) to respond
-    // to config-space reads, which takes 500ms+.  A PERST# cycle from our side
-    // would reset the VL805 and stall VL805 config access for that duration.
-    // We still claim the outbound MMIO window and record the link stats.
-    uint32_t st0 = PCIE32(OFF_MISC_PCIE_STATUS);
-    int already_up = ((st0 & (STATUS_PHYLINKUP | STATUS_DL_ACTIVE)) ==
-                      (STATUS_PHYLINKUP | STATUS_DL_ACTIVE));
+    // Re-enable USB HCD power domain (device_id=3) before touching PCIe RC registers.
+    // Pi firmware's XHCI_STOP calls SET_POWER_STATE(USB_HCD=3, OFF), disabling the
+    // BCM2711 AXI system-bus routing for 0x600000000 → PCIe RC.  ARM MMIO reads at
+    // VL805 BAR0 return 0xDEADDEAD (AXI fabric error fill) until this domain is
+    // re-enabled — WIN0 and MISC_CTRL programming alone cannot fix it.
+    // state=3: power ON + wait for transition to complete.
+    kernel_vc_mbox_set_power_state(3U, 3U);
+    pcie_udelay(100000);  // 100ms for power domain to stabilize
 
-    if (!already_up) {
-        // Full PERST# cycle + bring-up (e.g. no Pi firmware, or cold start).
+    // Snapshot Pi firmware register state before we reset anything.
+    pcie_win0_lo_pre_val = PCIE32(OFF_MISC_WIN0_LO);
+    pcie_win0_bl_pre_val = PCIE32(OFF_MISC_WIN0_BL);
 
-        // 1. Assert PERST# + bridge SW reset
-        PCIE32(OFF_RGR1_SW_INIT_1) |= (RGR1_PERST | RGR1_BRIDGE_SW_INIT);
-        pcie_udelay(100);
+    // Full PERST# + bridge-SW-reset bring-up, matching Linux pcie-brcmstb.c ordering:
+    //   MISC_CTRL, WIN0, BAR2, HARD_DEBUG are configured AFTER bridge-reset deassertion
+    //   but BEFORE PERST# deassertion.
+    //
+    // Previous attempts set WIN0/MISC_CTRL after link-up (Fixes 1 & 2). Both left
+    // MMIO returning 0xDEADDEAD.  The BCM2711 AXI fabric's ARM→PCIe routing appears
+    // to latch SCB_ACCESS_EN / outbound-window state at PERST# deassertion time;
+    // writing those registers after the fact has no effect.
 
-        // 2. Deassert bridge SW reset (keep PERST# asserted)
-        PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_BRIDGE_SW_INIT;
-        pcie_udelay(100);
+    // 1. Assert PERST# + bridge SW reset simultaneously.
+    PCIE32(OFF_RGR1_SW_INIT_1) |= (RGR1_PERST | RGR1_BRIDGE_SW_INIT);
+    pcie_udelay(100);
 
-        // 3. Power up SerDes (clear IDDQ)
-        PCIE32(OFF_MISC_HARD_DEBUG) &= ~HARD_DEBUG_SERDES_IDDQ;
-        pcie_udelay(100);
+    // 2. Deassert bridge SW reset (keep PERST# asserted).
+    //    BCM2711 PCIe RC MISC registers now reset to defaults (WIN0_LO=0, etc.).
+    PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_BRIDGE_SW_INIT;
+    pcie_udelay(100);
 
-        // 6. Mask all MSI interrupts
-        PCIE32(OFF_MSI_MASK_SET) = 0xFFFFFFFFU;
-        PCIE32(OFF_MSI_CLR)      = 0xFFFFFFFFU;
+    // 3. Power up SerDes (clear IDDQ).
+    PCIE32(OFF_MISC_HARD_DEBUG) &= ~HARD_DEBUG_SERDES_IDDQ;
+    pcie_udelay(100);
 
-        // 7. Deassert PERST# — device starts link training
-        PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_PERST;
-        pcie_udelay(120000);
+    // 4. Mask MSI interrupts.
+    PCIE32(OFF_MSI_MASK_SET) = 0xFFFFFFFFU;
+    PCIE32(OFF_MSI_CLR)      = 0xFFFFFFFFU;
 
-        // 8. Poll for link-up, up to 100ms
+    // 5. MISC_CTRL: SCB_ACCESS_EN, CFG_READ_UR_MODE, 128B burst, SCB0=4GB.
+    //    MUST be set before PERST# deassertion — matches Linux ordering.
+    {
+        uint32_t mc = PCIE32(OFF_MISC_MISC_CTRL);
+        mc |=  (1U << 12);   // SCB_ACCESS_EN
+        mc |=  (1U << 13);   // CFG_READ_UR_MODE
+        mc |=  (1U << 20);   // MAX_BURST_SIZE 128B
+        mc  = (mc & ~(0x1FU << 27)) | (0x11U << 27);  // SCB0_SIZE = 4GB
+        PCIE32(OFF_MISC_MISC_CTRL) = mc;
+    }
+
+    // 6. Inbound DMA window (RC BAR2): PCIe 0x400000000 → ARM phys 0x0, 4GB.
+    {
+        uint64_t bar2_off  = 0x400000000ULL;
+        uint64_t bar2_size = 0x100000000ULL;
+        uint32_t enc = encode_ibar_size(bar2_size);
+        PCIE32(OFF_MISC_RC_BAR2_LO) = (uint32_t)((bar2_off & ~0x1FULL) & 0xFFFFFFFFU) | enc;
+        PCIE32(OFF_MISC_RC_BAR2_HI) = (uint32_t)(bar2_off >> 32);
+        PCIE32(OFF_MISC_RC_BAR1_LO) &= ~0x1FU;
+        PCIE32(OFF_MISC_RC_BAR3_LO) &= ~0x1FU;
+    }
+
+    // 7. HARD_DEBUG: clear CLKREQ_DBG_EN (gates endpoint ref-clock), SERDES_IDDQ,
+    //    and L1SS_ENA (L1 sub-states can stall MMIO TLPs while MCU boots).
+    {
+        uint32_t hd = PCIE32(OFF_MISC_HARD_DEBUG);
+        hd &= ~HARD_DEBUG_CLKREQ_DBG_EN;
+        hd &= ~HARD_DEBUG_SERDES_IDDQ;
+        hd &= ~(1U << 21);   // L1SS_ENA
+        PCIE32(OFF_MISC_HARD_DEBUG) = hd;
+    }
+
+    // 8. Outbound MMIO window 0: CPU phys 0x600000000 → PCIe 0xf8000000, 64MB.
+    //    Set BEFORE PERST# deassertion — matches Linux ordering.
+    pcie_set_outbound_win0(CPU_WIN_BASE, PCIE_WIN_BASE, WIN_SIZE_MB);
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    // 9. Bridge bus numbers: SecBus=1 ensures EXT_CFG generates TYPE-0 TLPs for
+    //    bus=1 (endpoint); without this, VL805 returns UR → 0xFFFFFFFF.
+    PCIE32(0x0018U) = 0x00010100U;
+
+    // 10. Deassert PERST# — VL805 starts EEPROM firmware load + link training.
+    PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_PERST;
+    pcie_udelay(120000);
+
+    // 11. Poll for link-up, up to 100ms.
+    {
         int linked = 0;
         for (int i = 0; i < 1000 && !linked; i++) {
             uint32_t st = PCIE32(OFF_MISC_PCIE_STATUS);
@@ -215,59 +278,7 @@ int kernel_pcie_selftest(void) {
         if (!linked) return 0;
     }
 
-    // 4. Configure MISC_CTRL: SCB_ACCESS_EN, CFG_READ_UR_MODE, 128B burst, SCB0=4GB.
-    // Must run unconditionally — Pi firmware does not set SCB_ACCESS_EN (it uses its
-    // own privileged path), so EXT_CFG_INDEX/DATA config reads return 0xFFFFFFFF until
-    // we set this bit ourselves.
-    {
-        uint32_t mc = PCIE32(OFF_MISC_MISC_CTRL);
-        mc |=  (1U << 12);
-        mc |=  (1U << 13);
-        mc &= ~(3U << 20);
-        mc  = (mc & ~(0x1FU << 27)) | (0x11U << 27);
-        PCIE32(OFF_MISC_MISC_CTRL) = mc;
-    }
-
-    // 5. Inbound DMA window (RC BAR2): PCIe 0x400000000 → ARM phys 0x0, 4GB.
-    // Also always applied — sets up DMA address translation for xHCI ring buffers.
-    {
-        uint64_t bar2_off  = 0x400000000ULL;
-        uint64_t bar2_size = 0x100000000ULL;
-        uint32_t enc = encode_ibar_size(bar2_size);
-        PCIE32(OFF_MISC_RC_BAR2_LO) = (uint32_t)((bar2_off & ~0x1FULL) & 0xFFFFFFFFU) | enc;
-        PCIE32(OFF_MISC_RC_BAR2_HI) = (uint32_t)(bar2_off >> 32);
-        PCIE32(OFF_MISC_RC_BAR1_LO) &= ~0x1FU;
-        PCIE32(OFF_MISC_RC_BAR3_LO) &= ~0x1FU;
-    }
-
-    // 6. HARD_DEBUG: re-enable PCIe clock-request and ensure SerDes powered.
-    // Pi firmware sets CLKREQ_DBG_EN (bit 0) when stopping USB; this gates the
-    // endpoint ref-clock so config reads return 0xFFFFFFFF until the bit is cleared.
-    // Also clear SERDES_IDDQ unconditionally (no-op when already clear).
-    {
-        uint32_t hd = PCIE32(OFF_MISC_HARD_DEBUG);
-        hd &= ~HARD_DEBUG_CLKREQ_DBG_EN;
-        hd &= ~HARD_DEBUG_SERDES_IDDQ;
-        PCIE32(OFF_MISC_HARD_DEBUG) = hd;
-    }
-
-    // 9. Configure outbound MMIO window 0: CPU phys 0x600000000 → PCIe 0xf8000000, 64MB.
-    // Snapshot what Pi firmware left BEFORE we overwrite.
-    pcie_win0_lo_pre_val = PCIE32(OFF_MISC_WIN0_LO);
-    pcie_win0_bl_pre_val = PCIE32(OFF_MISC_WIN0_BL);
-    pcie_set_outbound_win0(CPU_WIN_BASE, PCIE_WIN_BASE, WIN_SIZE_MB);
-    __asm__ volatile("dsb sy" ::: "memory");
-
-    // 9b. Program bridge bus numbers.  Linux's brcm_pcie driver maps bus=0
-    //     config accesses as (base + where), so PCI standard bridge config
-    //     offset 0x18 (Primary/Secondary/Subordinate bus numbers) is at
-    //     PCIE_BASE + 0x18 — NOT at PCIE_BASE + 0x043c + 0x18.
-    //     Without SecBus=1, EXT_CFG generates TYPE-1 (forwarding) TLPs for
-    //     bus=1; VL805 (an endpoint) returns UR → 0xFFFFFFFF.
-    //     Bits: [7:0]=PriBus, [15:8]=SecBus, [23:16]=SubBus, [31:24]=SecLT.
-    PCIE32(0x0018U) = 0x00010100U;   // PriBus=0, SecBus=1, SubBus=1
-
-    // 10. Read link speed + width from LNKSTA
+    // 12. Read link speed + width from LNKSTA.
     {
         uint32_t lnkctl_sta = PCIE32(OFF_LNKCTL_STA);
         pcie_speed_val = (lnkctl_sta >> 16) & 0xFU;
@@ -389,10 +400,39 @@ int kernel_vl805_selftest(void) {
         uint32_t cmd = pcie_cfg_rd(1, 0, 0, 0x04);
         pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
     }
-    pcie_udelay(100000);   // 100 ms for PLL + link settle
+    pcie_udelay(2000000);   // 2s: wait for VL805 to accept memory TLPs after BAR0 restore
 
     __asm__ volatile("dsb sy" ::: "memory");
-    vl805_mmio_early_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
+    {
+        uint64_t _t0, _t1;
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t0));
+        vl805_mmio_early_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t1));
+        // Store raw 54 MHz counter ticks: AXI-return ~1-5 ticks, PCIe-UR ~30-100 ticks,
+        // PCIe-CTO ~2,700,000 ticks (50ms).  Capped at 0xFFFFFFFF for the uint32 field.
+        uint64_t _dt = _t1 - _t0;
+        vl805_mmio_early_ticks_val = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
+    }
+
+    // Capture DevSts + AER Uncorrectable Error Status.
+    // DevSts bit19=URD: UR completion received.
+    // AER (PCIe extended cap at 0x100) offset 0x04 = Uncorrectable Error Status:
+    //   bit14 = Completion Timeout → TLP was sent but no response came back.
+    //   If bit14=0 AND DevSts=0: no TLP was generated (window miss / not routed to PCIe).
+    vl805_dev_sts_val  = (PCIE32(OFF_DEV_CTL_STA) >> 16) | (PCIE32(0x104U) << 16);
+    // RC error status registers for UR vs CTO classification.
+    // rc_psts bit13 = Received Master Abort (UR or CTO from outbound TLP).
+    // ext_cap0[15:0] = extended cap ID at 0x100; must be 0x0001 for AER or 0x104 is not AER.
+    // rc_2sts bit13 = same on bridge secondary side.
+    vl805_rc_psts_val  = PCIE32(0x04U) >> 16;
+    vl805_ext_cap0_val = PCIE32(0x100U);
+    vl805_rc_2sts_val  = PCIE32(0x1CU) >> 16;
+    // AER Uncorrectable Error Status: bit14=CTO, bit20=UR from downstream.
+    // The packed dev_sts field only captures bits[15:0] of this register due to
+    // uint32_t overflow in the shift; capture the full value here.
+    vl805_aer_sts_val  = PCIE32(0x104U);
+    vl805_aer_msk_val  = PCIE32(0x108U);
+
     if (vl805_mmio_early_val != 0xDEADDEADU) {
         // VL805 MCU was alive post-handoff; no NOTIFY needed.
         vl805_mmio_poll_ms_val = 0U;
@@ -402,25 +442,24 @@ int kernel_vl805_selftest(void) {
         return 1;
     }
 
-    // ── Phase 2: NOTIFY_XHCI_RESET (Pi firmware performs PERST# + MCU reload).
-    // VL805 MCU was not alive (Pi firmware must have PERST#'d it at handoff).
-    // Ask VideoCore to reload MCU firmware and re-initialise the controller.
+    // ── Phase 2: NOTIFY_XHCI_RESET (Pi firmware reloads VL805 MCU firmware).
     vl805_vc_xhci_reset_val = kernel_vc_mbox_notify_xhci_reset();
 
     // Wait 3s for MCU reload + PLL re-lock.
     pcie_udelay(3000000);
 
-    // Re-clear CLKREQ_DBG_EN and SERDES_IDDQ (NOTIFY's PERST# may re-set them).
+    // Re-clear CLKREQ_DBG_EN, SERDES_IDDQ, L1SS_ENA.
     {
         uint32_t hd = PCIE32(OFF_MISC_HARD_DEBUG);
         hd &= ~HARD_DEBUG_CLKREQ_DBG_EN;
         hd &= ~HARD_DEBUG_SERDES_IDDQ;
+        hd &= ~(1U << 21);
         PCIE32(OFF_MISC_HARD_DEBUG) = hd;
         vl805_hard_debug_post_val = hd;
     }
     pcie_udelay(10000);
 
-    // Re-assign BAR0 after NOTIFY's PERST# cycle cleared it again.
+    // Re-assign BAR0 after NOTIFY's PERST# cycle.
     pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
     pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
     {
@@ -432,8 +471,8 @@ int kernel_vl805_selftest(void) {
     vl805_vc_xhci_payload_val = kernel_vc_mbox_xhci_reset_payload();
     vl805_rom_status_val = pcie_cfg_rd(1, 0, 0, 0x50);
 
-    // Poll MMIO for up to 5s.
-    for (unsigned int poll_ms = 0; poll_ms < 5000U; poll_ms += 10U) {
+    // Poll MMIO for up to 3s.
+    for (unsigned int poll_ms = 0; poll_ms < 3000U; poll_ms += 10U) {
         __asm__ volatile("dsb sy" ::: "memory");
         if (*(volatile uint32_t *)VL805_MMIO_ARM_PHYS != 0xDEADDEADU) {
             vl805_mmio_poll_ms_val = poll_ms;
@@ -444,8 +483,49 @@ int kernel_vl805_selftest(void) {
     }
     vl805_mmio_poll_ms_val = 0xFFFFU;
 
-    vl805_ok_val = 1;
-    return 1;
+    // ── Phase 3: direct PERST# cycle + wait for EEPROM MCU auto-load.
+    // NOTIFY failed or Pi firmware no longer handles it in this firmware version.
+    // Assert PERST# ourselves: VL805 boots from EEPROM (if present) on deassertion.
+    PCIE32(OFF_RGR1_SW_INIT_1) |= RGR1_PERST;
+    pcie_udelay(200000);    // 200ms in reset
+
+    PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_PERST;
+
+    // Wait for link re-train (standard PCIe: up to 120ms).
+    pcie_udelay(150000);
+    for (int li = 0; li < 100; li++) {
+        uint32_t st = PCIE32(OFF_MISC_PCIE_STATUS);
+        if ((st & (STATUS_PHYLINKUP | STATUS_DL_ACTIVE)) ==
+                (STATUS_PHYLINKUP | STATUS_DL_ACTIVE))
+            break;
+        pcie_udelay(10000);
+    }
+
+    // Wait 3s for VL805 EEPROM firmware load + MCU startup.
+    pcie_udelay(3000000);
+
+    // Re-assign BAR0 (PERST# cleared it).
+    pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
+    pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
+    {
+        uint32_t cmd = pcie_cfg_rd(1, 0, 0, 0x04);
+        pcie_cfg_wr(1, 0, 0, 0x04, cmd | 0x6U);
+    }
+    pcie_udelay(500000);
+
+    // Poll MMIO for up to 2s.
+    for (unsigned int poll3 = 0; poll3 < 2000U; poll3 += 10U) {
+        __asm__ volatile("dsb sy" ::: "memory");
+        if (*(volatile uint32_t *)VL805_MMIO_ARM_PHYS != 0xDEADDEADU) {
+            vl805_mmio_poll_ms_val = poll3 + 20000U;  // +20000 flags Phase 3
+            vl805_ok_val = 1;
+            return 1;
+        }
+        pcie_udelay(10000);
+    }
+    vl805_mmio_poll_ms_val = 0xEEEEU;  // Phase 3 timeout sentinel — all phases failed
+    vl805_ok_val = 0;
+    return 0;
 }
 
 unsigned int kernel_vl805_bar0_lo_pi(void)         { return (unsigned int)vl805_bar0_lo_pi_val;       }
@@ -465,6 +545,13 @@ unsigned int kernel_vl805_rgr1(void) { return (unsigned int)vl805_rgr1_val; }
 unsigned int kernel_vl805_busnr(void)           { return (unsigned int)vl805_busnr_val;           }
 unsigned int kernel_vl805_hard_debug_pre(void)  { return (unsigned int)vl805_hard_debug_pre_val;  }
 unsigned int kernel_vl805_hard_debug_post(void) { return (unsigned int)vl805_hard_debug_post_val; }
+unsigned int kernel_vl805_dev_sts(void)         { return (unsigned int)vl805_dev_sts_val;          }
+unsigned int kernel_vl805_rc_psts(void)         { return (unsigned int)vl805_rc_psts_val;          }
+unsigned int kernel_vl805_ext_cap0(void)        { return (unsigned int)vl805_ext_cap0_val;         }
+unsigned int kernel_vl805_rc_2sts(void)         { return (unsigned int)vl805_rc_2sts_val;          }
+unsigned int kernel_vl805_aer_sts(void)         { return (unsigned int)vl805_aer_sts_val;          }
+unsigned int kernel_vl805_aer_msk(void)         { return (unsigned int)vl805_aer_msk_val;          }
+unsigned int kernel_vl805_mmio_early_ticks(void){ return (unsigned int)vl805_mmio_early_ticks_val; }
 
 // Exposed for shell / certificate
 unsigned int kernel_vl805_vendor(void) { return VL805_VID; }

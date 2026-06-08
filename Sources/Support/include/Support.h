@@ -958,6 +958,9 @@ unsigned long kernel_vc_mbox_fb_query_h(void);
 int           kernel_vc_mbox_notify_xhci_reset(void);
 int           kernel_vc_mbox_xhci_reset_ok(void);
 unsigned int  kernel_vc_mbox_xhci_reset_payload(void);
+int           kernel_vc_mbox_set_power_state(unsigned int device_id, unsigned int state);
+int           kernel_vc_mbox_pwr_state_result(void);
+unsigned int  kernel_vc_mbox_pwr_state_response(void);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.
@@ -1020,6 +1023,20 @@ unsigned int kernel_vl805_mmio_early(void);
 // CLKREQ_DBG_EN (bit 0) gates the endpoint ref-clock — if set after NOTIFY, MMIO times out.
 unsigned int kernel_vl805_hard_debug_pre(void);
 unsigned int kernel_vl805_hard_debug_post(void);
+// PCIe DevSts captured after first dead MMIO read: bit3(URD)=UR, else completion timeout.
+unsigned int kernel_vl805_dev_sts(void);
+// RC Primary PCI Status captured after first dead MMIO read: bit13=Received Master Abort (UR or CTO).
+unsigned int kernel_vl805_rc_psts(void);
+// PCIe extended capability header at 0x100: bits[15:0]=cap ID (0x0001=AER); 0=no extended caps.
+unsigned int kernel_vl805_ext_cap0(void);
+// RC Bridge Secondary Status captured after first dead MMIO read: bit13=Received Master Abort.
+unsigned int kernel_vl805_rc_2sts(void);
+// AER Uncorrectable Error Status full 32 bits: bit14=CTO, bit20=UR received from downstream.
+unsigned int kernel_vl805_aer_sts(void);
+// AER Uncorrectable Error Mask full 32 bits: bit14=CTO masked, bit20=UR masked.
+unsigned int kernel_vl805_aer_msk(void);
+// 54MHz ticks elapsed for Phase 1 MMIO read: <10=AXI intercept, ~30-100=UR, ~2.7M=CTO(50ms).
+unsigned int kernel_vl805_mmio_early_ticks(void);
 // Diagnostic: WIN0_LO captured before our call to pcie_set_outbound_win0().
 unsigned int kernel_pcie_win0_lo_pre(void);
 unsigned int kernel_pcie_win0_bl_pre(void);

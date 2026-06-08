@@ -227,18 +227,51 @@ static int xhci_reset_result = -1;
 static uint32_t xhci_reset_payload = 0xFFFFFFFFU;  // vc_buf[5] after call (0=VC success, else error)
 
 int kernel_vc_mbox_notify_xhci_reset(void) {
-    // Linux calls rpi_firmware_property(fw, RPI_FIRMWARE_NOTIFY_XHCI_RESET, NULL, 0)
-    // — zero-length tag, no value buffer, no request data.
-    vc_buf[0] = 6U * 4U;  // 24 bytes
+    // Linux passes a 4-byte PCI device address: bus<<20 | slot<<15 | fn<<12.
+    // VL805 is at bus=1, dev=0, fn=0 → 0x00100000.
+    // Without the device address, Pi firmware doesn't know which controller
+    // to reload MCU firmware for, so it returns ok=1 but does nothing.
+    vc_buf[0] = 8U * 4U;    // 32 bytes total
     vc_buf[1] = MBOX_REQ;
     vc_buf[2] = TAG_NOTIFY_XHCI_RESET;
-    vc_buf[3] = 0U;  // no value buffer
-    vc_buf[4] = 0U;  // no request data
-    vc_buf[5] = TAG_END;
-    xhci_reset_result = vc_call(24U);
-    xhci_reset_payload = 0U;  // no response data for zero-length tag
+    vc_buf[3] = 4U;          // value buffer size: 4 bytes
+    vc_buf[4] = 4U;          // request length: 4 bytes
+    vc_buf[5] = 0x00100000U; // PCI addr: bus=1, dev=0, fn=0
+    vc_buf[6] = TAG_END;
+    vc_buf[7] = 0U;          // padding to 32-byte alignment
+    xhci_reset_result = vc_call(32U);
+    xhci_reset_payload = vc_buf[5];  // response value from Pi firmware
     return xhci_reset_result;
 }
 
 int kernel_vc_mbox_xhci_reset_ok(void)      { return xhci_reset_result;  }
 uint32_t kernel_vc_mbox_xhci_reset_payload(void) { return xhci_reset_payload; }
+
+// RPI_FIRMWARE_SET_POWER_STATE (0x00028003)
+// Re-enables a BCM2711 power domain disabled by Pi firmware during OS handoff.
+// device_id=3 (USB HCD): Pi firmware's XHCI_STOP calls SET_POWER_STATE(3, OFF)
+// which disables the BCM2711 AXI system-bus routing for 0x600000000 → PCIe RC.
+// ARM MMIO reads at VL805 BAR0 return 0xDEADDEAD until this is re-enabled,
+// regardless of how WIN0 and MISC_CTRL registers are programmed.
+// state bits: bit0=on/off, bit1=wait for transition.  state=3 = ON + wait.
+#define TAG_SET_POWER_STATE 0x00028003U
+
+static int pwr_state_result = -1;
+static uint32_t pwr_state_response = 0xFFFFFFFFU;
+
+int kernel_vc_mbox_set_power_state(unsigned int device_id, unsigned int state) {
+    vc_buf[0] = 8U * 4U;           // 32 bytes total
+    vc_buf[1] = MBOX_REQ;
+    vc_buf[2] = TAG_SET_POWER_STATE;
+    vc_buf[3] = 8U;                // value buffer size: 8 bytes
+    vc_buf[4] = 8U;                // request length: 8 bytes
+    vc_buf[5] = (uint32_t)device_id;
+    vc_buf[6] = (uint32_t)state;
+    vc_buf[7] = TAG_END;
+    pwr_state_result   = vc_call(32U);
+    pwr_state_response = vc_buf[6];  // bit0=on, bit1=device_exists
+    return pwr_state_result;
+}
+
+int          kernel_vc_mbox_pwr_state_result(void)   { return pwr_state_result;                  }
+unsigned int kernel_vc_mbox_pwr_state_response(void) { return (unsigned int)pwr_state_response;  }
