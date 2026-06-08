@@ -363,6 +363,16 @@ int kernel_pcie_selftest(void) {
         pcie_mmio_pre_perst_ticks = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
     }
 
+    // 9c. PCI Type 1 bridge Memory Base/Limit (config offset 0x20):
+    //     BRCMSTB RC is a PCI-to-PCI bridge (class 0x0604, Type 1 header).
+    //     After bridge_sw_init reset these default to 0x0000 → window [0, 1MB).
+    //     In L0 state the bridge enforces this window: outbound TLPs to
+    //     0xf8000000 (VL805 BAR0) are dropped → AXI returns 0xDEADDEAD in 0 ticks.
+    //     During LTSSM training (<L0) the window is not enforced (preperst_ticks~25).
+    //     Set to cover PCIe bus 0xf8000000–0xfbffffff (= WIN0 64MB target range).
+    PCIE32(0x0020U) = (0xfbf0U << 16) | 0xf800U;  // MemLimit=0xfbffffff, MemBase=0xf8000000
+    __asm__ volatile("dsb sy" ::: "memory");
+
     // 10. Deassert PERST# — VL805 starts EEPROM firmware load + link training.
     PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_PERST;
     __asm__ volatile("dsb sy" ::: "memory");
