@@ -100,7 +100,7 @@ func uartPutShellBufferSlice(_ start: UInt32, _ len: UInt32) {
 }
 
 func printShellReady() {
-  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie\n")
+  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci\n")
 }
 
 func printShellHelp() {
@@ -214,6 +214,8 @@ func printSubstrateCertificate() {
   let framebuf = kernel_vc_mbox_fb_selftest()
   let console = kernel_vc_console_ok()
   let pcie = kernel_pcie_ok()
+  let vl805 = kernel_vl805_ok()
+  let xhci = kernel_xhci_ok()
   let eventsLost = kernel_event_lost_count()
 
   let workerFeed = kernel_scheduler_timer_worker_feed_proven()
@@ -234,11 +236,11 @@ func printSubstrateCertificate() {
   let bootcertOk = concurrency != 0 && priority != 0 && fairness != 0 && stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && runtimeAudit != 0 && smp != 0 && scheduler != 0 && agentSession != 0 && memory != 0 &&
     objects != 0 && tasks != 0 && mailboxes != 0 && supervisor != 0 &&
     events != 0 && cancellations != 0 && channels != 0 && drivers != 0 &&
-    pressure != 0 && pools != 0 && mmu != 0 && vmm != 0 && asplit != 0 && el0 != 0 && syscall != 0 && uaccess != 0 && usermode != 0 && process != 0 && loader != 0 && multiprocess != 0 && sdhci != 0 && card != 0 && block != 0 && fat32 != 0 && mailbox != 0 && framebuf != 0 && console != 0 && pcie != 0 && eventsLost == 0
+    pressure != 0 && pools != 0 && mmu != 0 && vmm != 0 && asplit != 0 && el0 != 0 && syscall != 0 && uaccess != 0 && usermode != 0 && process != 0 && loader != 0 && multiprocess != 0 && sdhci != 0 && card != 0 && block != 0 && fat32 != 0 && mailbox != 0 && framebuf != 0 && console != 0 && pcie != 0 && vl805 != 0 && xhci != 0 && eventsLost == 0
 
   uartPuts("certificate ok=")
   uartPutDec(UInt64(bootcertOk ? 1 : 0))
-  uartPuts(" version=61")
+  uartPuts(" version=63")
   uartPuts(" substrate=1")
   uartPuts(" bootcert=")
   uartPutDec(UInt64(bootcertOk ? 1 : 0))
@@ -340,6 +342,10 @@ func printSubstrateCertificate() {
   uartPutDec(UInt64(console))
   uartPuts(" pcie=")
   uartPutDec(UInt64(pcie))
+  uartPuts(" vl805=")
+  uartPutDec(UInt64(vl805))
+  uartPuts(" xhci=")
+  uartPutDec(UInt64(xhci))
   uartPuts(" swift=6.3.2")
   uartPuts(" events_lost=")
   uartPutDec(UInt64(eventsLost))
@@ -2064,6 +2070,32 @@ func printPcie() {
   uartPuts("\n")
 }
 
+func printVl805() {
+  let ok = kernel_vl805_ok()
+  uartPuts("vl805 ok=")
+  uartPutDec(UInt64(ok))
+  uartPuts(" version=62 vendor=")
+  uartPutHexCompact(UInt64(kernel_vl805_vendor()))
+  uartPuts(" device=")
+  uartPutHexCompact(UInt64(kernel_vl805_device()))
+  uartPuts("\n")
+}
+
+func printXhci() {
+  let ok = kernel_xhci_ok()
+  uartPuts("xhci ok=")
+  uartPutDec(UInt64(ok))
+  uartPuts(" version=63 hciversion=")
+  uartPutHexCompact(UInt64(kernel_xhci_hciversion()))
+  uartPuts(" ports=")
+  uartPutDec(UInt64(kernel_xhci_ports()))
+  uartPuts(" slots=")
+  uartPutDec(UInt64(kernel_xhci_slots()))
+  uartPuts(" scratch=")
+  uartPutDec(UInt64(kernel_xhci_scratch()))
+  uartPuts("\n")
+}
+
 func printPoolName(_ pool: UInt32) {
   var i: UInt32 = 0
   let n = kernel_pool_name_len(pool)
@@ -2411,13 +2443,15 @@ func printBootcert() {
   let framebuf = kernel_vc_mbox_fb_selftest()
   let console = kernel_vc_console_ok()
   let pcie = kernel_pcie_ok()
-  let ok = concurrency != 0 && priority != 0 && fairness != 0 && stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && smp != 0 && scheduler != 0 && substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && vmm != 0 && asplit != 0 && el0 != 0 && syscall != 0 && uaccess != 0 && usermode != 0 && process != 0 && loader != 0 && multiprocess != 0 && sdhci != 0 && card != 0 && block != 0 && fat32 != 0 && mailbox != 0 && framebuf != 0 && console != 0 && pcie != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
+  let vl805 = kernel_vl805_ok()
+  let xhci = kernel_xhci_ok()
+  let ok = concurrency != 0 && priority != 0 && fairness != 0 && stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && smp != 0 && scheduler != 0 && substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && vmm != 0 && asplit != 0 && el0 != 0 && syscall != 0 && uaccess != 0 && usermode != 0 && process != 0 && loader != 0 && multiprocess != 0 && sdhci != 0 && card != 0 && block != 0 && fat32 != 0 && mailbox != 0 && framebuf != 0 && console != 0 && pcie != 0 && vl805 != 0 && xhci != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
     taskspawns != 0 && cancellations != 0 && kobjects != 0 && tasks != 0 && mailboxes != 0 &&
     channels != 0 && supervisor != 0 && events != 0 && eventsLost == 0
 
   uartPuts("bootcert ok=")
   uartPutDec(UInt64(ok ? 1 : 0))
-  uartPuts(" version=61")
+  uartPuts(" version=63")
   uartPuts(" concurrency=")
   uartPutDec(UInt64(concurrency))
   uartPuts(" priority=")
@@ -2507,6 +2541,10 @@ func printBootcert() {
   uartPutDec(UInt64(console))
   uartPuts(" pcie=")
   uartPutDec(UInt64(pcie))
+  uartPuts(" vl805=")
+  uartPutDec(UInt64(vl805))
+  uartPuts(" xhci=")
+  uartPutDec(UInt64(xhci))
   uartPuts(" channels=")
   uartPutDec(UInt64(channels))
   uartPuts(" taskspawns=")
@@ -2917,6 +2955,10 @@ func dispatchShellCommand(_ commandStart: UInt32, _ commandLen: UInt32, _ reques
     printConsole()
   } else if shellBufferSliceEquals(commandStart, commandLen, "pcie") {
     printPcie()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "vl805") {
+    printVl805()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "xhci") {
+    printXhci()
   } else if shellBufferSliceEquals(commandStart, commandLen, "pools") {
     printPools()
   } else if shellBufferSliceEquals(commandStart, commandLen, "poolcheck") {
