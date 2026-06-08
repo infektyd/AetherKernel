@@ -71,7 +71,7 @@ int kernel_xhci_selftest(void) {
     xhci_dboff_val        = XR32(0x14);
     xhci_rtsoff_val       = XR32(0x18);
 
-    if (xhci_hciversion_val == 0 || xhci_max_ports_val == 0) return 0;
+    if (hccapbase == 0xDEADDEADU || xhci_hciversion_val == 0 || xhci_max_ports_val == 0) return 0;
 
     xhci_cap_ok_val = 1;
     return 1;
