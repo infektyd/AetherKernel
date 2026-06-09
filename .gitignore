@@ -49,3 +49,6 @@ monitor-v45.sh
 .env
 .env.local
 *.pid
+
+# Internal process data — agent-generated reports/metrics, not for publication
+docs/
