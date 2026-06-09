@@ -190,8 +190,23 @@ static void arm_next_deadline(void) {
 // Swift executor Impl hooks (swiftcall — do NOT define the public trampolines).
 //===----------------------------------------------------------------------===//
 
+// Slice-1 dispatch-path probe: one-shot serial markers decide whether task
+// enqueues arrive through this ExecutorImpl.h hook layer (Path B) or through
+// the Swift ExecutorFactory route (Path A). See .internal/executor-replacement-map.md.
+static unsigned int probe_c_hook_announced;
+
+void executor_probe_push(void *job) {
+    unsigned long flags = irq_save();
+    ready_push_unsafe((SwiftJob *)job);
+    irq_restore(flags);
+}
+
 SWIFT_CC(swift) void swift_task_enqueueGlobalImpl(SwiftJob *job) {
     unsigned long flags = irq_save();
+    if (!probe_c_hook_announced) {
+        probe_c_hook_announced = 1;
+        uart_puts_panic("EXPROBE-C-HOOK enqueueGlobal\n");
+    }
     ready_push_unsafe(job);
     irq_restore(flags);
 }

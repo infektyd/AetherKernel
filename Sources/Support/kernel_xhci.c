@@ -1379,7 +1379,7 @@ int kernel_kbd_selftest(void) {
     xhci_d_puts("v66:int_db slot="); xhci_d_dec(kbd_slot);
     xhci_d_puts(" tgt="); xhci_d_dec(int_db_target); xhci_d_puts("\n");
 
-    xhci_d_puts("v66:WAIT_KEY (press a key within 600s)\n");
+    xhci_d_puts("v66:WAIT_KEY (short probe window)\n");
     int got_key = 0;
     unsigned int key_cc = 0;
     unsigned int int_cycle = 1U;
@@ -1397,7 +1397,12 @@ int kernel_kbd_selftest(void) {
     __asm__ volatile("dsb sy" ::: "memory");
     int_enq = 1U;
 
-    for (int i = 0; i < 600000000 && !got_key; i++) {
+    // Short probe window on this branch: the original 600M-iteration (~600s+)
+    // keypress wait stalls every executor-iteration boot, and the bench
+    // receiver's report IDs never satisfy the keycode check anyway. The v66
+    // keypress capstone was already hardware-proven (e0f0437); keep the path
+    // exercised but bounded to seconds.
+    for (int i = 0; i < 3000000 && !got_key; i++) {
         __asm__ volatile("dsb sy" ::: "memory");
         xhci_trb_t *trb = &evt_ring[evt_deq];
         if ((trb->control & 0x1U) == evt_cycle) {

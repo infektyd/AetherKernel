@@ -99,6 +99,9 @@ void *realloc(void *ptr, unsigned long size);
 void swift_task_asyncMainDrainQueue(void);
 // Executor delayed jobs share CNTP through the Runtime V2 timer arbiter.
 void executor_on_timer_irq(void);
+// Slice-1 dispatch-path probe: lets the Swift factory executor delegate jobs
+// into the C ready ring without firing the C-hook marker.
+void executor_probe_push(void *job);
 
 // Shared CNTP timer arbiter (Sources/Support/timersleep_hw.c). All CNTP register
 // work stays in non-inline C because the inline-asm helpers were previously
