@@ -76,7 +76,7 @@ probe_request() {
   start="$(file_size "$SERIAL_LOG")"
   log_line "soak probe cycle=$cycle id=$id command=$command state=send"
 
-  if ! probe_output="$(AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT" "$SCRIPT_DIR/serial-probe.sh" "req id=$id cmd=$command" "^resp id=$id ok=1 cmd=$command end" "$SERIAL_PORT" 2>&1)"; then
+  if ! probe_output="$(AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT" "$SCRIPT_DIR/serial/serial-probe.sh" "req id=$id cmd=$command" "^resp id=$id ok=1 cmd=$command end" "$SERIAL_PORT" 2>&1)"; then
     printf '%s\n' "$probe_output" | tee -a "$SOAK_LOG" >&2
     log_line "soak probe cycle=$cycle id=$id command=$command ok=0 reason=response_timeout"
     return 1
@@ -170,7 +170,7 @@ while [ "$cycle" -le "$CYCLES" ]; do
   log_line "soak cycle=$cycle state=begin timestamp=$started_at"
 
   AETHER_NETITERATE_SKIP_SHELL_PROBES="$NETITERATE_SKIP_SHELL_PROBES" \
-    "$SCRIPT_DIR/net-iterate.sh" "$TFTP_ROOT" 2>&1 | tee -a "$SOAK_LOG"
+    "$SCRIPT_DIR/netboot/net-iterate.sh" "$TFTP_ROOT" 2>&1 | tee -a "$SOAK_LOG"
 
   log_line "soak cycle=$cycle state=settle seconds=$PROBE_SETTLE"
   sleep "$PROBE_SETTLE"

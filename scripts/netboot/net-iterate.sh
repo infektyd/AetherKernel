@@ -12,6 +12,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPTS_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TFTP_ROOT="${1:-${AETHER_TFTP_ROOT:-$HOME/aether-tftp}}"
 PREFIX="${AETHER_TFTP_PREFIX:-aether}"
 PREFIX="${PREFIX#/}"
@@ -51,7 +52,7 @@ probe_shell() {
   local probe_timeout="${AETHER_SERIAL_PROBE_TIMEOUT:-10}"
 
   echo "probe shell: $command"
-  AETHER_SERIAL_PROBE_TIMEOUT="$probe_timeout" "$SCRIPT_DIR/serial-probe.sh" "$command" "$expected" "$SERIAL_PORT"
+  AETHER_SERIAL_PROBE_TIMEOUT="$probe_timeout" "$SCRIPTS_ROOT/serial/serial-probe.sh" "$command" "$expected" "$SERIAL_PORT"
 }
 
 file_size() {
@@ -137,20 +138,20 @@ while [ "$attempt" -le "$RETRIES" ]; do
   # the power-on triggers the bootloader netboot + kernel boot; logger must be
   # attached to the serial port *before* power-on. Warm resets may miss it too.
   # Moving this before the cycle fixes the ordering for all future slices.
-  if [ -x "$SCRIPT_DIR/serial-capture.sh" ]; then
-    "$SCRIPT_DIR/serial-capture.sh" "$SERIAL_PORT" >/dev/null
+  if [ -x "$SCRIPTS_ROOT/serial/serial-capture.sh" ]; then
+    "$SCRIPTS_ROOT/serial/serial-capture.sh" "$SERIAL_PORT" >/dev/null
   fi
 
   if [ -n "${AETHER_POWER_BACKEND:-}" ] && [ "${AETHER_POWER_BACKEND}" != "none" ]; then
     # Cold power-cycle via external switch — REQUIRED for the Pi bootloader to
     # re-enter netboot/TFTP mode (a warm serial reset does not re-arm it). This is
     # what lets unattended runs self-recover with no human at the bench.
-    "$SCRIPT_DIR/power-cycle.sh" cycle || die "power-cycle failed (backend=${AETHER_POWER_BACKEND})"
+    "$SCRIPTS_ROOT/power-cycle.sh" cycle || die "power-cycle failed (backend=${AETHER_POWER_BACKEND})"
   else
     # Default: warm serial reset. NOTE: this does NOT re-arm netboot mode, so the
     # Pi must already be in netboot (fresh cold boot). Set AETHER_POWER_BACKEND
     # (e.g. wemo) for a true unattended cold cycle. See power-cycle.sh.
-    "$SCRIPT_DIR/serial-reset.sh" "$SERIAL_PORT"
+    "$SCRIPTS_ROOT/serial/serial-reset.sh" "$SERIAL_PORT"
   fi
   # (serial-capture now started before the cycle above; removed duplicate start)
 

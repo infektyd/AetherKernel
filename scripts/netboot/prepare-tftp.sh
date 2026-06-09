@@ -21,6 +21,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BOOT_SOURCE="${1:-/Volumes/bootfs}"
 TFTP_ROOT="${2:-${AETHER_TFTP_ROOT:-$HOME/aether-tftp}}"
 PREFIX="${AETHER_TFTP_PREFIX:-aether}"
@@ -50,7 +51,7 @@ if [ "${1:-}" = "--download" ]; then
 fi
 
 [ -n "$PREFIX" ] || die "AETHER_TFTP_PREFIX must not be empty"
-[ -f "$SCRIPT_DIR/config.txt" ] || die "repo config.txt missing"
+[ -f "$REPO_ROOT/config.txt" ] || die "repo config.txt missing"
 
 required=(
   "start4.elf"
@@ -99,7 +100,7 @@ else
   done
 fi
 
-cp "$SCRIPT_DIR/config.txt" "$DEST/config.txt"
+cp "$REPO_ROOT/config.txt" "$DEST/config.txt"
 for rel in "${prune[@]}"; do
   rm -f "$DEST/$rel"
 done

@@ -71,7 +71,7 @@ probe_request() {
   start="$(file_size "$SERIAL_LOG")"
   log_line "agent-session probe id=$id command=$command state=send"
 
-  if ! probe_output="$(AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT" "$SCRIPT_DIR/serial-probe.sh" "req id=$id cmd=$command" "^resp id=$id ok=1 cmd=$command end" "$SERIAL_PORT" 2>&1)"; then
+  if ! probe_output="$(AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT" "$SCRIPT_DIR/../serial/serial-probe.sh" "req id=$id cmd=$command" "^resp id=$id ok=1 cmd=$command end" "$SERIAL_PORT" 2>&1)"; then
     printf '%s\n' "$probe_output" | tee -a "$SESSION_LOG" >&2
     log_line "agent-session probe id=$id command=$command ok=0 reason=response_timeout"
     return 1

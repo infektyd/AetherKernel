@@ -73,7 +73,7 @@ probe_certificate() {
   start="$(file_size "$SERIAL_LOG")"
   log_line "certificate-loop probe cycle=$cycle id=$id command=certificate state=send"
 
-  if ! probe_output="$(AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT" "$SCRIPT_DIR/serial-probe.sh" "req id=$id cmd=certificate" "^resp id=$id ok=1 cmd=certificate end" "$SERIAL_PORT" 2>&1)"; then
+  if ! probe_output="$(AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT" "$SCRIPT_DIR/../serial/serial-probe.sh" "req id=$id cmd=certificate" "^resp id=$id ok=1 cmd=certificate end" "$SERIAL_PORT" 2>&1)"; then
     printf '%s\n' "$probe_output" | tee -a "$CERTIFICATE_LOG" >&2
     log_line "certificate-loop probe cycle=$cycle id=$id command=certificate ok=0 reason=response_timeout"
     return 1
@@ -130,7 +130,7 @@ completed=0
 cycle=1
 while [ "$cycle" -le "$CYCLES" ]; do
   log_line "certificate-loop cycle=$cycle state=netboot"
-  "$SCRIPT_DIR/net-iterate.sh" "$TFTP_ROOT" | tee -a "$CERTIFICATE_LOG"
+  "$SCRIPT_DIR/../netboot/net-iterate.sh" "$TFTP_ROOT" | tee -a "$CERTIFICATE_LOG"
 
   log_line "certificate-loop cycle=$cycle state=agent-session"
   AETHER_AGENT_SESSION_ID_BASE="$((ID_BASE + cycle * 100))" "$SCRIPT_DIR/agent-session.sh" "$SERIAL_PORT" | tee -a "$CERTIFICATE_LOG"
@@ -138,7 +138,7 @@ while [ "$cycle" -le "$CYCLES" ]; do
   probe_certificate "$cycle" "$((ID_BASE + cycle))"
 
   log_line "certificate-loop cycle=$cycle state=runtime-audit"
-  "$SCRIPT_DIR/runtime-audit.sh" "$MACHO" | tee -a "$CERTIFICATE_LOG"
+  "$SCRIPT_DIR/../runtime-audit.sh" "$MACHO" | tee -a "$CERTIFICATE_LOG"
 
   completed=$cycle
   log_line "certificate-loop cycle=$cycle ok=1"

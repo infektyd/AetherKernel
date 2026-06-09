@@ -11,12 +11,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TFTP_ROOT="${1:-${AETHER_TFTP_ROOT:-$HOME/aether-tftp}}"
 PREFIX="${AETHER_TFTP_PREFIX:-aether}"
 PREFIX="${PREFIX#/}"
 PREFIX="${PREFIX%/}"
-KERNEL_IMG="${AETHER_KERNEL_IMG:-$SCRIPT_DIR/kernel8.img}"
-CONFIG_TXT="${AETHER_CONFIG_TXT:-$SCRIPT_DIR/config.txt}"
+KERNEL_IMG="${AETHER_KERNEL_IMG:-$REPO_ROOT/kernel8.img}"
+CONFIG_TXT="${AETHER_CONFIG_TXT:-$REPO_ROOT/config.txt}"
 
 usage() {
   sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
@@ -55,7 +56,7 @@ fi
 [ -n "$PREFIX" ] || die "AETHER_TFTP_PREFIX must not be empty"
 
 if [ "${AETHER_NETFLASH_SKIP_BUILD:-0}" != "1" ]; then
-  "$SCRIPT_DIR/build.sh"
+  "$REPO_ROOT/build.sh"
 fi
 
 [ -f "$KERNEL_IMG" ] || die "kernel image missing: $KERNEL_IMG"

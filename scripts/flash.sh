@@ -6,6 +6,7 @@
 #===----------------------------------------------------------------------===#
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BOOT="${1:-/Volumes/bootfs}"
 
 sha256_file() {
@@ -33,7 +34,7 @@ if [ ! -d "$BOOT" ]; then
   echo "Mount the SD card and pass its path, e.g. ./flash.sh /Volumes/boot"
   exit 1
 fi
-if [ ! -f "$SCRIPT_DIR/kernel8.img" ]; then
+if [ ! -f "$REPO_ROOT/kernel8.img" ]; then
   echo "kernel8.img missing — run ./build.sh first."
   exit 1
 fi
@@ -47,10 +48,10 @@ if [ -f "$BOOT/config.txt" ] && [ ! -f "$BOOT/config.txt.orig" ]; then
   echo "backed up original config.txt -> config.txt.orig"
 fi
 
-cp "$SCRIPT_DIR/kernel8.img" "$BOOT/kernel8.img"
-cp "$SCRIPT_DIR/config.txt" "$BOOT/config.txt"
+cp "$REPO_ROOT/kernel8.img" "$BOOT/kernel8.img"
+cp "$REPO_ROOT/config.txt" "$BOOT/config.txt"
 sync
-verify_copy "$SCRIPT_DIR/kernel8.img" "$BOOT/kernel8.img"
-verify_copy "$SCRIPT_DIR/config.txt" "$BOOT/config.txt"
+verify_copy "$REPO_ROOT/kernel8.img" "$BOOT/kernel8.img"
+verify_copy "$REPO_ROOT/config.txt" "$BOOT/config.txt"
 echo "flashed kernel8.img + config.txt -> $BOOT"
 echo "eject the SD, move it to the Pi, then open the serial console (see RUNBOOK.md)."
