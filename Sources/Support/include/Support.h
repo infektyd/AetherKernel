@@ -838,6 +838,7 @@ unsigned long kernel_vmm_alloc_pt(void);
 int kernel_vmm_free_pt(unsigned long pa);
 int kernel_vmm_pt_alloc_selftest(void);
 int kernel_vmm_map_4k(unsigned long va, unsigned long pa, unsigned long attrs);
+int kernel_vmm_map_4k_nc(unsigned long va, unsigned long pa);
 int kernel_vmm_unmap_4k(unsigned long va);
 int kernel_vmm_vmm_selftest(void);  // basic table + simple high-VA map test (expanded in v45-3)
 
@@ -1047,6 +1048,11 @@ unsigned int kernel_pcie_mmio_pre_reset(void);
 unsigned int kernel_pcie_bar0_pre_reset(void);
 unsigned int kernel_pcie_cm_pcie_pre(void);
 unsigned int kernel_pcie_cm_pcie_post(void);
+unsigned int kernel_pcie_cm_pcie_at_l0(void);
+int          kernel_pcie_path_inherited(void);
+unsigned int kernel_pcie_link_inherit_ms(void);
+unsigned int kernel_pcie_mmio_imm_l0(void);
+unsigned int kernel_pcie_mmio_imm_l0_ticks(void);
 unsigned int kernel_pcie_mmio_pre_perst(void);
 unsigned int kernel_pcie_mmio_pre_perst_ticks(void);
 unsigned int kernel_pcie_mmio_post_perst(void);
@@ -1089,6 +1095,11 @@ unsigned int kernel_usb_enum_vendor(void);
 unsigned int kernel_usb_enum_product(void);
 unsigned int kernel_usb_enum_class(void);
 unsigned int kernel_usb_enum_addr(void);
+unsigned int kernel_usb_enum_stage(void);
+unsigned int kernel_usb_enum_portsc(void);
+unsigned int kernel_usb_enum_portscR(void);
+unsigned int kernel_usb_enum_slot_raw(void);
+unsigned int kernel_usb_enum_ad_raw(void);
 
 int          kernel_kbd_selftest(void);
 int          kernel_kbd_ok(void);

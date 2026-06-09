@@ -2515,13 +2515,14 @@ func printBootcert() {
   let pcie = kernel_pcie_ok()
   let vl805 = kernel_vl805_ok()
   let xhci = kernel_xhci_ok()
-  let ok = concurrency != 0 && priority != 0 && fairness != 0 && stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && smp != 0 && scheduler != 0 && substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && vmm != 0 && asplit != 0 && el0 != 0 && syscall != 0 && uaccess != 0 && usermode != 0 && process != 0 && loader != 0 && multiprocess != 0 && sdhci != 0 && card != 0 && block != 0 && fat32 != 0 && mailbox != 0 && framebuf != 0 && console != 0 && pcie != 0 && vl805 != 0 && xhci != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
+  let kbd  = kernel_kbd_ok()
+  let ok = concurrency != 0 && priority != 0 && fairness != 0 && stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && smp != 0 && scheduler != 0 && substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && vmm != 0 && asplit != 0 && el0 != 0 && syscall != 0 && uaccess != 0 && usermode != 0 && process != 0 && loader != 0 && multiprocess != 0 && sdhci != 0 && card != 0 && block != 0 && fat32 != 0 && mailbox != 0 && framebuf != 0 && console != 0 && pcie != 0 && vl805 != 0 && xhci != 0 && kbd != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
     taskspawns != 0 && cancellations != 0 && kobjects != 0 && tasks != 0 && mailboxes != 0 &&
     channels != 0 && supervisor != 0 && events != 0 && eventsLost == 0
 
   uartPuts("bootcert ok=")
   uartPutDec(UInt64(ok ? 1 : 0))
-  uartPuts(" version=63")
+  uartPuts(" version=66")
   uartPuts(" concurrency=")
   uartPutDec(UInt64(concurrency))
   uartPuts(" priority=")
@@ -2615,6 +2616,8 @@ func printBootcert() {
   uartPutDec(UInt64(vl805))
   uartPuts(" xhci=")
   uartPutDec(UInt64(xhci))
+  uartPuts(" kbd=")
+  uartPutDec(UInt64(kbd))
   uartPuts(" channels=")
   uartPutDec(UInt64(channels))
   uartPuts(" taskspawns=")

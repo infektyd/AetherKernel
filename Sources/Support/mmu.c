@@ -9,8 +9,9 @@
 #define SH_INNER       (3UL << 8)
 #define ATTRIDX_NORMAL (0UL << 2)
 #define ATTRIDX_DEVICE (1UL << 2)
+#define ATTRIDX_NC     (2UL << 2)
 
-#define MAIR_EL1_VAL ((0xFFUL << 0) | (0x00UL << 8))
+#define MAIR_EL1_VAL ((0xFFUL << 0) | (0x00UL << 8) | (0x44UL << 16))
 #define TCR_EL1_VAL  (25UL | (1UL << 8) | (1UL << 10) | (3UL << 12) | (0UL << 14) | (1UL << 23) | (2UL << 32))
 #define SCTLR_MMU_ON  ((1UL << 0) | (1UL << 2) | (1UL << 12))
 
@@ -200,6 +201,10 @@ int kernel_mmu_selftest(void) {
 
 static unsigned long vmm_page_desc(unsigned long pa) {
     return pa | VMM_PAGE_DESC | VMM_AF | VMM_SH_INNER | VMM_ATTR_NORMAL;
+}
+
+static unsigned long vmm_page_desc_nc(unsigned long pa) {
+    return pa | VMM_PAGE_DESC | VMM_AF | VMM_SH_INNER | ATTRIDX_NC;
 }
 
 static unsigned long vmm_table_desc(unsigned long pa) {
@@ -629,6 +634,35 @@ int kernel_vmm_asplit_selftest(void) {
     int ok = (read2 != 0xDE1DE1DE1ULL) && (read1 == 0xDE1DE1DE1ULL) && (read2_again == 0xAD2AD2AD2ULL);
     debug_uart_puts("selftest ok="); debug_uart_putc(ok ? '1' : '0'); debug_uart_puts("\n");
     return ok ? 1 : 0;
+}
+
+int kernel_vmm_map_4k_nc(unsigned long va, unsigned long pa) {
+    unsigned int l1i = VMM_L1_INDEX(va);
+    unsigned int l2i = VMM_L2_INDEX(va);
+    unsigned int l3i = VMM_L3_INDEX(va);
+    if (l1i >= 512) return 0;
+    if (l1_table[l1i] == 0) {
+        unsigned long l2_pa = kernel_vmm_alloc_pt();
+        if (l2_pa == 0) return 0;
+        l1_table[l1i] = vmm_table_desc(l2_pa);
+        clean_data_cache_range((const void *)&l1_table[l1i], 8);
+        vmm_tlb_flush();
+    }
+    unsigned long l2_pa = l1_table[l1i] & ~0xfffUL;
+    volatile unsigned long *l2 = (volatile unsigned long *)l2_pa;
+    if (l2[l2i] == 0) {
+        unsigned long l3_pa = kernel_vmm_alloc_pt();
+        if (l3_pa == 0) return 0;
+        l2[l2i] = vmm_table_desc(l3_pa);
+        clean_data_cache_range((const void *)&l2[l2i], 8);
+        vmm_tlb_flush();
+    }
+    unsigned long l3_pa = l2[l2i] & ~0xfffUL;
+    volatile unsigned long *l3 = (volatile unsigned long *)l3_pa;
+    l3[l3i] = vmm_page_desc_nc(pa);
+    clean_data_cache_range((const void *)&l3[l3i], 8);
+    vmm_tlb_flush();
+    return 1;
 }
 
 volatile unsigned long el0_test_result_x0 = 0;

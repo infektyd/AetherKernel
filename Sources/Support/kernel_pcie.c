@@ -112,6 +112,12 @@ static uint32_t vl805_mmio_early_ticks_val;  // 54MHz ticks for Phase 1 MMIO rea
 static uint32_t pcie_win0_lo_pre_val;
 static uint32_t pcie_win0_bl_pre_val;
 
+// Inherit-path diagnostics: ms waited before link appeared (without our reset cycle).
+// 0xFFFFU = link did not come up in 500ms inherit window; full bring-up was used.
+static uint32_t pcie_link_inherit_ms_val;
+// Whether the inherit path (no BRIDGE_SW_INIT clear) was taken (1) or full bring-up (0).
+static int      pcie_path_inherited;
+
 // MMIO probe BEFORE any PCIe RC manipulation — captures Pi firmware handoff state.
 // If non-0xDEADDEAD: Pi firmware leaves MMIO accessible; our reset breaks it.
 // If 0xDEADDEAD: Pi firmware already disabled MMIO at XHCI_STOP; need to find that path.
@@ -122,6 +128,9 @@ static uint32_t pcie_bar0_pre_reset_val;
 // ENAB=bit4; SRC=bits[3:0]; BUSY=bit9 (read-only).  Pre should be 0 if firmware disabled it.
 static uint32_t pcie_cm_pcie_pre_val;
 static uint32_t pcie_cm_pcie_post_val;
+// CM_PCIE captured right at L0 detection (before MMIO probe).
+// If ENAB=0 here, the BCM2711 CPRMAN gated the PCIe LP clock during LTSSM.
+static uint32_t pcie_cm_pcie_at_l0_val;
 // MMIO read at 0x600000000 BEFORE PERST# deassertion (link still down).
 // If ticks~0 → AXI intercepts outbound window regardless of link state (routing broken).
 // If ticks~24 → AXI routes to PCIe RC which returns local link-down error (routing works).
@@ -165,6 +174,27 @@ static uint32_t pcie_lnkctl_val;
 static uint32_t pcie_hard_debug_post_val;
 // MISC_CTRL captured after link-up (verify SCB_ACCESS_EN=bit12 is still set).
 static uint32_t pcie_misc_ctrl_post_val;
+// MMIO probe immediately at DL_ACTIVE=1 detection (no settle delay, no register reads).
+// If imm_l0_ticks=0: routing already broken at the exact DL_ACTIVE detection moment.
+// If imm_l0_ticks=25+: routing OK at DL_ACTIVE; something in the post-link sequence breaks it.
+// Compare with at_l0_ticks (measured after 1ms settle + MISC/WIN0 re-writes).
+static uint32_t pcie_mmio_imm_l0_val;
+static uint32_t pcie_mmio_imm_l0_ticks;
+
+// ── Inline UART diagnostics (direct PL011 MMIO, same pattern as kernel_xhci.c) ──
+#define PCIE_D_UART 0xFE201000UL
+static void pcie_d_putc(char c) {
+    while (*(volatile uint32_t *)(PCIE_D_UART + 0x18UL) & (1U << 5)) {}
+    *(volatile uint32_t *)(PCIE_D_UART) = (uint32_t)(uint8_t)c;
+}
+static void pcie_d_puts(const char *s) {
+    while (*s) { if (*s == '\n') pcie_d_putc('\r'); pcie_d_putc(*s++); }
+}
+static void pcie_d_hex(uint32_t v) {
+    const char h[] = "0123456789abcdef";
+    pcie_d_putc('0'); pcie_d_putc('x');
+    for (int i = 28; i >= 0; i -= 4) pcie_d_putc(h[(v >> i) & 0xfU]);
+}
 
 // ── Timing (generic timer at 54 MHz on Pi4) ────────────────────────────────
 static void pcie_udelay(unsigned int us) {
@@ -184,7 +214,7 @@ static uint32_t encode_ibar_size(uint64_t sz) {
     if (v == 0) return 0U;
     while (v > 1) { v >>= 1; s++; }
     if (s < 16 || s > 36) return 0U;
-    return (uint32_t)(s - 15);
+    return (uint32_t)(s - 14);  // Linux brcm_pcie_encode_ibar_size: ilog2(sz) - 15 + 1 = ilog2(sz) - 14
 }
 
 // ── Outbound window (win 0) ────────────────────────────────────────────────
@@ -243,77 +273,46 @@ int kernel_pcie_selftest(void) {
     pcie_probed = 1;
     pcie_link_ok = 0;
 
+    pcie_d_puts("v61:enter\n");
     // BCM2711 CPRMAN PCIe LP clock enable — must happen before ANYTHING else.
     // Linux pcie-brcmstb.c calls clk_prepare_enable(sw_pcie=BCM2711_CLK_PCIE0_LP) as
     // its very first step.  Without this clock, the BCM2711 AXI SCB fabric intercepts
     // all ARM reads into the outbound window (0x600000000) and returns 0xDEADDEAD before
     // any PCIe TLP is generated.  CPRMAN writes require 0x5A in bits[31:24] as a password.
     pcie_cm_pcie_pre_val = CM32(CM_PCIE_OFF);
-    CM32(CM_PCIE_OFF) = CM_PASSWD | (pcie_cm_pcie_pre_val & 0xFU) | (1U << 4); // ENAB=1
-    pcie_udelay(100);
-    pcie_cm_pcie_post_val = CM32(CM_PCIE_OFF);
+    pcie_d_puts("v61:cm_ok\n");
+    // Do NOT write CM_PCIE_OFF: Pi firmware leaves SRC=0; writing ENAB=1|SRC=0 stalls
+    // every PCIE RC read by ~10.8s (clock block spins with no source).  Pi firmware has
+    // already enabled the PCIe LP clock before handing off to our kernel — just inherit.
+    pcie_cm_pcie_post_val = pcie_cm_pcie_pre_val;  // diagnostic: same as pre (no write)
 
-    // Pre-reset MMIO probe: read VL805 MMIO before ANY PCIe manipulation.
-    // If non-0xDEADDEAD → Pi firmware left MMIO accessible; our reset sequence breaks it.
-    // If 0xDEADDEAD → XHCI_STOP already disabled MMIO; need to find the teardown path.
-    // Also snapshot BAR0 before anything (reveals Pi firmware's BAR assignment).
-    {
-        uint32_t link_st = PCIE32(OFF_MISC_PCIE_STATUS);
-        if ((link_st & (STATUS_PHYLINKUP | STATUS_DL_ACTIVE)) ==
-                (STATUS_PHYLINKUP | STATUS_DL_ACTIVE)) {
-            // Pi firmware left link up; try config-space BAR0 read before our reset.
-            PCIE32(OFF_EXT_CFG_INDEX) = (1U << 20) | (0U << 15) | (0U << 12);
-            __asm__ volatile("dsb sy" ::: "memory");
-            uint32_t raw_bar0 = PCIE32(OFF_EXT_CFG_DATA + 0x10U);
-            pcie_bar0_pre_reset_val = raw_bar0;
-            // If BAR0 is assigned (bits[31:4] != 0), probe MMIO at that translated address.
-            if ((raw_bar0 & ~0xFU) != 0U) {
-                __asm__ volatile("dsb sy" ::: "memory");
-                pcie_mmio_pre_reset_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
-            } else {
-                pcie_mmio_pre_reset_val = 0xBAADBAADU;  // BAR0 not assigned by firmware
-            }
-        } else {
-            pcie_mmio_pre_reset_val = 0xBAADBAADU;  // link was down before our reset
-            pcie_bar0_pre_reset_val = 0xBAADBAADU;
-        }
-    }
+    // Pi firmware 'PCI0 reset' sets RGR1_SW_INIT_1 BRIDGE_SW_INIT=1 which gates the
+    // entire MISC register region.  ARM reads to MISC (0xFD504xxx) stall ~10.8s each
+    // (AXI interconnect timeout) when bridge is in reset.  RGR1 (0xFD50_9210) is on
+    // the always-on control plane and remains accessible even while bridge is in reset.
+    // Read RGR1 first — no MISC access until after BRIDGE_SW_INIT is cleared.
+    pcie_rgr1_pi_val = PCIE32(OFF_RGR1_SW_INIT_1);
+    pcie_d_puts("v61:rgr1="); pcie_d_hex(pcie_rgr1_pi_val); pcie_d_puts("\n");
 
-    // Re-enable USB HCD power domain (device_id=3) before touching PCIe RC registers.
-    // Pi firmware's XHCI_STOP calls SET_POWER_STATE(USB_HCD=3, OFF), disabling the
-    // BCM2711 AXI system-bus routing for 0x600000000 → PCIe RC.  ARM MMIO reads at
-    // VL805 BAR0 return 0xDEADDEAD (AXI fabric error fill) until this domain is
-    // re-enabled — WIN0 and MISC_CTRL programming alone cannot fix it.
-    // state=3: power ON + wait for transition to complete.
-    kernel_vc_mbox_set_power_state(3U, 3U);
-    pcie_udelay(100000);  // 100ms for power domain to stabilize
+    // Pre-reset diagnostics: MISC inaccessible (bridge in reset), use placeholders.
+    pcie_bar0_pre_reset_val = 0xBAADBAADU;
+    pcie_mmio_pre_reset_val = 0xBAADBAADU;
+    pcie_win0_lo_pre_val    = 0xBAADBAADU;
+    pcie_win0_bl_pre_val    = 0xBAADBAADU;
 
-    // Deassert BCM2711 PCIe0 firmware reset domain.
-    // Linux dt-binding: RASPBERRYPI_FIRMWARE_RESET_ID_PCIE0 = 1.
-    // Linux reset driver: deassert → state=0, assert → state=1.
-    // Linux pcie-brcmstb.c calls reset_control_deassert(pcie->reset) as first step,
-    // before ANY register writes and before PERST# deassertion.
-    // Without this, the BCM2711 AXI→PCIe translation bridge fabric stays gated:
-    // ARM reads at 0x600000000 intercept at the AXI fabric (0 ticks, 0xDEADDEAD)
-    // despite WIN0 being correct and the PCIe link being up.
-    kernel_vc_mbox_set_pcie_reset(1U, 0U);  // PCIE0 id=1, state=0=deassert
-    pcie_udelay(10000);  // 10ms for domain to enable
+    // Pi firmware always asserts BRIDGE_SW_INIT + PERST during 'PCI0 reset' before
+    // handing off to our kernel.  Inherit path (checking if link is already up) cannot
+    // work because the MISC reads it requires stall ~10.8s each.  Skip it; go directly
+    // to full bring-up which deasserts BRIDGE_SW_INIT and makes MISC accessible.
+    pcie_path_inherited = 0;
+    pcie_link_inherit_ms_val = 0xFFFFU;
+    pcie_d_puts("v61:bringup\n");
+    if (!pcie_path_inherited) {
+    // ── Full bring-up path (BRIDGE_SW_INIT + PERST# cycle) ───────────────────
+    // Standard Linux pcie-brcmstb.c ordering: configure MISC registers AFTER
+    // BRIDGE_SW_INIT clear (which resets them) and BEFORE PERST# deassertion.
 
-    // Snapshot Pi firmware register state before we reset anything.
-    pcie_rgr1_pi_val     = PCIE32(OFF_RGR1_SW_INIT_1);   // bit0=PERST#, bit1=bridge_sw_init
-    pcie_win0_lo_pre_val = PCIE32(OFF_MISC_WIN0_LO);
-    pcie_win0_bl_pre_val = PCIE32(OFF_MISC_WIN0_BL);
-
-    // Full PERST# + bridge-SW-reset bring-up, matching Linux pcie-brcmstb.c ordering:
-    //   MISC_CTRL, WIN0, BAR2, HARD_DEBUG are configured AFTER bridge-reset deassertion
-    //   but BEFORE PERST# deassertion.
-    //
-    // Previous attempts set WIN0/MISC_CTRL after link-up (Fixes 1 & 2). Both left
-    // MMIO returning 0xDEADDEAD.  The BCM2711 AXI fabric's ARM→PCIe routing appears
-    // to latch SCB_ACCESS_EN / outbound-window state at PERST# deassertion time;
-    // writing those registers after the fact has no effect.
-
-    // 1. Assert PERST# + bridge SW reset simultaneously.
+    // 1. Assert PERST# + bridge SW reset simultaneously (no-op if rgr1_pi=0x3).
     PCIE32(OFF_RGR1_SW_INIT_1) |= (RGR1_PERST | RGR1_BRIDGE_SW_INIT);
     pcie_udelay(100);
 
@@ -341,15 +340,18 @@ int kernel_pcie_selftest(void) {
         PCIE32(OFF_MISC_MISC_CTRL) = mc;
     }
 
-    // 6. Inbound DMA window (RC BAR2): PCIe 0x400000000 → ARM phys 0x0, 4GB.
+    // 6. Inbound DMA window (RC BAR2): 64-bit, PCIe 0x400000000 → ARM phys 0x0, 4GB.
+    // BAR2_HI=0x4 sets the PCIe window base to 0x400000000; BAR2_LO encodes the size.
+    // DMA_TO_BUS(phys) = phys + 0x400000000.  BAR2 is re-asserted after both VC calls
+    // below because Pi firmware may overwrite it when loading VL805 firmware.
     {
-        uint64_t bar2_off  = 0x400000000ULL;
-        uint64_t bar2_size = 0x100000000ULL;
-        uint32_t enc = encode_ibar_size(bar2_size);
-        PCIE32(OFF_MISC_RC_BAR2_LO) = (uint32_t)((bar2_off & ~0x1FULL) & 0xFFFFFFFFU) | enc;
-        PCIE32(OFF_MISC_RC_BAR2_HI) = (uint32_t)(bar2_off >> 32);
+        uint32_t bar2_enc = encode_ibar_size(0x100000000ULL);  // 4GB → encoding=18
+        PCIE32(OFF_MISC_RC_BAR2_LO) = bar2_enc;   // bits[31:5]=0 (base_lo=0), bits[4:0]=enc
+        PCIE32(OFF_MISC_RC_BAR2_HI) = 0x4U;       // upper 32 bits of 0x400000000
         PCIE32(OFF_MISC_RC_BAR1_LO) &= ~0x1FU;
         PCIE32(OFF_MISC_RC_BAR3_LO) &= ~0x1FU;
+        pcie_d_puts("v61:bar2lo="); pcie_d_hex(PCIE32(OFF_MISC_RC_BAR2_LO)); pcie_d_puts("\n");
+        pcie_d_puts("v61:bar2hi="); pcie_d_hex(PCIE32(OFF_MISC_RC_BAR2_HI)); pcie_d_puts("\n");
     }
 
     // 7. HARD_DEBUG: clear CLKREQ_DBG_EN (gates endpoint ref-clock), SERDES_IDDQ,
@@ -379,8 +381,8 @@ int kernel_pcie_selftest(void) {
     pcie_rc_cmd_val = PCIE32(0x0004U);
 
     // 9b. Pre-PERST# MMIO probe: read VL805 MMIO with link STILL DOWN.
-    //     If ticks~0  → AXI fabric intercepts the address before the PCIe RC sees it.
-    //     If ticks~2.7M → AXI routes to PCIe RC → CTO after 50ms (outbound window works).
+    //     If ticks~25  → AXI routes to PCIe RC (routing works, link just down locally).
+    //     If ticks~0   → AXI intercepts before PCIe RC (routing broken).
     __asm__ volatile("dsb sy" ::: "memory");
     {
         uint64_t _t0, _t1;
@@ -393,28 +395,28 @@ int kernel_pcie_selftest(void) {
 
     // 9c. Disable ASPM on the RC side before PERST# deassertion.
     //     LNKCTL bits[1:0] = 00 → ASPM disabled (no L0s or L1 negotiation).
-    //     Without this the endpoint may negotiate L0s/L1 immediately after L0 entry,
-    //     causing the BCM2711 AXI fabric to return 0xDEADDEAD in 0 ticks (L1 state).
-    //     Note: WRITING PCIE32(0x0020) BEFORE PERST# caused postperst regression
-    //     (ticks 39→1), so the MemBase/MemLimit write was moved to AFTER link-up.
-    PCIE32(OFF_LNKCTL_STA) &= ~0x3U;  // LNKCTL bits[1:0] = 00 = ASPM disabled
+    PCIE32(OFF_LNKCTL_STA) &= ~0x3U;
 
-    // DISPROVED 9d: Gen1 forcing via PRIV1_LINK_CAPABILITY(0x04DC) + LNKCTL2(0x00DC).
-    //   Writing 0x04DC BEFORE PERST# caused postperst_ticks=0 (routing breaks at PERST#
-    //   deassertion, earlier than the previous at_l0=0 breakpoint).  Link still trained
-    //   to Gen1 speed=1 but routing stayed broken.  HYPOTHESIS DISPROVED.  Removed.
-    pcie_priv1_lnkcap_pre_val  = PCIE32(0x04DCU);  // capture only, no write
+    // PRIV1 (0x04DC): read only — writing caused postperst_ticks=0 (routing break at PERST#).
+    pcie_priv1_lnkcap_pre_val  = PCIE32(0x04DCU);
     pcie_priv1_lnkcap_post_val = pcie_priv1_lnkcap_pre_val;
-    pcie_lnkctl2_pre_val       = PCIE32(0x00DCU);  // capture only, no write
-    pcie_lnkctl2_post_val      = pcie_lnkctl2_pre_val;
+    // LNKCTL2 (0x00DC): force Gen1 (TLS=1) to suppress Gen2 speed-change TLP during LTSSM.
+    // Theory: Gen2 speed-change causes BCM2711 AXI to re-gate the PCIe0 outbound path at
+    // the DL_ACTIVE 0→1 transition (Gen2). Forcing Gen1 keeps the link in L0 without
+    // Recovery.RcvrCfg, so DL_ACTIVE rises only once and the routing stays intact.
+    // If postperst_ticks drops to 0: LNKCTL2 write is also unsafe; revert it.
+    // If at_l0_ticks becomes non-0 (speed=1 in output): Gen2 speed-change was the root cause.
+    pcie_lnkctl2_pre_val  = PCIE32(0x00DCU);
+    PCIE32(0x00DCU) = (pcie_lnkctl2_pre_val & ~0xFU) | 0x1U;  // TLS = Gen1
+    pcie_lnkctl2_post_val = PCIE32(0x00DCU);
 
     // 10. Deassert PERST# — VL805 starts EEPROM firmware load + link training.
     PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_PERST;
     __asm__ volatile("dsb sy" ::: "memory");
 
-    // 10a. Immediate post-PERST# probe: read MMIO BEFORE link training starts.
-    //      If ticks~0 immediately after clearing PERST# bit: the bit itself gates AXI routing.
-    //      If ticks~24: routing still works; link training later causes the transition.
+    // 10a. Immediate post-PERST# probe: read MMIO right after PERST# cleared.
+    //      postperst_ticks=21-25 → routing still works (PCIe RC local error, no TLP).
+    //      Routing break happens DURING LTSSM (at_l0_ticks=0-1 vs postperst~25).
     {
         uint64_t _t0, _t1;
         __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t0));
@@ -426,7 +428,18 @@ int kernel_pcie_selftest(void) {
 
     pcie_udelay(120000);
 
-    // 11. Poll for link-up, up to 100ms.
+    } // end !pcie_path_inherited
+
+    pcie_d_puts("v61:poll\n");
+    // ── Common path: inherit or full bring-up ─────────────────────────────────
+    // If inherited: link should already be L0; proceed directly to diagnostics.
+    // If full bring-up: poll for L0 up to 100ms.
+    // KEY: immediately upon DL_ACTIVE detection, re-call set_pcie_reset(1,0).
+    // Hypothesis: BCM2711 AXI outbound routing is gated by the VC PCIe0 reset domain.
+    // When set_pcie_reset(1,0) is called at bring-up start, routing enables (~25 ticks).
+    // When LTSSM completes (DL_ACTIVE=1), BCM2711 internally re-gates AXI routing
+    // (resetting the domain). Re-calling set_pcie_reset(1,0) immediately at L0 + 200ms
+    // settling should re-enable routing.
     {
         int linked = 0;
         for (int i = 0; i < 1000 && !linked; i++) {
@@ -434,87 +447,93 @@ int kernel_pcie_selftest(void) {
             if ((st & (STATUS_PHYLINKUP | STATUS_DL_ACTIVE)) ==
                     (STATUS_PHYLINKUP | STATUS_DL_ACTIVE)) {
                 linked = 1;
+                // Immediate probe: measure ticks at DL_ACTIVE=1 before any code runs.
+                // Isolates: routing broken at DL_ACTIVE itself vs broken by post-link writes.
+                __asm__ volatile("dsb sy" ::: "memory");
+                {
+                    uint64_t _t0, _t1;
+                    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t0));
+                    pcie_mmio_imm_l0_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
+                    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t1));
+                    uint64_t _dt = _t1 - _t0;
+                    pcie_mmio_imm_l0_ticks = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
+                }
             } else {
                 pcie_udelay(100);
             }
         }
-        if (!linked) return 0;
+        if (!linked) { pcie_d_puts("v61:NO_LINK\n"); return 0; }
     }
+    pcie_d_puts("v61:L0\n");
 
-    // 11b. Probe MMIO immediately at L0, before any step-13 writes.
-    //      Capture WIN0 CPU-range regs first: if bl_at_l0=0 or bhi_at_l0=0 the AXI
-    //      fabric lost the address translation during LTSSM → that explains DECERR (0 ticks).
-    //      at_l0_ticks=0  → routing broke during LTSSM training itself
-    //      at_l0_ticks>0  → routing still works at L0; step 13 code is responsible for breakage
+    // All PCIE RC register work BEFORE any VC calls (set_power_state / set_pcie_reset).
+    // Both VC calls trigger Pi firmware re-inits that stall PCIE RC MMIO indefinitely
+    // when VL805 USB3 is in over-current state.  Complete all RC reads/writes first.
     __asm__ volatile("dsb sy" ::: "memory");
+    pcie_cm_pcie_at_l0_val = CM32(CM_PCIE_OFF);
     pcie_win0_bl_at_l0  = PCIE32(OFF_MISC_WIN0_BL);
     pcie_win0_bhi_at_l0 = PCIE32(OFF_MISC_WIN0_BHI);
     pcie_win0_lhi_at_l0 = PCIE32(OFF_MISC_WIN0_LHI);
+
     {
-        uint64_t _t0, _t1;
-        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t0));
-        pcie_mmio_at_l0_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
-        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t1));
-        uint64_t _dt = _t1 - _t0;
-        pcie_mmio_at_l0_ticks = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
+        uint32_t mc = PCIE32(OFF_MISC_MISC_CTRL);
+        mc |= (1U << 12);   // SCB_ACCESS_EN
+        mc |= (1U << 13);   // CFG_READ_UR_MODE
+        mc |= (1U << 20);   // MAX_BURST_SIZE 128B
+        mc  = (mc & ~(0x1FU << 27)) | (0x11U << 27);  // SCB0_SIZE = 4GB
+        PCIE32(OFF_MISC_MISC_CTRL) = mc;
     }
-    // If at_l0_ticks=0 and win0_bl_at_l0=0: WIN0 CPU range was reset during LTSSM.
-    // Fix: re-write WIN0 here (pcie_set_outbound_win0 again) and re-test.
-    // If at_l0_ticks=0 and win0_bl_at_l0 correct: AXI routing is blocked by something
-    // independent of WIN0 register values (power domain, clock gate, or AXI bus error).
-    if (pcie_mmio_at_l0_ticks == 0 && pcie_win0_bl_at_l0 == 0) {
-        // WIN0_BL was cleared during LTSSM — re-apply outbound window and re-probe.
-        pcie_set_outbound_win0(CPU_WIN_BASE, PCIE_WIN_BASE, WIN_SIZE_MB);
-        __asm__ volatile("dsb sy" ::: "memory");
-        uint64_t _t0, _t1;
-        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t0));
-        pcie_mmio_at_l0_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
-        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t1));
-        uint64_t _dt = _t1 - _t0;
-        pcie_mmio_at_l0_ticks = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
-    }
+    pcie_set_outbound_win0(CPU_WIN_BASE, PCIE_WIN_BASE, WIN_SIZE_MB);
+    PCIE32(0x0018U) = 0x00010100U;
+    PCIE16(0x0004U) |= 0x0006U;
+    pcie_rc_cmd_val = PCIE32(0x0004U);
 
-    // 11c. Re-assert USB_HCD power domain after link training.
-    //      Theory: the BCM2711 VideoCore auto-powers-off USB_HCD (device 3) when the
-    //      PCIe link trains to L0, because the endpoint (VL805) is now "active" and
-    //      the firmware transitions ownership.  Re-enabling the domain here restores
-    //      the AXI→PCIe routing gate that set_power_state(3,3) opened at line ~271.
-    //      state=3 = power ON + wait for transition.
-    kernel_vc_mbox_set_power_state(3U, 3U);
-    pcie_udelay(50000);  // 50ms for domain to re-stabilise
-    __asm__ volatile("dsb sy" ::: "memory");
-
-    // 12. Read link speed + width from LNKSTA.
     {
         uint32_t lnkctl_sta = PCIE32(OFF_LNKCTL_STA);
         pcie_speed_val = (lnkctl_sta >> 16) & 0xFU;
         pcie_width_val = (lnkctl_sta >> 20) & 0x3FU;
     }
-
-    // 13. Post-link-up: diagnostics, MemBase/MemLimit, ASPM re-check, MMIO probe.
-    // 13a. Snapshot LNKCTL, HARD_DEBUG, MISC_CTRL after L0 (diagnostic baselines).
-    pcie_lnkctl_val         = PCIE32(OFF_LNKCTL_STA) & 0xFFFFU;
+    pcie_lnkctl_val          = PCIE32(OFF_LNKCTL_STA) & 0xFFFFU;
     pcie_hard_debug_post_val = PCIE32(OFF_MISC_HARD_DEBUG);
     pcie_misc_ctrl_post_val  = PCIE32(OFF_MISC_MISC_CTRL);
-
-    // 13b. Write Type 1 bridge MemBase/MemLimit AFTER link-up.
-    //      Writing before PERST# caused postperst regression (ticks 39→1).
-    //      Writing after L0: bridge enforces window correctly for 0xf8000000→0xfbffffff.
-    PCIE32(0x0020U) = (0xfbf0U << 16) | 0xf800U;  // MemLimit=0xfbffffff, MemBase=0xf8000000
+    PCIE32(0x0020U) = (0xfbf0U << 16) | 0xf800U;  // MemBase/MemLimit
     __asm__ volatile("dsb sy" ::: "memory");
 
-    // 13c. Re-apply PCIe0 firmware domain deassert and probe MMIO.
-    kernel_vc_mbox_set_pcie_reset(1U, 0U);
-    pcie_udelay(5000);
-    __asm__ volatile("dsb sy" ::: "memory");
+    // All PCIE RC register work done.  Issue VC calls that un-gate MMIO routing.
+    // Deferred to here because PERST# during bring-up reset VL805 and cleared OC state.
+    pcie_d_puts("v61:pwr_pre\n");
+    kernel_vc_mbox_set_power_state(3U, 3U);   // USB HCD ON: re-enable AXI→0x600000000
+    pcie_d_puts("v61:pwr_ok\n");
+    pcie_udelay(3000000);  // 3s for USB HCD domain + any implicit PCIe reset to settle
+
+    pcie_d_puts("v61:rst_pre\n");
+    kernel_vc_mbox_set_pcie_reset(1U, 0U);    // PCIE0 deassert: un-gate outbound path
+    pcie_d_puts("v61:rst_ok\n");
+    pcie_udelay(500000);  // 500ms for AXI outbound routing to stabilize
+
+    // Re-assert inbound DMA window after both VC calls: Pi firmware's USB HCD power-on
+    // sequence may have reconfigured or zeroed BAR2 while loading VL805 firmware.
+    // Any BAR2 value set above is restored here unconditionally.
+    {
+        uint32_t bar2_enc = encode_ibar_size(0x100000000ULL);  // 4GB
+        PCIE32(OFF_MISC_RC_BAR2_LO) = bar2_enc;   // base_lo=0, enc=18
+        PCIE32(OFF_MISC_RC_BAR2_HI) = 0x4U;       // upper 32 bits of 0x400000000
+        __asm__ volatile("dsb sy" ::: "memory");
+        pcie_d_puts("v61:bar2lo_vc="); pcie_d_hex(PCIE32(OFF_MISC_RC_BAR2_LO)); pcie_d_puts("\n");
+        pcie_d_puts("v61:bar2hi_vc="); pcie_d_hex(PCIE32(OFF_MISC_RC_BAR2_HI)); pcie_d_puts("\n");
+    }
+
+    // MMIO probes (at_l0 and post_link reuse same probe — MMIO path now live).
     {
         uint64_t _t0, _t1;
         __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t0));
-        pcie_mmio_post_link_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
+        pcie_mmio_at_l0_val = *(volatile uint32_t *)VL805_MMIO_ARM_PHYS;
         __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t1));
         uint64_t _dt = _t1 - _t0;
-        pcie_mmio_post_link_ticks = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
+        pcie_mmio_at_l0_ticks = (uint32_t)(_dt > 0xFFFFFFFFU ? 0xFFFFFFFFU : _dt);
     }
+    pcie_mmio_post_link_val   = pcie_mmio_at_l0_val;
+    pcie_mmio_post_link_ticks = pcie_mmio_at_l0_ticks;
 
     pcie_link_ok = 1;
     return 1;
@@ -538,6 +557,11 @@ unsigned int kernel_pcie_mmio_pre_reset(void)  { return (unsigned int)pcie_mmio_
 unsigned int kernel_pcie_bar0_pre_reset(void)  { return (unsigned int)pcie_bar0_pre_reset_val;   }
 unsigned int kernel_pcie_cm_pcie_pre(void)      { return (unsigned int)pcie_cm_pcie_pre_val;        }
 unsigned int kernel_pcie_cm_pcie_post(void)     { return (unsigned int)pcie_cm_pcie_post_val;       }
+unsigned int kernel_pcie_cm_pcie_at_l0(void)    { return (unsigned int)pcie_cm_pcie_at_l0_val;      }
+int          kernel_pcie_path_inherited(void)    { return pcie_path_inherited;                       }
+unsigned int kernel_pcie_link_inherit_ms(void)  { return (unsigned int)pcie_link_inherit_ms_val;    }
+unsigned int kernel_pcie_mmio_imm_l0(void)       { return (unsigned int)pcie_mmio_imm_l0_val;        }
+unsigned int kernel_pcie_mmio_imm_l0_ticks(void){ return (unsigned int)pcie_mmio_imm_l0_ticks;      }
 unsigned int kernel_pcie_mmio_pre_perst(void)   { return (unsigned int)pcie_mmio_pre_perst_val;     }
 unsigned int kernel_pcie_mmio_pre_perst_ticks(void) { return (unsigned int)pcie_mmio_pre_perst_ticks; }
 unsigned int kernel_pcie_mmio_post_perst(void)  { return (unsigned int)pcie_mmio_post_perst_val;    }
@@ -688,22 +712,58 @@ int kernel_vl805_selftest(void) {
     vl805_aer_sts_val  = PCIE32(0x104U);
     vl805_aer_msk_val  = PCIE32(0x108U);
 
-    if (vl805_mmio_early_val != 0xDEADDEADU) {
-        // VL805 MCU was alive post-handoff; no NOTIFY needed.
-        vl805_mmio_poll_ms_val = 0U;
-        vl805_hard_debug_post_val = vl805_hard_debug_pre_val;
-        vl805_vc_xhci_reset_val  = -2;  // skipped
-        vl805_ok_val = 1;
-        return 1;
+    // VL805 EEPROM firmware makes MMIO accessible but lacks USB2 PHY tuning tables —
+    // HS chirp never completes (PED stays 0) when running EEPROM firmware.
+    // Always call NOTIFY_XHCI_RESET so the Pi VC loads its VL805 firmware blob, which
+    // includes USB2 PHY tuning that enables HS operation.  Record mmio_early as
+    // diagnostic (0=EEPROM not yet live, non-0=EEPROM alive) but do not return early.
+
+    // ── Phase 2: Pre-PERST# + NOTIFY_XHCI_RESET.
+    // The VL805 EEPROM firmware (version 0x138c0) lacks USB2 PHY tuning. Pi VC's NOTIFY
+    // handler checks fw_ver via PCIe config 0x50: if fw == expected_version, it SKIPS the
+    // VC-blob reload (including USB2 PHY tuning). Since EEPROM fw_ver == expected_version,
+    // NOTIFY is always skipped after EEPROM boot.
+    //
+    // Fix: call NOTIFY IMMEDIATELY after de-asserting PERST# — before PCIe link re-trains
+    // (~150ms) and therefore before Pi VC can read fw_ver via PCIe. Pi VC reads a timeout/
+    // error for fw_ver (link down) and treats VL805 as uninitialized → does full VC-blob
+    // reload with USB2 PHY tuning. The NOTIFY mailbox is ARM→VC (not PCIe), so it works
+    // regardless of PCIe link state. Pi VC manages its own PERST# cycle internally.
+    {
+        uint64_t _t0, _t1, _freq;
+        __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(_freq));
+
+        PCIE32(OFF_RGR1_SW_INIT_1) |= RGR1_PERST;
+        pcie_udelay(100000);   // 100ms PERST# hold: ensures clean VL805 reset
+        PCIE32(OFF_RGR1_SW_INIT_1) &= ~RGR1_PERST;
+        // Minimal 5ms electrical stabilization — PCIe link is still training (takes ~150ms).
+        // Calling NOTIFY before link-up ensures Pi VC sees fw_ver read fail (link down)
+        // → treats VL805 as uninitialized → performs full VC-blob reload + PHY tuning.
+        pcie_udelay(5000);
+
+        // Read fw_ver right before NOTIFY (while PCIe link is still down)
+        vl805_fw_ver_pre_val = pcie_cfg_rd(1, 0, 0, 0x50);
+
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t0));
+        vl805_vc_xhci_reset_val = kernel_vc_mbox_notify_xhci_reset();
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(_t1));
+
+        // Print NOTIFY timing in ms (diagnostic: >200ms = Pi VC did real work, <50ms = skipped)
+        uint32_t notify_ms = (uint32_t)((_t1 - _t0) * 1000ULL / _freq);
+        vl805_mmio_early_val = notify_ms;   // repurpose mmio_early_val as notify_ms for v62 print
     }
 
-    // ── Phase 2: NOTIFY_XHCI_RESET (Pi firmware reloads VL805 MCU firmware).
-    vl805_vc_xhci_reset_val = kernel_vc_mbox_notify_xhci_reset();
+    // NOTIFY called while PCIe link is still training. Wait for link-up before
+    // re-assigning BAR0, otherwise config writes are lost (link not ready).
+    for (int li = 0; li < 60; li++) {
+        uint32_t st = PCIE32(OFF_MISC_PCIE_STATUS);
+        if ((st & (STATUS_PHYLINKUP | STATUS_DL_ACTIVE)) ==
+                (STATUS_PHYLINKUP | STATUS_DL_ACTIVE)) break;
+        pcie_udelay(5000);   // poll every 5ms, up to 300ms total
+    }
+    pcie_udelay(20000);  // 20ms extra stability after link up
 
-    // Wait 3s for MCU reload + PLL re-lock.
-    pcie_udelay(3000000);
-
-    // Re-clear CLKREQ_DBG_EN, SERDES_IDDQ, L1SS_ENA.
+    // Re-clear CLKREQ_DBG_EN, SERDES_IDDQ, L1SS_ENA (NOTIFY may set them).
     {
         uint32_t hd = PCIE32(OFF_MISC_HARD_DEBUG);
         hd &= ~HARD_DEBUG_CLKREQ_DBG_EN;
@@ -712,9 +772,28 @@ int kernel_vl805_selftest(void) {
         PCIE32(OFF_MISC_HARD_DEBUG) = hd;
         vl805_hard_debug_post_val = hd;
     }
-    pcie_udelay(10000);
 
-    // Re-assign BAR0 after NOTIFY's PERST# cycle.
+    // Re-program outbound window + inbound DMA window after NOTIFY — Pi VC may have
+    // reconfigured BCM2711 MISC registers as part of its VL805 firmware load sequence.
+    {
+        uint32_t mc = PCIE32(OFF_MISC_MISC_CTRL);
+        mc |= (1U << 12);   // SCB_ACCESS_EN
+        mc |= (1U << 13);   // CFG_READ_UR_MODE
+        mc |= (1U << 20);   // MAX_BURST_SIZE 128B
+        mc  = (mc & ~(0x1FU << 27)) | (0x11U << 27);
+        PCIE32(OFF_MISC_MISC_CTRL) = mc;
+    }
+    pcie_set_outbound_win0(CPU_WIN_BASE, PCIE_WIN_BASE, WIN_SIZE_MB);
+    {
+        uint32_t bar2_enc = encode_ibar_size(0x100000000ULL);
+        PCIE32(OFF_MISC_RC_BAR2_LO) = bar2_enc;
+        PCIE32(OFF_MISC_RC_BAR2_HI) = 0x4U;
+    }
+    PCIE32(0x0018U) = 0x00010100U;
+    PCIE16(0x0004U) |= 0x0006U;
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    // Re-assign BAR0 after NOTIFY + link-up wait.
     pcie_cfg_wr(1, 0, 0, 0x10, (uint32_t)(PCIE_WIN_BASE & 0xFFFFFFFFU));
     pcie_cfg_wr(1, 0, 0, 0x14, (uint32_t)(PCIE_WIN_BASE >> 32));
     {
@@ -739,8 +818,9 @@ int kernel_vl805_selftest(void) {
     vl805_mmio_poll_ms_val = 0xFFFFU;
 
     // ── Phase 3: direct PERST# cycle + wait for EEPROM MCU auto-load.
-    // NOTIFY failed or Pi firmware no longer handles it in this firmware version.
+    // NOTIFY failed (or was skipped) — direct PERST# cycle as last resort.
     // Assert PERST# ourselves: VL805 boots from EEPROM (if present) on deassertion.
+phase3:;
     PCIE32(OFF_RGR1_SW_INIT_1) |= RGR1_PERST;
     pcie_udelay(200000);    // 200ms in reset
 

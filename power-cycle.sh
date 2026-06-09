@@ -65,13 +65,70 @@ file_size() { [ -f "$1" ] && (stat -f '%z' "$1" 2>/dev/null || wc -c <"$1" 2>/de
 
 need_host() { [ -n "$HOST" ] || die "backend '$BACKEND' needs AETHER_POWER_HOST"; }
 
-# Belkin Wemo local control via UPnP SOAP. $1 = BinaryState (1=on, 0=off).
+# Belkin Wemo local control via UPnP SOAP (no cloud). $1 = BinaryState (1=on, 0=off).
+#
+# Hardened (2026-06-08): the WSP080's UPnP/Wi-Fi control stack becomes
+# unresponsive after a while in service — observed reliably; exact trigger
+# (elapsed time vs toggle count) is UNCONFIRMED, so we assume nothing. There is
+# no software reset for a hung WSP080: it must be physically unplugged/replugged.
+# What this code does instead of silently stalling:
+#   - VERIFY every set with GetBinaryState, and RETRY a few times (rides out
+#     transient UPnP blips).
+#   - On hard failure, raise a LOUD, unmissable alert (stderr banner + sentinel
+#     file + macOS notification) so a human replugs it promptly.
+#   - Append a timestamped ledger of every toggle/failure so the real failure
+#     pattern can be analyzed from data later (no guessed threshold baked in).
 WEMO_PORT="${AETHER_POWER_WEMO_PORT:-49153}"
-wemo_set() {
+WEMO_RETRIES="${AETHER_WEMO_RETRIES:-4}"
+WEMO_ALERT="${AETHER_WEMO_ALERT:-/tmp/aether-wemo-ALERT}"
+WEMO_LEDGER="${AETHER_WEMO_LEDGER:-/tmp/aether-wemo-toggles.log}"
+
+wemo_soap() {  # $1=SOAPACTION method  $2=inner body xml  $3=timeout-secs; prints response body
+  curl -fsS --max-time "${3:-8}" \
+    "http://$HOST:$WEMO_PORT/upnp/control/basicevent1" \
+    -H 'Content-Type: text/xml; charset="utf-8"' \
+    -H "SOAPACTION: \"urn:Belkin:service:basicevent:1#$1\"" \
+    -d "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body>$2</s:Body></s:Envelope>" \
+    2>/dev/null
+}
+
+wemo_get() {  # prints current BinaryState digit (0=off, 1/8=on) or nothing on failure
+  wemo_soap GetBinaryState '<u:GetBinaryState xmlns:u="urn:Belkin:service:basicevent:1"></u:GetBinaryState>' 5 \
+    | grep -oE '<BinaryState>[0-9]+' | grep -oE '[0-9]+$' || true
+}
+
+wemo_alert() {  # loud + unmissable — the plug is hung and needs a physical replug
+  local msg="$1"
+  { echo ""
+    echo "  =================== WEMO UNRESPONSIVE ==================="
+    echo "  $HOST:$WEMO_PORT did not confirm — $msg"
+    echo "  Known WSP080 failure: UPnP control stops responding after a while."
+    echo "  FIX: physically UNPLUG the Wemo, wait ~5s, REPLUG it, then re-run."
+    echo "  ========================================================"
+    echo ""; } >&2
+  printf '%s  WEMO UNRESPONSIVE %s:%s — %s\n' "$(date '+%F %T')" "$HOST" "$WEMO_PORT" "$msg" > "$WEMO_ALERT" 2>/dev/null || true
+  osascript -e "display notification \"Wemo unresponsive — unplug/replug $HOST\" with title \"AetherKernel power\" sound name \"Basso\"" >/dev/null 2>&1 || true
+}
+
+wemo_set() {  # $1 = desired BinaryState (1/0): set, verify, retry; loud-fail if unconfirmed
   need_host
-  local state="$1"
-  local body="<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body><u:SetBinaryState xmlns:u=\"urn:Belkin:service:basicevent:1\"><BinaryState>${state}</BinaryState></u:SetBinaryState></s:Body></s:Envelope>"
-  run "curl -fsS --max-time 8 \"http://$HOST:$WEMO_PORT/upnp/control/basicevent1\" -H 'Content-Type: text/xml; charset=\"utf-8\"' -H 'SOAPACTION: \"urn:Belkin:service:basicevent:1#SetBinaryState\"' -d '$body' >/dev/null"
+  local want="$1" attempt got
+  if [ "$DRY_RUN" = "1" ]; then echo "  [dry-run] wemo SetBinaryState $want (verified+retried)"; return 0; fi
+  for attempt in $(seq 1 "$WEMO_RETRIES"); do
+    wemo_soap SetBinaryState "<u:SetBinaryState xmlns:u=\"urn:Belkin:service:basicevent:1\"><BinaryState>$want</BinaryState></u:SetBinaryState>" "$((6 + attempt * 2))" >/dev/null 2>&1 || true
+    got="$(wemo_get)"
+    if { [ "$want" = "1" ] && { [ "$got" = "1" ] || [ "$got" = "8" ]; }; } \
+       || { [ "$want" = "0" ] && [ "$got" = "0" ]; }; then
+      printf '%s  set=%s confirmed=%s attempt=%s\n' "$(date '+%F %T')" "$want" "$got" "$attempt" >> "$WEMO_LEDGER" 2>/dev/null || true
+      [ "$attempt" -gt 1 ] && log "wemo set=$want confirmed on attempt $attempt"
+      return 0
+    fi
+    log "wemo set=$want unconfirmed (got '${got:-no-response}'), attempt $attempt/$WEMO_RETRIES"
+    sleep 2
+  done
+  printf '%s  set=%s FAILED after %s attempts\n' "$(date '+%F %T')" "$want" "$WEMO_RETRIES" >> "$WEMO_LEDGER" 2>/dev/null || true
+  wemo_alert "SetBinaryState $want unconfirmed after $WEMO_RETRIES attempts"
+  return 1
 }
 
 power_off() {
