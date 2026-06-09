@@ -681,7 +681,7 @@ struct Application {
     uartPutDec(UInt64(capSelftest))
     uartPuts("\n")
     printBootcheck()
-    installExecutorProbe()
+    installKernelExecutor()
     spawnAetherTask(TASK_FAST_ID, KERNEL_TASK_ROOT_PARENT) { await fastHeartbeat() }
     spawnAetherTask(TASK_SLOW_ID, KERNEL_TASK_ROOT_PARENT) { await slowHeartbeat() }
     spawnAetherTask(TASK_LONG_ID, KERNEL_TASK_ROOT_PARENT) { await longHeartbeat() }
