@@ -72,7 +72,7 @@ def test_uart_shell_v20_channeltest_command_and_response_exist() -> None:
 
 def test_runtime_v20_bootcert_includes_channel_health() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
-    net_iterate = read_repo("net-iterate.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
 
     assert " version=40" in shell
     assert " channels=" in shell
@@ -80,8 +80,8 @@ def test_runtime_v20_bootcert_includes_channel_health() -> None:
 
 
 def test_runtime_v20_netboot_gates_and_shell_probe_exist() -> None:
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
         assert "runtime v20: bounded async channels" in source

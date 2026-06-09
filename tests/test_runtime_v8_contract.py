@@ -199,8 +199,8 @@ def test_uart_shell_v8_heapcheck_and_framecheck_commands_exist() -> None:
 
 def test_runtime_v8_boot_marker_and_netboot_gates_exist() -> None:
     app = read_repo("Sources/Application/Application.swift")
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (app, net_iterate, doctor):
         assert "runtime v8: allocator guardrails" in source

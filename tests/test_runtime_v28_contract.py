@@ -108,9 +108,9 @@ def test_runtime_v28_application_shell_and_bootcert_surface_exist() -> None:
 
 
 def test_runtime_v28_host_nm_audit_tool_contract_exists() -> None:
-    script = read_repo("runtime-audit.sh")
+    script = read_repo("scripts/runtime-audit.sh")
     result = run_script(
-        "runtime-audit.sh",
+        "scripts/runtime-audit.sh",
         "/tmp/kernel.macho",
         env={"AETHER_RUNTIME_AUDIT_DRY_RUN": "1", "AETHER_LLVM_NM": "llvm-nm"},
     )
@@ -141,8 +141,8 @@ def test_runtime_v28_host_nm_audit_tool_contract_exists() -> None:
 
 
 def test_runtime_v28_netboot_gates_exist() -> None:
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
         assert "runtime v28: swift runtime dependency audit" in source
@@ -159,8 +159,8 @@ def test_runtime_v28_netboot_gates_exist() -> None:
 
 def test_runtime_v28_docs_are_updated_after_hardware_proof() -> None:
     readme = read_repo("README.md")
-    runbook = read_repo("RUNBOOK.md")
-    design = read_repo("CONCURRENCY_DESIGN.md")
+    runbook = read_repo("docs/RUNBOOK.md")
+    design = read_repo("docs/CONCURRENCY_DESIGN.md")
 
     for source in (readme, runbook, design):
         assert "Runtime V28 Swift runtime dependency audit" in source

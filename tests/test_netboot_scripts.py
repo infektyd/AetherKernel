@@ -32,7 +32,7 @@ def test_config_names_kernel8_img_explicitly() -> None:
 
 
 def test_eeprom_netboot_config_matches_direct_bench_defaults() -> None:
-    config = (ROOT / "netboot-eeprom-config.txt").read_text()
+    config = (ROOT / "scripts/netboot/netboot-eeprom-config.txt").read_text()
 
     for line in (
         "BOOT_UART=1",
@@ -58,7 +58,7 @@ def test_prepare_tftp_seeds_prefixed_tree_from_boot_partition(tmp_path: pathlib.
     (boot / "overlays" / "disable-bt.dtbo").write_text("overlay")
 
     result = run_script(
-        "prepare-tftp.sh",
+        "scripts/netboot/prepare-tftp.sh",
         str(boot),
         str(root),
         env={"AETHER_TFTP_PREFIX": "aether-test"},
@@ -85,7 +85,7 @@ def test_prepare_tftp_can_download_minimal_firmware_set(tmp_path: pathlib.Path) 
     (mirror / "overlays" / "disable-bt.dtbo").write_text("overlay")
 
     result = run_script(
-        "prepare-tftp.sh",
+        "scripts/netboot/prepare-tftp.sh",
         "--download",
         str(root),
         env={
@@ -119,7 +119,7 @@ def test_prepare_tftp_prunes_stale_fallback_and_self_update_files(tmp_path: path
         (dest / stale).write_text("stale")
 
     run_script(
-        "prepare-tftp.sh",
+        "scripts/netboot/prepare-tftp.sh",
         "--download",
         str(root),
         env={
@@ -142,7 +142,7 @@ def test_netflash_copies_kernel_and_config_with_hash_verification(tmp_path: path
     config.write_text("kernel=kernel8.img\n")
 
     result = run_script(
-        "netflash.sh",
+        "scripts/netboot/netflash.sh",
         str(root),
         env={
             "AETHER_TFTP_PREFIX": "aether-test",
@@ -163,7 +163,7 @@ def test_serve_netboot_dry_run_is_tftp_only_and_bound_to_interface(tmp_path: pat
     (root / "aether-test").mkdir(parents=True)
 
     result = run_script(
-        "serve-netboot.sh",
+        "scripts/netboot/serve-netboot.sh",
         "en-test0",
         str(root),
         env={
@@ -187,7 +187,7 @@ def test_serve_netboot_can_disable_blocksize_as_diagnostic(tmp_path: pathlib.Pat
     (root / "aether-test").mkdir(parents=True)
 
     result = run_script(
-        "serve-netboot.sh",
+        "scripts/netboot/serve-netboot.sh",
         "en-test0",
         str(root),
         env={
@@ -207,7 +207,7 @@ def test_serve_netboot_can_replace_existing_bench_tftp_server(tmp_path: pathlib.
     (root / "aether-test").mkdir(parents=True)
 
     result = run_script(
-        "serve-netboot.sh",
+        "scripts/netboot/serve-netboot.sh",
         "en-test0",
         str(root),
         env={
@@ -220,9 +220,9 @@ def test_serve_netboot_can_replace_existing_bench_tftp_server(tmp_path: pathlib.
     )
 
     assert "replace existing AetherKernel TFTP providers: yes" in result.stdout
-    assert "pkill -f" in read_repo("serve-netboot.sh")
-    assert "dnsmasq.*--tftp-root=${TFTP_ROOT}" in read_repo("serve-netboot.sh")
-    assert "tftp-now.*serve.*${TFTP_ROOT}" in read_repo("serve-netboot.sh")
+    assert "pkill -f" in read_repo("scripts/netboot/serve-netboot.sh")
+    assert "dnsmasq.*--tftp-root=${TFTP_ROOT}" in read_repo("scripts/netboot/serve-netboot.sh")
+    assert "tftp-now.*serve.*${TFTP_ROOT}" in read_repo("scripts/netboot/serve-netboot.sh")
 
 
 def test_serve_netboot_exposes_single_port_and_mtu_diagnostics(tmp_path: pathlib.Path) -> None:
@@ -230,7 +230,7 @@ def test_serve_netboot_exposes_single_port_and_mtu_diagnostics(tmp_path: pathlib
     (root / "aether-test").mkdir(parents=True)
 
     result = run_script(
-        "serve-netboot.sh",
+        "scripts/netboot/serve-netboot.sh",
         "en-test0",
         str(root),
         env={
@@ -252,7 +252,7 @@ def test_serve_netboot_can_use_repo_owned_tftp_provider(tmp_path: pathlib.Path) 
     (root / "aether-test").mkdir(parents=True)
 
     result = run_script(
-        "serve-netboot.sh",
+        "scripts/netboot/serve-netboot.sh",
         "en-test0",
         str(root),
         env={
@@ -275,7 +275,7 @@ def test_serve_netboot_defaults_to_repo_owned_tftp_provider(tmp_path: pathlib.Pa
     (root / "aether-test").mkdir(parents=True)
 
     result = run_script(
-        "serve-netboot.sh",
+        "scripts/netboot/serve-netboot.sh",
         "en-test0",
         str(root),
         env={
@@ -293,7 +293,7 @@ def test_serve_netboot_defaults_to_repo_owned_tftp_provider(tmp_path: pathlib.Pa
 
 
 def test_serve_netboot_has_scoped_stop_mode_for_repo_owned_provider() -> None:
-    script = read_repo("serve-netboot.sh")
+    script = read_repo("scripts/netboot/serve-netboot.sh")
 
     assert "AETHER_NETBOOT_STOP" in script
     assert 'AETHER_NETBOOT_STOP="$STOP_ONLY"' in script
@@ -302,7 +302,7 @@ def test_serve_netboot_has_scoped_stop_mode_for_repo_owned_provider() -> None:
 
 
 def test_serial_reset_dry_run_targets_default_usb_ttl_port() -> None:
-    result = run_script("serial-reset.sh", env={"AETHER_SERIAL_RESET_DRY_RUN": "1"})
+    result = run_script("scripts/serial/serial-reset.sh", env={"AETHER_SERIAL_RESET_DRY_RUN": "1"})
 
     assert "/dev/cu.usbserial-B0044J1V" in result.stdout
     assert "payload: r" in result.stdout
@@ -311,7 +311,7 @@ def test_serial_reset_dry_run_targets_default_usb_ttl_port() -> None:
 
 def test_net_iterate_dry_run_describes_stage_reset_watch_loop() -> None:
     result = run_script(
-        "net-iterate.sh",
+        "scripts/netboot/net-iterate.sh",
         env={
             "AETHER_NETITERATE_DRY_RUN": "1",
             "AETHER_TFTP_ROOT": "/tmp/aether-root",
@@ -331,14 +331,14 @@ def test_net_iterate_dry_run_describes_stage_reset_watch_loop() -> None:
 
 
 def test_net_iterate_detects_stale_sd_fallback_image() -> None:
-    net_iterate = read_repo("net-iterate.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
 
     assert "async heartbeat: timer-backed sleep 1s" in net_iterate
     assert "stale SD fallback image detected" in net_iterate
 
 
 def test_net_iterate_reports_stale_pre_v11_sd_fallback_without_claiming_netboot() -> None:
-    net_iterate = read_repo("net-iterate.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
 
     assert "stale pre-V41 SD fallback image detected" in net_iterate
     assert "stale pre-V42 SD fallback image detected" in net_iterate
@@ -354,7 +354,7 @@ def test_net_iterate_reports_stale_pre_v11_sd_fallback_without_claiming_netboot(
 
 
 def test_net_iterate_classifies_start4_tftp_failures_as_bootloader_transfer() -> None:
-    net_iterate = read_repo("net-iterate.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
 
     assert "failed sending .*/start4\\\\.elf" in net_iterate
     assert "timeout sending .*/start4\\\\.elf" in net_iterate
@@ -363,7 +363,7 @@ def test_net_iterate_classifies_start4_tftp_failures_as_bootloader_transfer() ->
 
 
 def test_net_iterate_accepts_dnsmasq_or_tftp_now_server() -> None:
-    net_iterate = read_repo("net-iterate.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
 
     assert "tftp_server_running()" in net_iterate
     assert 'pgrep -f "dnsmasq.*${escaped_root}"' in net_iterate
@@ -375,7 +375,7 @@ def test_net_iterate_accepts_dnsmasq_or_tftp_now_server() -> None:
 
 def test_netboot_doctor_dry_run_shows_human_reset_gate() -> None:
     result = run_script(
-        "netboot-doctor.sh",
+        "scripts/netboot/netboot-doctor.sh",
         env={
             "AETHER_NETBOOT_DOCTOR_DRY_RUN": "1",
             "AETHER_NETBOOT_INTERFACE": "en-test0",
@@ -395,7 +395,7 @@ def test_netboot_doctor_dry_run_shows_human_reset_gate() -> None:
 
 
 def test_netboot_doctor_verifies_runtime_v11_markers() -> None:
-    doctor = read_repo("netboot-doctor.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     assert "runtime v4: irq-backed uart shell" in doctor
     assert "runtime v5: diagnostics shell" in doctor
@@ -411,7 +411,7 @@ def test_netboot_doctor_verifies_runtime_v11_markers() -> None:
 
 
 def test_netboot_doctor_accepts_repo_owned_tftp_provider() -> None:
-    doctor = read_repo("netboot-doctor.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     assert "tftp_server_running()" in doctor
     assert 'pgrep -f "aether_tftp.py.*${escaped_root}"' in doctor
@@ -419,7 +419,7 @@ def test_netboot_doctor_accepts_repo_owned_tftp_provider() -> None:
 
 
 def test_netboot_doctor_classifies_start4_tftp_failures_as_bootloader_transfer() -> None:
-    doctor = read_repo("netboot-doctor.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     assert "failed sending .*/start4\\\\.elf" in doctor
     assert "timeout sending .*/start4\\\\.elf" in doctor

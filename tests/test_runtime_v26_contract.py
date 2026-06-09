@@ -26,7 +26,7 @@ def run_script(script: str, *args: str, env: dict[str, str] | None = None) -> su
 
 
 def test_runtime_v26_soak_loop_script_contract_exists() -> None:
-    script = read_repo("soak-loop.sh")
+    script = read_repo("scripts/soak-loop.sh")
 
     for marker in (
         "Runtime V26 host soak harness",
@@ -54,7 +54,7 @@ def test_runtime_v26_soak_loop_script_contract_exists() -> None:
 
 def test_runtime_v26_soak_loop_dry_run_is_scriptable() -> None:
     result = run_script(
-        "soak-loop.sh",
+        "scripts/soak-loop.sh",
         "/tmp/aether-root",
         env={
             "AETHER_SOAK_DRY_RUN": "1",
@@ -85,8 +85,8 @@ def test_runtime_v26_soak_loop_dry_run_is_scriptable() -> None:
 
 def test_runtime_v26_docs_are_updated_after_hardware_proof() -> None:
     readme = read_repo("README.md")
-    runbook = read_repo("RUNBOOK.md")
-    design = read_repo("CONCURRENCY_DESIGN.md")
+    runbook = read_repo("docs/RUNBOOK.md")
+    design = read_repo("docs/CONCURRENCY_DESIGN.md")
 
     for source in (readme, runbook, design):
         assert "Runtime V26 host soak harness" in source

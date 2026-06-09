@@ -82,7 +82,7 @@ def test_exception_handler_emits_machine_checkable_fault_line() -> None:
 
 def test_runtime_v5_boot_marker_and_net_iterate_gate_exist() -> None:
     app = read_repo("Sources/Application/Application.swift")
-    net_iterate = read_repo("net-iterate.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
 
     assert "runtime v5: diagnostics shell" in app
     assert "runtime v5: diagnostics shell" in net_iterate

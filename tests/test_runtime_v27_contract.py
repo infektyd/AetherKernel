@@ -104,9 +104,9 @@ def test_runtime_v27_application_shell_and_bootcert_surface_exist() -> None:
 
 
 def test_runtime_v27_symbolicate_retained_host_tool_contract_exists() -> None:
-    script = read_repo("symbolicate-retained.sh")
+    script = read_repo("scripts/symbolicate-retained.sh")
     result = run_script(
-        "symbolicate-retained.sh",
+        "scripts/symbolicate-retained.sh",
         "0x80000",
         "/tmp/kernel.macho",
         env={"AETHER_SYMBOLICATE_RETAINED_DRY_RUN": "1", "AETHER_LLVM_NM": "llvm-nm"},
@@ -129,8 +129,8 @@ def test_runtime_v27_symbolicate_retained_host_tool_contract_exists() -> None:
 
 
 def test_runtime_v27_netboot_gates_exist() -> None:
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
         assert "runtime v27: panic taxonomy and symbolic retained records" in source
@@ -145,8 +145,8 @@ def test_runtime_v27_netboot_gates_exist() -> None:
 
 def test_runtime_v27_docs_are_updated_after_hardware_proof() -> None:
     readme = read_repo("README.md")
-    runbook = read_repo("RUNBOOK.md")
-    design = read_repo("CONCURRENCY_DESIGN.md")
+    runbook = read_repo("docs/RUNBOOK.md")
+    design = read_repo("docs/CONCURRENCY_DESIGN.md")
 
     for source in (readme, runbook, design):
         assert "Runtime V27 panic taxonomy and symbolic retained records" in source

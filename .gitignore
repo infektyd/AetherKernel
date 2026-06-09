@@ -50,4 +50,4 @@ monitor-v45.sh
 *.pid
 
 # Internal process data — agent-generated reports/metrics, not for publication
-docs/
+.internal/

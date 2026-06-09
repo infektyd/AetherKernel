@@ -55,7 +55,7 @@ def test_runtime_v45_contract_test_and_netboot_expectations() -> None:
     assert "vmm" in self_text
     assert "runtime v45: dynamic virtual memory" in self_text
 
-    net_iterate = read_repo("net-iterate.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
     # v45 banner is now required for fresh-boot detection in the iteration loop
     assert "runtime v45: dynamic virtual memory (page tables + TLB)" in net_iterate
     # Historical v44 strings remain for the v44 contract test; v45 adds its own

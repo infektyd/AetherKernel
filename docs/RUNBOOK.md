@@ -29,7 +29,7 @@ Prepare the SD card's boot partition (typically mounted on macOS at `/Volumes/bo
    enable_gic=1
    ```
    *(Note: `dtoverlay=disable-bt` routes the high-quality PL011 UART0 to GPIO14/15 instead of the mini-UART; `init_uart_clock=48000000` matches the kernel's PL011 baud divisor; `enable_gic=1` keeps the timer IRQ path available.)*
-3. **Flash kernel:** Run `./flash.sh /Volumes/bootfs` or copy the newly built `kernel8.img` onto the root of the boot partition. The script verifies `kernel8.img` and `config.txt` with SHA-256 after copying.
+3. **Flash kernel:** Run `./scripts/flash.sh /Volumes/bootfs` or copy the newly built `kernel8.img` onto the root of the boot partition. The script verifies `kernel8.img` and `config.txt` with SHA-256 after copying.
 
 ## 3. Network Iteration over Direct Ethernet
 
@@ -43,7 +43,7 @@ driver.
 Current AetherKernel cannot run `rpi-eeprom-config`, so this still needs one
 Raspberry Pi OS or bootloader-recovery pass. Configure the Pi 4 EEPROM for the
 direct Mac-Pi link. The checked-in source of truth is
-`netboot-eeprom-config.txt`:
+`scripts/netboot/netboot-eeprom-config.txt`:
 
 ```ini
 BOOT_UART=1
@@ -73,12 +73,12 @@ minimum `5000` is too tight for reliable firmware fetches on this bench.
 2. **Seed the TFTP tree.** If the SD boot partition is mounted on the Mac, copy
    firmware from that known-working source:
    ```bash
-   ./prepare-tftp.sh /Volumes/bootfs
+   ./scripts/netboot/prepare-tftp.sh /Volumes/bootfs
    ```
    If the SD card is still in the Pi, download the minimal Pi 4 firmware set
    instead:
    ```bash
-   ./prepare-tftp.sh --download
+   ./scripts/netboot/prepare-tftp.sh --download
    ```
    Both modes write into `~/aether-tftp/aether/` and overwrite `config.txt`
    with this repo's current file. The staged tree intentionally uses Pi 4
@@ -86,15 +86,15 @@ minimum `5000` is too tight for reliable firmware fetches on this bench.
    pruned because this bench can hang after loading that fallback path.
 3. **Serve TFTP in the foreground:**
    ```bash
-   ./serve-netboot.sh en0
+   ./scripts/netboot/serve-netboot.sh en0
    ```
-   The script defaults to the repo-owned `aether_tftp.py` in TFTP-only mode.
+   The script defaults to the repo-owned `scripts/netboot/aether_tftp.py` in TFTP-only mode.
    It does not advertise DHCP; the EEPROM static-IP config supplies the Pi's IP
    and server IP. UDP port 69 requires root; if sudo credentials are not cached,
    macOS will reject startup until you run it from an admin-authenticated
    terminal. The proven bench defaults are 1468-byte blocks plus single-port
    duplicate-RRQ handling. Homebrew `dnsmasq` remains an explicit fallback:
-   `AETHER_TFTP_PROVIDER=dnsmasq ./serve-netboot.sh en0`.
+   `AETHER_TFTP_PROVIDER=dnsmasq ./scripts/netboot/serve-netboot.sh en0`.
 
 If the EEPROM is already network-booting but still has a bad timeout, stage a
 TFTP self-update by placing `pieeprom.sig` and `pieeprom.upd` in
@@ -103,10 +103,10 @@ files before loading firmware and resets after applying a changed EEPROM image.
 
 ### Per-iteration loop
 
-With `serve-netboot.sh` still running in one terminal, the normal loop is:
+With `scripts/netboot/serve-netboot.sh` still running in one terminal, the normal loop is:
 
 ```bash
-./net-iterate.sh
+./scripts/netboot/net-iterate.sh
 ```
 
 It builds, stages `kernel8.img`/`config.txt`, sends the serial reset command,
@@ -123,7 +123,7 @@ For repeated proof runs, Runtime V26 host soak harness wraps the same boot path
 and records request-wrapped summaries after each cycle:
 
 ```bash
-AETHER_SOAK_CYCLES=12 ./soak-loop.sh /Users/hansaxelsson/aether-tftp
+AETHER_SOAK_CYCLES=12 ./scripts/soak-loop.sh /Users/hansaxelsson/aether-tftp
 ```
 
 The harness leaves the TFTP provider lifecycle to you. It runs `net-iterate.sh`,
@@ -139,7 +139,7 @@ running SD image predates the serial reset hook. For that first proof, use the
 guided harness:
 
 ```bash
-./netboot-doctor.sh
+./scripts/netboot/netboot-doctor.sh
 ```
 
 It checks the Mac Ethernet address, confirms a TFTP provider is serving the root,
@@ -148,7 +148,7 @@ to reset or power-cycle the Pi. After the staged image has booted once, the
 reset step is handled by:
 
 ```bash
-./serial-reset.sh
+./scripts/serial/serial-reset.sh
 ```
 
 The expected serial flow is bootloader `TFTP_GET` lines, then the AetherKernel
@@ -205,42 +205,42 @@ still triggers `watchdog_reset_now()` and re-enters the EEPROM boot path. Line
 commands can be sent from the Mac:
 
 ```bash
-./serial-command.sh status
-./serial-command.sh protocol
-./serial-command.sh --request-id 25 status
-./serial-command.sh heap
-./serial-command.sh queues
-./serial-command.sh tasks
-./serial-command.sh tasks2
-./serial-command.sh kobjects
-./serial-command.sh mailboxes
-./serial-command.sh sendtest
-./serial-command.sh supervisor
-./serial-command.sh health
-./serial-command.sh capcheck
-./serial-command.sh events
-./serial-command.sh diag
-./serial-command.sh irqs
-./serial-command.sh timers
-./serial-command.sh memcheck
-./serial-command.sh faults
-./serial-command.sh retained
-./serial-command.sh memmap
-./serial-command.sh mmu
-./serial-command.sh pools
-./serial-command.sh poolcheck
-./serial-command.sh heapfrag
-./serial-command.sh poolstats
-./serial-command.sh frames
-./serial-command.sh heapcheck
-./serial-command.sh framecheck
-./serial-command.sh stress
-./serial-command.sh frameprobe
-./serial-command.sh bootcert
-./serial-command.sh canceltest
-./serial-command.sh taskcheck
-./serial-command.sh bootcheck
-./serial-command.sh soak
+./scripts/serial/serial-command.sh status
+./scripts/serial/serial-command.sh protocol
+./scripts/serial/serial-command.sh --request-id 25 status
+./scripts/serial/serial-command.sh heap
+./scripts/serial/serial-command.sh queues
+./scripts/serial/serial-command.sh tasks
+./scripts/serial/serial-command.sh tasks2
+./scripts/serial/serial-command.sh kobjects
+./scripts/serial/serial-command.sh mailboxes
+./scripts/serial/serial-command.sh sendtest
+./scripts/serial/serial-command.sh supervisor
+./scripts/serial/serial-command.sh health
+./scripts/serial/serial-command.sh capcheck
+./scripts/serial/serial-command.sh events
+./scripts/serial/serial-command.sh diag
+./scripts/serial/serial-command.sh irqs
+./scripts/serial/serial-command.sh timers
+./scripts/serial/serial-command.sh memcheck
+./scripts/serial/serial-command.sh faults
+./scripts/serial/serial-command.sh retained
+./scripts/serial/serial-command.sh memmap
+./scripts/serial/serial-command.sh mmu
+./scripts/serial/serial-command.sh pools
+./scripts/serial/serial-command.sh poolcheck
+./scripts/serial/serial-command.sh heapfrag
+./scripts/serial/serial-command.sh poolstats
+./scripts/serial/serial-command.sh frames
+./scripts/serial/serial-command.sh heapcheck
+./scripts/serial/serial-command.sh framecheck
+./scripts/serial/serial-command.sh stress
+./scripts/serial/serial-command.sh frameprobe
+./scripts/serial/serial-command.sh bootcert
+./scripts/serial/serial-command.sh canceltest
+./scripts/serial/serial-command.sh taskcheck
+./scripts/serial/serial-command.sh bootcheck
+./scripts/serial/serial-command.sh soak
 ```
 
 Expected response prefixes are `status uptime_ms=`, `heap total=`,
@@ -599,59 +599,59 @@ executions/completions with `noops=0 gap=0 imbalance=0`; `sched4` stayed at
 `666/669`, `627/630`, and `630/633` feeds/drains with `drops=0 gap=0`;
 `runqueues` stayed `total=0`.
 
-`serial-probe.sh` sends one command and waits for a matching response line:
+`scripts/serial/serial-probe.sh` sends one command and waits for a matching response line:
 
 ```bash
-./serial-probe.sh status '^status uptime_ms=.*timer_mask='
-./serial-probe.sh protocol '^protocol version=2 .*begin_end=1 .*errors=1'
-./serial-probe.sh 'req id=25 cmd=status' '^resp id=25 ok=1 cmd=status end'
-./serial-probe.sh bootcert '^bootcert ok=1 version=40 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
-./serial-probe.sh runtime '^runtime ok=1 version=28 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5'
-./serial-probe.sh agent '^agent ok=1 version=29 health=green .*bootcert=1 .*runtime=1 .*protocol=2 .*events_lost=0'
-./serial-probe.sh 'req id=29 cmd=agent' '^resp id=29 ok=1 cmd=agent end'
-./serial-probe.sh certificate '^certificate ok=1 version=40 substrate=1 .*bootcert=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0'
-./serial-probe.sh 'req id=30 cmd=certificate' '^resp id=30 ok=1 cmd=certificate end'
-./serial-probe.sh sched '^sched ok=1 version=31 .*active=1 .*cores=1 .*core=0 .*ticks=[1-9][0-9]* .*irq_ticks=[1-9][0-9]* .*preemptions=[1-9][0-9]* .*selftest=1'
-./serial-probe.sh 'req id=31 cmd=sched' '^resp id=31 ok=1 cmd=sched end'
-./serial-probe.sh sched2 '^sched2 ok=1 version=34 .*preemptive=1 .*smp_scheduler=1 .*active=1 .*cores=4 .*online=4 .*dispatches=[1-9][0-9]* .*routes=[1-9][0-9]* .*imbalance=[0-9][0-9]* .*selftest=1'
-./serial-probe.sh 'req id=35 cmd=sched2' '^resp id=35 ok=1 cmd=sched2 end'
-./serial-probe.sh sched3 '^sched3 ok=1 version=35 .*secondary_workers=1 .*active=1 .*cores=4 .*online=4 .*worker_drains=[1-9][0-9]* .*worker_idles=[0-9][0-9]* .*imbalance=[0-9][0-9]* .*selftest=1'
-./serial-probe.sh 'req id=36 cmd=sched3' '^resp id=36 ok=1 cmd=sched3 end'
-./serial-probe.sh sched4 '^sched4 ok=1 version=36 .*worker_feed=1 .*secondary_workers=1 .*feeds=[1-9][0-9]* .*drains=[1-9][0-9]* .*selftest=1'
-./serial-probe.sh 'req id=37 cmd=sched4' '^resp id=37 ok=1 cmd=sched4 end'
-./serial-probe.sh sched5 '^sched5 ok=1 version=37 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*executions=[1-9][0-9]* .*completions=[1-9][0-9]* .*checksum=[1-9][0-9]* .*selftest=1'
-./serial-probe.sh 'req id=38 cmd=sched5' '^resp id=38 ok=1 cmd=sched5 end'
-./serial-probe.sh sched6 '^sched6 ok=1 version=38 .*wake=1 .*job_exec=1 .*worker_feed=1 .*signals=[1-9][0-9]* .*mask=0xe .*targets=[1-9][0-9]* .*waits=[1-9][0-9]* .*wakes=[1-9][0-9]* .*gap=[0-9][0-9]* .*imbalance=[0-9][0-9]* .*core0_wait=0 .*core1_wait=[1-9][0-9]* .*core2_wait=[1-9][0-9]* .*core3_wait=[1-9][0-9]* .*core0_wake=0 .*core1_wake=[1-9][0-9]* .*core2_wake=[1-9][0-9]* .*core3_wake=[1-9][0-9]* .*selftest=1'
-./serial-probe.sh 'req id=39 cmd=sched6' '^resp id=39 ok=1 cmd=sched6 end'
-./serial-probe.sh sched7 '^sched7 ok=1 version=39 .*handoff=1 .*wake=1 .*job_exec=1 .*issued=[1-9][0-9]* .*completed=[1-9][0-9]* .*gap=[0-9][0-9]* .*imbalance=[0-9][0-9]* .*core0_issue=0 .*core1_issue=[1-9][0-9]* .*core2_issue=[1-9][0-9]* .*core3_issue=[1-9][0-9]* .*core0_done=0 .*core1_done=[1-9][0-9]* .*core2_done=[1-9][0-9]* .*core3_done=[1-9][0-9]* .*selftest=1'
-./serial-probe.sh 'req id=40 cmd=sched7' '^resp id=40 ok=1 cmd=sched7 end'
-./serial-probe.sh sched8 '^sched8 ok=1 version=40 .*backpressure=1 .*handoff=1 .*wake=1 .*high_water=[8-9][0-9]* .*overflows=[1-9][0-9]* .*total=0 .*capacity=8 .*core0_high=8 .*core1_high=8 .*core2_high=8 .*core3_high=8 .*core0_overflow=[1-9][0-9]* .*core1_overflow=[1-9][0-9]* .*core2_overflow=[1-9][0-9]* .*core3_overflow=[1-9][0-9]* .*selftest=1'
-./serial-probe.sh 'req id=41 cmd=sched8' '^resp id=41 ok=1 cmd=sched8 end'
-./serial-probe.sh cores '^cores ok=1 version=32 .*capacity=4 .*online=4 .*mask=0xf .*primary=0 .*release=0xe .*selftest=1'
-./serial-probe.sh 'req id=32 cmd=cores' '^resp id=32 ok=1 cmd=cores end'
-./serial-probe.sh locks '^locks ok=1 version=33 .*atomics=1 .*spinlocks=1 .*selftest=1'
-./serial-probe.sh 'req id=33 cmd=locks' '^resp id=33 ok=1 cmd=locks end'
-./serial-probe.sh runqueues '^runqueues ok=1 version=33 .*cores=4 .*capacity=[1-9][0-9]* .*total=0 .*selftest=1'
-./serial-probe.sh 'req id=34 cmd=runqueues' '^resp id=34 ok=1 cmd=runqueues end'
-./serial-probe.sh canceltest '^canceltest ok=1 .*completed=1'
-./serial-probe.sh taskcheck '^taskcheck ok=1 .*spawns='
-./serial-probe.sh channeltest '^channeltest ok=1 .*received=1'
-./serial-probe.sh mmu '^mmu ok=1 .*regions=4 .*block_size=0x40000000'
-./serial-probe.sh poolcheck '^poolcheck ok=1 .*bad_frees=1 .*double_frees=1'
-./serial-probe.sh pools '^pools count=.* capacity=.* selftest=1'
-./serial-probe.sh heapfrag '^heapfrag ok=1 .*fragmentation_permil=.*pressure_largest_free='
-./serial-probe.sh poolstats '^poolstats ok=1 .*total_slots=.*failed_allocs='
-./serial-probe.sh drivers '^drivers count=4 capacity=4 selftest=1'
-./serial-probe.sh drivercheck '^drivercheck ok=1 .*uart_irq=.*timer_irq=.*watchdog_resets='
-./serial-probe.sh bootcheck '^bootcheck ok=1 .*frame_free='
-./serial-probe.sh kobjects '^kobjects count=.* active=.* handle_selftest=1 .*cap_selftest=1'
-./serial-probe.sh tasks2 '^tasks2 count=.* task index=.*fast'
-./serial-probe.sh mailboxes '^mailboxes count=.* queue_capacity='
-./serial-probe.sh sendtest '^sendtest ok=1 .*received=1'
-./serial-probe.sh supervisor '^supervisor count=.* unhealthy=0'
-./serial-probe.sh health '^health ok=1 .*supervised='
-./serial-probe.sh capcheck '^capcheck ok=1 .*denied=1 .*stale=1'
-./serial-probe.sh events '^events count=.* lost=0 .*selftest=1'
+./scripts/serial/serial-probe.sh status '^status uptime_ms=.*timer_mask='
+./scripts/serial/serial-probe.sh protocol '^protocol version=2 .*begin_end=1 .*errors=1'
+./scripts/serial/serial-probe.sh 'req id=25 cmd=status' '^resp id=25 ok=1 cmd=status end'
+./scripts/serial/serial-probe.sh bootcert '^bootcert ok=1 version=40 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*taxonomy=1 .*protocol=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*channels=1 .*taskspawns=1 .*cancellations=1 .*events_lost=0'
+./scripts/serial/serial-probe.sh runtime '^runtime ok=1 version=28 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5'
+./scripts/serial/serial-probe.sh agent '^agent ok=1 version=29 health=green .*bootcert=1 .*runtime=1 .*protocol=2 .*events_lost=0'
+./scripts/serial/serial-probe.sh 'req id=29 cmd=agent' '^resp id=29 ok=1 cmd=agent end'
+./scripts/serial/serial-probe.sh certificate '^certificate ok=1 version=40 substrate=1 .*bootcert=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0'
+./scripts/serial/serial-probe.sh 'req id=30 cmd=certificate' '^resp id=30 ok=1 cmd=certificate end'
+./scripts/serial/serial-probe.sh sched '^sched ok=1 version=31 .*active=1 .*cores=1 .*core=0 .*ticks=[1-9][0-9]* .*irq_ticks=[1-9][0-9]* .*preemptions=[1-9][0-9]* .*selftest=1'
+./scripts/serial/serial-probe.sh 'req id=31 cmd=sched' '^resp id=31 ok=1 cmd=sched end'
+./scripts/serial/serial-probe.sh sched2 '^sched2 ok=1 version=34 .*preemptive=1 .*smp_scheduler=1 .*active=1 .*cores=4 .*online=4 .*dispatches=[1-9][0-9]* .*routes=[1-9][0-9]* .*imbalance=[0-9][0-9]* .*selftest=1'
+./scripts/serial/serial-probe.sh 'req id=35 cmd=sched2' '^resp id=35 ok=1 cmd=sched2 end'
+./scripts/serial/serial-probe.sh sched3 '^sched3 ok=1 version=35 .*secondary_workers=1 .*active=1 .*cores=4 .*online=4 .*worker_drains=[1-9][0-9]* .*worker_idles=[0-9][0-9]* .*imbalance=[0-9][0-9]* .*selftest=1'
+./scripts/serial/serial-probe.sh 'req id=36 cmd=sched3' '^resp id=36 ok=1 cmd=sched3 end'
+./scripts/serial/serial-probe.sh sched4 '^sched4 ok=1 version=36 .*worker_feed=1 .*secondary_workers=1 .*feeds=[1-9][0-9]* .*drains=[1-9][0-9]* .*selftest=1'
+./scripts/serial/serial-probe.sh 'req id=37 cmd=sched4' '^resp id=37 ok=1 cmd=sched4 end'
+./scripts/serial/serial-probe.sh sched5 '^sched5 ok=1 version=37 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*executions=[1-9][0-9]* .*completions=[1-9][0-9]* .*checksum=[1-9][0-9]* .*selftest=1'
+./scripts/serial/serial-probe.sh 'req id=38 cmd=sched5' '^resp id=38 ok=1 cmd=sched5 end'
+./scripts/serial/serial-probe.sh sched6 '^sched6 ok=1 version=38 .*wake=1 .*job_exec=1 .*worker_feed=1 .*signals=[1-9][0-9]* .*mask=0xe .*targets=[1-9][0-9]* .*waits=[1-9][0-9]* .*wakes=[1-9][0-9]* .*gap=[0-9][0-9]* .*imbalance=[0-9][0-9]* .*core0_wait=0 .*core1_wait=[1-9][0-9]* .*core2_wait=[1-9][0-9]* .*core3_wait=[1-9][0-9]* .*core0_wake=0 .*core1_wake=[1-9][0-9]* .*core2_wake=[1-9][0-9]* .*core3_wake=[1-9][0-9]* .*selftest=1'
+./scripts/serial/serial-probe.sh 'req id=39 cmd=sched6' '^resp id=39 ok=1 cmd=sched6 end'
+./scripts/serial/serial-probe.sh sched7 '^sched7 ok=1 version=39 .*handoff=1 .*wake=1 .*job_exec=1 .*issued=[1-9][0-9]* .*completed=[1-9][0-9]* .*gap=[0-9][0-9]* .*imbalance=[0-9][0-9]* .*core0_issue=0 .*core1_issue=[1-9][0-9]* .*core2_issue=[1-9][0-9]* .*core3_issue=[1-9][0-9]* .*core0_done=0 .*core1_done=[1-9][0-9]* .*core2_done=[1-9][0-9]* .*core3_done=[1-9][0-9]* .*selftest=1'
+./scripts/serial/serial-probe.sh 'req id=40 cmd=sched7' '^resp id=40 ok=1 cmd=sched7 end'
+./scripts/serial/serial-probe.sh sched8 '^sched8 ok=1 version=40 .*backpressure=1 .*handoff=1 .*wake=1 .*high_water=[8-9][0-9]* .*overflows=[1-9][0-9]* .*total=0 .*capacity=8 .*core0_high=8 .*core1_high=8 .*core2_high=8 .*core3_high=8 .*core0_overflow=[1-9][0-9]* .*core1_overflow=[1-9][0-9]* .*core2_overflow=[1-9][0-9]* .*core3_overflow=[1-9][0-9]* .*selftest=1'
+./scripts/serial/serial-probe.sh 'req id=41 cmd=sched8' '^resp id=41 ok=1 cmd=sched8 end'
+./scripts/serial/serial-probe.sh cores '^cores ok=1 version=32 .*capacity=4 .*online=4 .*mask=0xf .*primary=0 .*release=0xe .*selftest=1'
+./scripts/serial/serial-probe.sh 'req id=32 cmd=cores' '^resp id=32 ok=1 cmd=cores end'
+./scripts/serial/serial-probe.sh locks '^locks ok=1 version=33 .*atomics=1 .*spinlocks=1 .*selftest=1'
+./scripts/serial/serial-probe.sh 'req id=33 cmd=locks' '^resp id=33 ok=1 cmd=locks end'
+./scripts/serial/serial-probe.sh runqueues '^runqueues ok=1 version=33 .*cores=4 .*capacity=[1-9][0-9]* .*total=0 .*selftest=1'
+./scripts/serial/serial-probe.sh 'req id=34 cmd=runqueues' '^resp id=34 ok=1 cmd=runqueues end'
+./scripts/serial/serial-probe.sh canceltest '^canceltest ok=1 .*completed=1'
+./scripts/serial/serial-probe.sh taskcheck '^taskcheck ok=1 .*spawns='
+./scripts/serial/serial-probe.sh channeltest '^channeltest ok=1 .*received=1'
+./scripts/serial/serial-probe.sh mmu '^mmu ok=1 .*regions=4 .*block_size=0x40000000'
+./scripts/serial/serial-probe.sh poolcheck '^poolcheck ok=1 .*bad_frees=1 .*double_frees=1'
+./scripts/serial/serial-probe.sh pools '^pools count=.* capacity=.* selftest=1'
+./scripts/serial/serial-probe.sh heapfrag '^heapfrag ok=1 .*fragmentation_permil=.*pressure_largest_free='
+./scripts/serial/serial-probe.sh poolstats '^poolstats ok=1 .*total_slots=.*failed_allocs='
+./scripts/serial/serial-probe.sh drivers '^drivers count=4 capacity=4 selftest=1'
+./scripts/serial/serial-probe.sh drivercheck '^drivercheck ok=1 .*uart_irq=.*timer_irq=.*watchdog_resets='
+./scripts/serial/serial-probe.sh bootcheck '^bootcheck ok=1 .*frame_free='
+./scripts/serial/serial-probe.sh kobjects '^kobjects count=.* active=.* handle_selftest=1 .*cap_selftest=1'
+./scripts/serial/serial-probe.sh tasks2 '^tasks2 count=.* task index=.*fast'
+./scripts/serial/serial-probe.sh mailboxes '^mailboxes count=.* queue_capacity='
+./scripts/serial/serial-probe.sh sendtest '^sendtest ok=1 .*received=1'
+./scripts/serial/serial-probe.sh supervisor '^supervisor count=.* unhealthy=0'
+./scripts/serial/serial-probe.sh health '^health ok=1 .*supervised='
+./scripts/serial/serial-probe.sh capcheck '^capcheck ok=1 .*denied=1 .*stale=1'
+./scripts/serial/serial-probe.sh events '^events count=.* lost=0 .*selftest=1'
 ```
 
 `panic-test` and `fault-test` are intentionally destructive: each writes a

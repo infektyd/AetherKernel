@@ -134,8 +134,8 @@ def test_runtime_v39_boot_certificates_warm_scheduler_before_handoff() -> None:
 
 
 def test_runtime_v39_netboot_gates_and_sched7_probe_exist() -> None:
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
         assert "runtime v39: secondary scheduler handoff protocol" in source
@@ -155,8 +155,8 @@ def test_runtime_v39_netboot_gates_and_sched7_probe_exist() -> None:
 
 def test_runtime_v39_docs_are_updated_after_hardware_proof() -> None:
     readme = read_repo("README.md")
-    runbook = read_repo("RUNBOOK.md")
-    design = read_repo("CONCURRENCY_DESIGN.md")
+    runbook = read_repo("docs/RUNBOOK.md")
+    design = read_repo("docs/CONCURRENCY_DESIGN.md")
 
     for source in (readme, runbook, design):
         assert "Runtime V39 secondary scheduler handoff protocol" in source

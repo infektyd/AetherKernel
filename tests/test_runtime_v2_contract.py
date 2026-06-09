@@ -51,7 +51,7 @@ def test_timer_irq_services_sleepers_and_executor_delays() -> None:
 
 def test_runtime_v2_demo_and_net_iterate_expect_machine_checkable_cadences() -> None:
     app = read_repo("Sources/Application/Application.swift")
-    net_iterate = read_repo("net-iterate.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
 
     for marker in ("rtv2 fast ", "rtv2 slow ", "rtv2 long "):
         assert marker in app

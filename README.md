@@ -21,7 +21,7 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 > `symbol address=0x92968 symbol_name=_kernel_trigger_sync_fault`. Runtime V28
 > Swift runtime dependency audit proved `runtime ok=1 version=28 swift=6.3.2
 > source_hooks=10 linked_hooks=2 heap_shims=5 linked_heap_shims=3
-> required_symbols=5 audit=1`; host `runtime-audit.sh` reported
+> required_symbols=5 audit=1`; host `scripts/runtime-audit.sh` reported
 > `runtime-audit ok=1 ... missing=none`. Runtime V29 added the agent session
 > health surface and proved `bootcert ok=1 version=29 agent=1 runtime=1 ... events_lost=0`,
 > `agent ok=1 version=29 health=green bootcert=1 runtime=1 protocol=2 agent=1 events_lost=0`,
@@ -263,8 +263,8 @@ classic RX/TX crossover mistake, not a kernel bug.
 ## Quickstart
 
 ```sh
-./build.sh                 # -> kernel8.img
-./flash.sh /Volumes/bootfs # copy kernel8.img + config.txt to the SD boot part
+./build.sh                                  # -> kernel8.img
+./scripts/flash.sh /Volumes/bootfs          # copy kernel8.img + config.txt to the SD boot part
 # then: screen /dev/cu.usbserial-XXXX 115200   (see RUNBOOK.md for wiring)
 ```
 
@@ -273,15 +273,15 @@ the faster iteration path is Pi 4 EEPROM netboot over the direct Mac-Pi Ethernet
 link:
 
 ```sh
-./prepare-tftp.sh --download
-./serve-netboot.sh en0      # foreground repo-owned TFTP server
-./netboot-doctor.sh        # guided first netboot: prompts for one reset, verifies
-./net-iterate.sh           # build, stage, serial-reset, verify TFTP + serial
+./scripts/netboot/prepare-tftp.sh --download
+./scripts/netboot/serve-netboot.sh en0      # foreground repo-owned TFTP server
+./scripts/netboot/netboot-doctor.sh        # guided first netboot: prompts for one reset, verifies
+./scripts/netboot/net-iterate.sh           # build, stage, serial-reset, verify TFTP + serial
 ```
 
-See `RUNBOOK.md` for the required one-time EEPROM config. Keep `flash.sh` as the
+See `docs/RUNBOOK.md` for the required one-time EEPROM config. Keep `scripts/flash.sh` as the
 SD recovery path. The exact Pi 4 bootloader settings live in
-`netboot-eeprom-config.txt`. `serve-netboot.sh` defaults to `aether_tftp.py`
+`scripts/netboot/netboot-eeprom-config.txt`. `scripts/netboot/serve-netboot.sh` defaults to `scripts/netboot/aether_tftp.py`
 with 1468-byte blocks and single-port duplicate-RRQ handling because the Pi 4
 firmware emits `Early terminate` and retries some files from a new UDP source
 port on this bench. Homebrew `dnsmasq` remains an explicit fallback via
@@ -544,7 +544,7 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     `soak-loop.sh` script repeats `net-iterate.sh`, then sends request-wrapped
     `status`, `bootcert`, `stress`, `soak`, and `events` commands with unique
     IDs and appends machine-checkable summaries to a log. Hardware proof:
-    `AETHER_SOAK_CYCLES=3 ./soak-loop.sh /Users/hansaxelsson/aether-tftp`
+    `AETHER_SOAK_CYCLES=3 ./scripts/soak-loop.sh /Users/hansaxelsson/aether-tftp`
     completed all cycles. Proof lines included `soak summary cycle=3
     command=bootcert id=2622 line=bootcert ok=1 version=25 ... events_lost=0`,
     `soak summary cycle=3 command=stress ... heap_leak=0 frame_leak=0`,
@@ -561,7 +561,7 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     `retained valid=1 kind=panic kind_id=1 category=1 reason_id=1 ... reason=panic-test`;
     `fault-test` rebooted and `retained` reported `kind=fault kind_id=2
     category=2 reason_id=2 esr=0xf20000a5 elr=0x92968 ... reason=sync-fault`;
-    `./symbolicate-retained.sh 0x92968 .build/release/Application` returned
+    `./scripts/symbolicate-retained.sh 0x92968 .build/release/Application` returned
     `symbol address=0x92968 symbol_name=_kernel_trigger_sync_fault ...`; a clean
     `set -e` 3-cycle netboot loop then passed.
 
@@ -573,7 +573,7 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     `bootcert ok=1 version=28 runtime=1 taxonomy=1 ... events_lost=0`, the
     shell `runtime` command returned `runtime ok=1 version=28 swift=6.3.2
     source_hooks=10 linked_hooks=2 heap_shims=5 linked_heap_shims=3
-    required_symbols=5 audit=1`, and host `./runtime-audit.sh
+    required_symbols=5 audit=1`, and host `./scripts/runtime-audit.sh
     .build/release/Application` returned `runtime-audit ok=1 ... missing=none`.
 
   - **Runtime V29 agent-oriented control session.** ✅ hardware-verified.

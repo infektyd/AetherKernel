@@ -94,8 +94,8 @@ def test_uart_shell_v9_stress_command_exists() -> None:
 
 def test_runtime_v9_boot_marker_and_netboot_gates_exist() -> None:
     app = read_repo("Sources/Application/Application.swift")
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (app, net_iterate, doctor):
         assert "runtime v9: bounded memory pressure self-tests" in source

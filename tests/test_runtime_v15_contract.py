@@ -92,8 +92,8 @@ def test_uart_shell_v15_capcheck_command_and_handle_details_exist() -> None:
 
 
 def test_runtime_v15_netboot_gates_and_shell_probe_exist() -> None:
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
         assert "runtime v15: capability-tagged kernel handles" in source

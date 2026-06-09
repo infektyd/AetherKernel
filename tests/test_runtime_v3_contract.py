@@ -70,7 +70,7 @@ def test_uart_shell_declares_commands_and_machine_checkable_responses() -> None:
 
 def test_runtime_v3_keeps_single_byte_reset_compatibility() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
-    reset = read_repo("serial-reset.sh")
+    reset = read_repo("scripts/serial/serial-reset.sh")
 
     assert "isResetAlias" in shell
     assert "b == 0x72 || b == 0x52" in shell
@@ -97,13 +97,13 @@ def test_application_starts_shell_and_exposes_cadence_counters() -> None:
 
 
 def test_net_iterate_requires_runtime_v3_shell_ready_after_hardware_proof() -> None:
-    net_iterate = read_repo("net-iterate.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
 
     assert "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot" in net_iterate
 
 
 def test_serial_command_dry_run_appends_newline_and_targets_default_port() -> None:
-    result = run_script("serial-command.sh", "status", env={"AETHER_SERIAL_COMMAND_DRY_RUN": "1"})
+    result = run_script("scripts/serial/serial-command.sh", "status", env={"AETHER_SERIAL_COMMAND_DRY_RUN": "1"})
 
     assert "/dev/cu.usbserial-B0044J1V" in result.stdout
     assert "command: status" in result.stdout

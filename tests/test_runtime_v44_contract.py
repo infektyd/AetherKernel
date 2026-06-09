@@ -104,9 +104,9 @@ def test_runtime_v44_shell_sched12_and_certificate_surface_exist() -> None:
 
 
 def test_runtime_v44_netboot_gates_and_sched12_probe_exist() -> None:
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
-    soak_loop = read_repo("soak-loop.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
+    soak_loop = read_repo("scripts/soak-loop.sh")
 
     for source in (net_iterate, doctor):
         assert "runtime v44: bounded smp concurrency soak" in source
@@ -132,8 +132,8 @@ def test_runtime_v44_netboot_gates_and_sched12_probe_exist() -> None:
 
 def test_runtime_v44_docs_are_updated_after_hardware_proof() -> None:
     readme = read_repo("README.md")
-    runbook = read_repo("RUNBOOK.md")
-    design = read_repo("CONCURRENCY_DESIGN.md")
+    runbook = read_repo("docs/RUNBOOK.md")
+    design = read_repo("docs/CONCURRENCY_DESIGN.md")
 
     for source in (readme, runbook, design):
         assert "Runtime V44 bounded SMP concurrency soak protocol" in source

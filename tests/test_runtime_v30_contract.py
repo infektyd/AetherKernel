@@ -92,12 +92,12 @@ def test_runtime_v30_bootcert_reports_certificate_field() -> None:
 
 
 def test_runtime_v30_host_certificate_loop_contract_exists() -> None:
-    path = ROOT / "certificate-loop.sh"
-    agent_session = read_repo("agent-session.sh")
+    path = ROOT / "scripts/agents/certificate-loop.sh"
+    agent_session = read_repo("scripts/agents/agent-session.sh")
     assert path.exists(), "certificate-loop.sh missing"
     script = path.read_text()
     result = run_script(
-        "certificate-loop.sh",
+        "scripts/agents/certificate-loop.sh",
         env={
             "AETHER_CERTIFICATE_LOOP_DRY_RUN": "1",
             "AETHER_CERTIFICATE_LOOP_CYCLES": "2",
@@ -134,8 +134,8 @@ def test_runtime_v30_host_certificate_loop_contract_exists() -> None:
 
 
 def test_runtime_v30_netboot_gates_and_certificate_probe_exist() -> None:
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
         assert "runtime v30: swift-native kernel substrate certificate" in source
@@ -154,8 +154,8 @@ def test_runtime_v30_netboot_gates_and_certificate_probe_exist() -> None:
 
 def test_runtime_v30_docs_are_updated_after_hardware_proof() -> None:
     readme = read_repo("README.md")
-    runbook = read_repo("RUNBOOK.md")
-    design = read_repo("CONCURRENCY_DESIGN.md")
+    runbook = read_repo("docs/RUNBOOK.md")
+    design = read_repo("docs/CONCURRENCY_DESIGN.md")
 
     for source in (readme, runbook, design):
         assert "Runtime V30 Swift-native kernel substrate certificate" in source

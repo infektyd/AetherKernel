@@ -101,8 +101,8 @@ def test_uart_shell_v14_supervisor_commands_and_responses_exist() -> None:
 
 
 def test_runtime_v14_netboot_gates_and_shell_probes_exist() -> None:
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
         assert "runtime v14: deterministic task supervisor" in source

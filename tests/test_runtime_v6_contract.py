@@ -94,8 +94,8 @@ def test_uart_shell_v6_retained_commands_and_response_prefixes_exist() -> None:
 
 def test_runtime_v6_boot_marker_and_net_iterate_gate_exist() -> None:
     app = read_repo("Sources/Application/Application.swift")
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     assert "runtime v6: retained panic/fault records" in app
     assert "runtime v6: retained panic/fault records" in net_iterate

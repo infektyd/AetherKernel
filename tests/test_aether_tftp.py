@@ -6,7 +6,7 @@ import threading
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("aether_tftp", ROOT / "aether_tftp.py")
+SPEC = importlib.util.spec_from_file_location("aether_tftp", ROOT / "scripts/netboot/aether_tftp.py")
 assert SPEC is not None
 aether_tftp = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None

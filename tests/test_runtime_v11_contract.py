@@ -65,7 +65,7 @@ def test_runtime_v11_boot_marker_and_startup_bootcheck_exist() -> None:
 
 
 def test_serial_probe_script_sends_command_and_waits_for_expected_line() -> None:
-    probe = ROOT / "serial-probe.sh"
+    probe = ROOT / "scripts/serial/serial-probe.sh"
     assert probe.exists()
     source = probe.read_text()
 
@@ -80,7 +80,7 @@ def test_serial_probe_script_sends_command_and_waits_for_expected_line() -> None
         assert marker in source
 
     result = run_script(
-        "serial-probe.sh",
+        "scripts/serial/serial-probe.sh",
         "bootcheck",
         "^bootcheck ok=1",
         "/dev/cu.test",
@@ -97,7 +97,7 @@ def test_serial_probe_script_sends_command_and_waits_for_expected_line() -> None
 
 
 def test_net_iterate_v11_probes_shell_responses_after_boot() -> None:
-    net_iterate = read_repo("net-iterate.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
 
     for marker in (
         "AETHER_NETITERATE_SKIP_SHELL_PROBES",
@@ -115,8 +115,8 @@ def test_net_iterate_v11_probes_shell_responses_after_boot() -> None:
 
 
 def test_runtime_v11_netboot_gates_exist() -> None:
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
         assert "runtime v11: boot and soak invariants" in source

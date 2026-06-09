@@ -108,8 +108,8 @@ def test_runtime_v34_shell_sched2_and_certificate_surface_exist() -> None:
 
 
 def test_runtime_v34_netboot_gates_and_sched2_probe_exist() -> None:
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
         assert "runtime v34: timer-driven smp scheduler dispatch" in source
@@ -129,8 +129,8 @@ def test_runtime_v34_netboot_gates_and_sched2_probe_exist() -> None:
 
 def test_runtime_v34_docs_are_updated_after_hardware_proof() -> None:
     readme = read_repo("README.md")
-    runbook = read_repo("RUNBOOK.md")
-    design = read_repo("CONCURRENCY_DESIGN.md")
+    runbook = read_repo("docs/RUNBOOK.md")
+    design = read_repo("docs/CONCURRENCY_DESIGN.md")
 
     for source in (readme, runbook, design):
         assert "Runtime V34 timer-driven SMP scheduler dispatch" in source

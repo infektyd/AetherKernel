@@ -25,7 +25,7 @@ BIN=".build/$TRIPLE/release/Application"
 echo "==> extracting flat binary -> kernel8.img"
 # macho2bin lays the named segments out by VM address from --base-address,
 # zero-filling gaps. __BOOT (pinned to 0x80000) carries _start first.
-uv run ./macho2bin.py "$BIN" kernel8.img \
+uv run ./scripts/macho2bin.py "$BIN" kernel8.img \
   --base-address 0x80000 \
   --segments '__BOOT,__TEXT,__DATA' \
   --max-end-address 0x400000

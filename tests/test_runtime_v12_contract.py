@@ -104,8 +104,8 @@ def test_runtime_v12_demo_tasks_record_registry_ticks() -> None:
 
 
 def test_runtime_v12_netboot_gates_and_shell_probes_exist() -> None:
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
         assert "runtime v12: kernel object table + task registry" in source

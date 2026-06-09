@@ -67,11 +67,11 @@ def test_runtime_v29_application_shell_and_bootcert_surface_exist() -> None:
 
 
 def test_runtime_v29_host_agent_session_harness_contract_exists() -> None:
-    path = ROOT / "agent-session.sh"
+    path = ROOT / "scripts/agents/agent-session.sh"
     assert path.exists(), "agent-session.sh missing"
     script = path.read_text()
     result = run_script(
-        "agent-session.sh",
+        "scripts/agents/agent-session.sh",
         env={
             "AETHER_AGENT_SESSION_DRY_RUN": "1",
             "AETHER_AGENT_SESSION_ID_BASE": "2900",
@@ -105,8 +105,8 @@ def test_runtime_v29_host_agent_session_harness_contract_exists() -> None:
 
 
 def test_runtime_v29_netboot_gates_and_agent_probe_exist() -> None:
-    net_iterate = read_repo("net-iterate.sh")
-    doctor = read_repo("netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
         assert "runtime v29: agent-oriented control session" in source
@@ -125,8 +125,8 @@ def test_runtime_v29_netboot_gates_and_agent_probe_exist() -> None:
 
 def test_runtime_v29_docs_are_updated_after_hardware_proof() -> None:
     readme = read_repo("README.md")
-    runbook = read_repo("RUNBOOK.md")
-    design = read_repo("CONCURRENCY_DESIGN.md")
+    runbook = read_repo("docs/RUNBOOK.md")
+    design = read_repo("docs/CONCURRENCY_DESIGN.md")
 
     for source in (readme, runbook, design):
         assert "Runtime V29 agent-oriented control session" in source
