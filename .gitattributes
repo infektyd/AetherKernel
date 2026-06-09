@@ -1,0 +1,16 @@
+# Binary files - no textual diffs
+*.img binary
+*.elf binary
+*.bin binary
+*.o binary
+*.a binary
+
+# Mark shell scripts as always LF
+*.sh eol=lf
+
+# Mark Python files as LF
+*.py eol=lf
+
+# Treat documentation as text
+*.md text
+*.txt text

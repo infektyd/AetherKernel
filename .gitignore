@@ -1,9 +1,51 @@
+# Build artifacts
 .build/
-kernel8.img
+.swift-version
 *.o
-.DS_Store
-.autodrive/
+*.a
+*.so
+
+# Kernel images (device binary)
+kernel8.img
+kernel*.elf
+*.bin
+*.elf
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
 .pytest_cache/
+.coverage
+*.lcov
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+*.swp
+*.swo
+*~
+
+# Agent & process artifacts
+.autodrive/
+aether-watch.sh
+aether-watch-loop.sh
+/tmp/aether-*.log
+/tmp/aether-watch-*
 monitor-v45.sh
+*.log
+
+# IDE & editor
+.vscode/
+.idea/
+*.iml
+*.sublime-*
+*.swp
+.vim/
+
+# System & environment
+.env
+.env.local
+*.pid
