@@ -100,6 +100,18 @@ void swift_task_asyncMainDrainQueue(void);
 // Executor delayed jobs share CNTP through the Runtime V2 timer arbiter.
 void executor_on_timer_irq(void);
 
+// Swift-owned executor queues (Sources/Application/KernelExecutor.swift).
+void kernel_executor_enqueue(void *job);
+void kernel_executor_enqueue_delay_ns(unsigned long long ns, void *job);
+void kernel_executor_enqueue_deadline_ns(unsigned long long targetNs,
+                                         unsigned long long nowNs,
+                                         void *job);
+void kernel_executor_on_timer_irq(void);
+void kernel_executor_donate_until(int (*condition)(void *), void *context);
+__attribute__((noreturn)) void kernel_executor_drain_main(void);
+unsigned int kernel_executor_ready_count(void);
+unsigned int kernel_executor_delayed_count(void);
+
 // Shared CNTP timer arbiter (Sources/Support/timersleep_hw.c). All CNTP register
 // work stays in non-inline C because the inline-asm helpers were previously
 // miscompiled when inlined into the Swift IRQ path. Runtime V2 has two clients:
