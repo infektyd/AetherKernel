@@ -123,7 +123,7 @@ For repeated proof runs, Runtime V26 host soak harness wraps the same boot path
 and records request-wrapped summaries after each cycle:
 
 ```bash
-AETHER_SOAK_CYCLES=12 ./scripts/soak-loop.sh /Users/hansaxelsson/aether-tftp
+AETHER_SOAK_CYCLES=12 ./scripts/soak-loop.sh "$HOME/aether-tftp"
 ```
 
 The harness leaves the TFTP provider lifecycle to you. It runs `net-iterate.sh`,

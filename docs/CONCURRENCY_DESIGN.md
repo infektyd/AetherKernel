@@ -314,7 +314,7 @@ Runtime V44 bounded SMP concurrency soak protocol was hardware-verified 2026-06-
 > `net-iterate.sh`, then uses the V25 request protocol to collect `status`,
 > `bootcert`, `stress`, `soak`, and `events` summaries into a log. The TFTP
 > provider lifecycle stays external. Hardware proof: `AETHER_SOAK_CYCLES=3
-> ./soak-loop.sh /Users/hansaxelsson/aether-tftp` passed all cycles. Proof
+> ./soak-loop.sh "$HOME/aether-tftp"` passed all cycles. Proof
 > lines included `soak summary cycle=3 command=bootcert id=2622 line=bootcert
 > ok=1 version=25 ... events_lost=0`, `soak summary cycle=3 command=stress ...
 > heap_leak=0 frame_leak=0`, `soak summary cycle=3 command=soak ...

@@ -5,13 +5,13 @@
       "-Xfrontend", "-disable-stack-protector",
       "-enable-experimental-feature", "Embedded",
       "-Xcc", "-mcpu=cortex-a72",
-      "-Xcc", "-I/Users/hansaxelsson/Library/Developer/Toolchains/swift-6.3.2-RELEASE.xctoolchain/usr/include"
+      "-Xcc", "-I/Users/YOUR_USERNAME/Library/Developer/Toolchains/swift-6.3.2-RELEASE.xctoolchain/usr/include"
     ]
   },
   "cCompiler": {
     "extraCLIOptions": [
       "-fno-builtin",
-      "-I/Users/hansaxelsson/Library/Developer/Toolchains/swift-6.3.2-RELEASE.xctoolchain/usr/include"
+      "-I/Users/YOUR_USERNAME/Library/Developer/Toolchains/swift-6.3.2-RELEASE.xctoolchain/usr/include"
     ]
   },
   "linker": {
@@ -26,7 +26,7 @@
       "-segaddr", "__BOOT", "0x80000",
       "-segaddr", "__TEXT", "0x84000",
       "-pagezero_size", "0",
-      "-force_load", "/Users/hansaxelsson/Library/Developer/Toolchains/swift-6.3.2-RELEASE.xctoolchain/usr/lib/swift/embedded/arm64-apple-none-macho/libswift_Concurrency.a"
+      "-force_load", "/Users/YOUR_USERNAME/Library/Developer/Toolchains/swift-6.3.2-RELEASE.xctoolchain/usr/lib/swift/embedded/arm64-apple-none-macho/libswift_Concurrency.a"
     ]
   }
 }

@@ -260,6 +260,35 @@ classic RX/TX crossover mistake, not a kernel bug.
 - `macho2bin.py` extracts `__BOOT,__TEXT,__DATA`, rejects unexpected runtime
   segments, and refuses images that would overlap the heap base at `0x400000`.
 
+## Before you build (one-time setup)
+
+This repo is pinned to a specific Swift toolchain, and the toolset file points at
+an absolute path on disk. You need to repoint it at **your** install. Two steps:
+
+1. **Install the toolchain.** Grab `swift-6.3.2-RELEASE` from
+   [swift.org/install](https://www.swift.org/install/macos/) (the standalone
+   `.pkg`, not an Xcode-bundled toolchain). By default it lands at
+   `~/Library/Developer/Toolchains/swift-6.3.2-RELEASE.xctoolchain`.
+
+2. **Repoint the toolset.** Open `Toolsets/rpi4-macho.json` and replace the three
+   `YOUR_USERNAME` placeholders with your actual path. If you installed to the
+   default user location, just swap `YOUR_USERNAME` for your macOS username:
+
+   ```jsonc
+   // before
+   "/Users/YOUR_USERNAME/Library/Developer/Toolchains/swift-6.3.2-RELEASE.xctoolchain/..."
+   // after (example)
+   "/Users/jane/Library/Developer/Toolchains/swift-6.3.2-RELEASE.xctoolchain/..."
+   ```
+
+   If your toolchain lives somewhere else (e.g. the system-wide
+   `/Library/Developer/Toolchains/...`), point the paths there instead. Not sure
+   where it is? `ls ~/Library/Developer/Toolchains /Library/Developer/Toolchains`.
+
+> Why a hardcoded path? SwiftPM toolset JSON doesn't expand `$HOME` or env vars —
+> the paths must be literal. This is a bare-metal kernel, not an app, so it
+> assumes you're comfortable pointing a toolchain by hand.
+
 ## Quickstart
 
 ```sh
@@ -544,7 +573,7 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     `soak-loop.sh` script repeats `net-iterate.sh`, then sends request-wrapped
     `status`, `bootcert`, `stress`, `soak`, and `events` commands with unique
     IDs and appends machine-checkable summaries to a log. Hardware proof:
-    `AETHER_SOAK_CYCLES=3 ./scripts/soak-loop.sh /Users/hansaxelsson/aether-tftp`
+    `AETHER_SOAK_CYCLES=3 ./scripts/soak-loop.sh "$HOME/aether-tftp"`
     completed all cycles. Proof lines included `soak summary cycle=3
     command=bootcert id=2622 line=bootcert ok=1 version=25 ... events_lost=0`,
     `soak summary cycle=3 command=stress ... heap_leak=0 frame_leak=0`,
