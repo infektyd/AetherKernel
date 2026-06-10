@@ -3,6 +3,39 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
+**Status:** Runtime V44 (bounded SMP concurrency soak) — hardware-verified on a real Pi 4B, 2026-06-07.
+
+## What makes this unusual
+
+If you've seen a bare-metal Raspberry Pi project before, here's what's actually
+different about this one — in plain terms:
+
+- **It's Swift, with `async`/`await`, on bare metal.** Not C, not Rust — Embedded
+  Swift, with real `async` tasks running on the Pi with *no operating system
+  underneath them*. Most "Swift on a Pi" demos blink an LED; this runs the Swift
+  concurrency runtime itself.
+- **It builds as a Mach-O, not an ELF.** Essentially every bare-metal ARM project
+  emits an ELF binary. This one targets `arm64-apple-none-macho` (Apple's own
+  binary format), then extracts a flat `kernel8.img` from it. That's not a style
+  choice — it's the *only* AArch64 target for which the Swift toolchain ships the
+  Embedded `_Concurrency` (async/await) runtime. The conventional
+  `aarch64-none-none-elf` triple doesn't include it. (Details in *Toolchain
+  reality* below.)
+- **The concurrency runs on an executor we wrote.** Swift's `async` machinery
+  normally assumes an OS with threads. Here a small C cooperative executor drives
+  the Swift tasks, and `async` sleeps are hand-rolled on top of the Pi's generic
+  timer interrupt — because `Task.sleep` doesn't exist in Embedded Swift.
+- **No magic dependencies.** No swift-mmio (its macros won't compile on this
+  toolchain) — hardware registers are poked through a tiny C `volatile` shim, and
+  the boot path was written by hand.
+
+Short version: it's a working answer to "can you write a real, concurrent kernel
+in Swift on actual hardware?" — and the build looks weird precisely because
+getting there meant routing around gaps in the toolchain.
+
+<details>
+<summary><b>Full version-by-version hardware proof log (Runtime V2 → V44)</b> — every milestone with its on-the-wire serial strings. Long; expand for the receipts.</summary>
+
 > Status: **Runtime V44 bounded SMP concurrency soak protocol hardware-verified on real Raspberry Pi 4B**
 > (2026-06-07) — netbooted image fetched `kernel8.img`, printed banner +
 > padded `CurrentEL = 0x0000000000000004` (EL1), `rtv2 fast/slow/long`
@@ -186,7 +219,17 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 > `sched12 ok=1 version=44 concurrency=1 rounds=3 completions=3 failures=0
 > dispatches=9 soak_core1=3 soak_core2=3 soak_core3=3 selftest=1`.
 
+</details>
+
 ## What works (verified)
+
+Everything below has been proven on **real Pi 4B hardware** over serial — not a
+simulator. The short version: boot → EL1 → timer IRQs → a custom Swift async
+runtime → an SMP scheduler across all four Cortex-A72 cores, 44 milestones deep.
+The full table (one row per milestone, each with its serial proof) is collapsed:
+
+<details>
+<summary><b>Full verified-milestone table (44 runtime milestones + boot bring-up)</b></summary>
 
 | Milestone | State | Verified how |
 |-----------|-------|--------------|
@@ -242,11 +285,13 @@ A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 | Runtime V44 bounded SMP concurrency soak protocol | ✅ | hardware run printed `runtime v44: bounded smp concurrency soak`; `bootcert ok=1 version=44 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=44 substrate=1 bootcert=1 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched12 ok=1 version=44 concurrency=1 rounds=3 completions=3 failures=0 dispatches=9 soak_core1=3 soak_core2=3 soak_core3=3 selftest=1`; `soak ok=1 rounds=3 failures=0 heap_leak=0 frame_leak=0`; Wemo cold-cycle `netboot-auto.sh` + 3-cycle `soak-loop.sh` passed on 2026-06-07 |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
+</details>
+
 First hardware boot: 2026-06-04. The one trap worth recording — serial was
 silent until the FT232 **RX** was moved to header **pin 8** (GPIO14/Pi-TXD); a
 classic RX/TX crossover mistake, not a kernel bug.
 
-## Toolchain reality (why the build looks unusual)
+## Toolchain reality (the technical detail behind the above)
 
 - Built with **`swift-6.3.2-RELEASE`** and the **`arm64-apple-none-macho`**
   triple because the Embedded `_Concurrency` archive exists there, not for
@@ -354,6 +399,9 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
 > epic ladder (user mode → processes → storage → display → USB → networking) that
 > autonomous agents climb after V44. The list below is the original boot-bring-up
 > roadmap, kept for history; items 1–4 are all hardware-verified.
+
+<details>
+<summary><b>Original boot bring-up roadmap + the full concurrency-experiment writeup (V2 → V44)</b> — historical detail.</summary>
 
 1. ~~Confirm boot on hardware: banner + `CurrentEL = 0x0000000000000004` (EL1) over serial.~~ ✅ 2026-06-04
 2. ~~Generic timer tick (CNTP) → a real periodic heartbeat instead of a busy delay.~~ ✅ 2026-06-04 (polled, 1 s @ 54 MHz)
@@ -847,6 +895,8 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
     completions=3 failures=0 dispatches=9 soak_core1=3 soak_core2=3 soak_core3=3
     selftest=1`. Wemo cold-cycle `netboot-auto.sh` passed all shell probes and
     `soak-loop.sh` ended `soak result ok=1 cycles=3 completed=3`.
+
+</details>
 
 ## Provenance
 
