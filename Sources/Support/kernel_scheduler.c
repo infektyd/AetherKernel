@@ -2917,11 +2917,6 @@ int kernel_scheduler_secondary_wake_selftest(void) {
     if (kernel_smp_online_count() != 4U || kernel_smp_online_mask() != 0xfU) {
         return 0;
     }
-    if (kernel_scheduler_secondary_wake_ack_total() >= 3UL &&
-        kernel_scheduler_secondary_wake_wait_total() >= 3UL &&
-        kernel_scheduler_secondary_wake_signal_total() > 0) {
-        return 1;
-    }
 
     for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
         if (kernel_scheduler_secondary_wake_ack_count(core_id) == 0 ||
