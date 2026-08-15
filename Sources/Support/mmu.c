@@ -775,3 +775,44 @@ int kernel_vmm_el0_selftest(void) {
 
     return result;
 }
+
+/* Runtime V45 boot snapshot — write-once at boot; cert/shell readers (no event ring scan). */
+static struct {
+    int sealed;
+    int pt_ok;
+    int vmm_ok;
+    int asplit_ok;
+    int el0_ok;
+} vmm_boot_snapshot;
+
+static int vmm_boot_norm(int v) {
+    return v != 0 ? 1 : 0;
+}
+
+int kernel_vmm_boot_snapshot_seal(int pt_ok, int vmm_ok, int asplit_ok, int el0_ok) {
+    if (vmm_boot_snapshot.sealed) {
+        return 0;
+    }
+    vmm_boot_snapshot.pt_ok = vmm_boot_norm(pt_ok);
+    vmm_boot_snapshot.vmm_ok = vmm_boot_norm(vmm_ok);
+    vmm_boot_snapshot.asplit_ok = vmm_boot_norm(asplit_ok);
+    vmm_boot_snapshot.el0_ok = vmm_boot_norm(el0_ok);
+    vmm_boot_snapshot.sealed = 1;
+    return 1;
+}
+
+int kernel_vmm_boot_pt_proven(void) {
+    return vmm_boot_snapshot.sealed ? vmm_boot_snapshot.pt_ok : 0;
+}
+
+int kernel_vmm_boot_vmm_proven(void) {
+    return vmm_boot_snapshot.sealed ? vmm_boot_snapshot.vmm_ok : 0;
+}
+
+int kernel_vmm_boot_asplit_proven(void) {
+    return vmm_boot_snapshot.sealed ? vmm_boot_snapshot.asplit_ok : 0;
+}
+
+int kernel_vmm_boot_el0_proven(void) {
+    return vmm_boot_snapshot.sealed ? vmm_boot_snapshot.el0_ok : 0;
+}

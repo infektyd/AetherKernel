@@ -876,6 +876,14 @@ typedef struct {
 void kernel_enter_el0_and_wait(unsigned long entry_pc, unsigned long user_sp);
 void kernel_el0_sync_handler(user_context_t *ctx);
 int kernel_vmm_el0_selftest(void);
+
+/* Runtime V45 boot snapshot — write-once at boot; cert/shell readers (no event ring scan). */
+int kernel_vmm_boot_snapshot_seal(int pt_ok, int vmm_ok, int asplit_ok, int el0_ok);
+int kernel_vmm_boot_pt_proven(void);
+int kernel_vmm_boot_vmm_proven(void);
+int kernel_vmm_boot_asplit_proven(void);
+int kernel_vmm_boot_el0_proven(void);
+
 extern void el0_test_stub(void);
 extern void el0_test_stub_end(void);
 

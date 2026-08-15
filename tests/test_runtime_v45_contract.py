@@ -87,3 +87,54 @@ def test_runtime_v45_no_placeholder_selftest_emit() -> None:
         assert re.search(pattern, app) is None, (
             f"placeholder zero-arg SELFTEST 45 emit matched: {pattern}"
         )
+
+
+def _swift_function_body(shell: str, name: str) -> str:
+    return shell.split(f"func {name}()")[1].split("func ")[0]
+
+
+def test_runtime_v45_boot_snapshot_contract() -> None:
+    support = read_repo("Sources/Support/include/Support.h")
+    app = read_repo("Sources/Application/Application.swift")
+    shell = read_repo("Sources/Application/UARTShell.swift")
+
+    for decl in (
+        "int kernel_vmm_boot_snapshot_seal(int pt_ok, int vmm_ok, int asplit_ok, int el0_ok);",
+        "int kernel_vmm_boot_pt_proven(void);",
+        "int kernel_vmm_boot_vmm_proven(void);",
+        "int kernel_vmm_boot_asplit_proven(void);",
+        "int kernel_vmm_boot_el0_proven(void);",
+    ):
+        assert decl in support
+
+    assert app.count("kernel_vmm_boot_snapshot_seal(") == 1
+    seal_idx = app.index("kernel_vmm_boot_snapshot_seal(")
+    emit45_idx = app.index("kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 45")
+    assert seal_idx < emit45_idx
+
+    agent = _swift_function_body(shell, "printAgentSession")
+    certificate = _swift_function_body(shell, "printSubstrateCertificate")
+    vmm_fn = _swift_function_body(shell, "printVMM")
+    bootcert = _swift_function_body(shell, "printBootcert")
+
+    assert "kernel_vmm_boot_vmm_proven()" in agent
+    assert "kernel_vmm_vmm_selftest()" not in agent
+
+    for body in (certificate, bootcert):
+        assert "kernel_vmm_boot_vmm_proven()" in body
+        assert "kernel_vmm_boot_asplit_proven()" in body
+        assert "kernel_vmm_boot_el0_proven()" in body
+        assert "kernel_vmm_vmm_selftest()" not in body
+        assert "kernel_vmm_asplit_selftest()" not in body
+        assert "kernel_vmm_el0_selftest()" not in body
+
+    assert "kernel_vmm_boot_pt_proven()" in vmm_fn
+    assert "kernel_vmm_boot_vmm_proven()" in vmm_fn
+    assert "kernel_vmm_pt_alloc_selftest()" not in vmm_fn
+    assert "kernel_vmm_vmm_selftest()" not in vmm_fn
+
+    # printASplit / printEL0 remain live selftest readers (out of snapshot scope)
+    asplit_fn = _swift_function_body(shell, "printASplit")
+    el0_fn = _swift_function_body(shell, "printEL0")
+    assert "kernel_vmm_asplit_selftest()" in asplit_fn
+    assert "kernel_vmm_el0_selftest()" in el0_fn
