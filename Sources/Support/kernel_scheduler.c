@@ -2374,10 +2374,6 @@ int kernel_scheduler_fairness_selftest(void) {
     if (!kernel_smp_core_online(1) || !kernel_smp_core_online(2) || !kernel_smp_core_online(3)) {
         return 0;
     }
-    if (kernel_scheduler_balance_total() >= 2U &&
-        kernel_scheduler_balance_completion_total() >= 2U) {
-        return 1;
-    }
 
     unsigned int saved_feed = kernel_scheduler_timer_worker_feed_enabled();
     set_timer_worker_feed_enabled(0);
@@ -2456,11 +2452,6 @@ int kernel_scheduler_priority_selftest(void) {
     }
     if (!kernel_smp_core_online(1) || !priority_lanes_enabled) {
         return 0;
-    }
-    if (kernel_scheduler_priority_preempt_total() >= 2U &&
-        kernel_scheduler_priority_yield_total() >= 2U &&
-        kernel_scheduler_priority_completion_total() >= 4U) {
-        return 1;
     }
 
     unsigned int saved_feed = kernel_scheduler_timer_worker_feed_enabled();
@@ -2715,11 +2706,6 @@ int kernel_scheduler_secondary_worker_selftest(void) {
     }
     if (kernel_smp_online_count() != 4U || kernel_smp_online_mask() != 0xfU) {
         return 0;
-    }
-    if (kernel_scheduler_secondary_worker_total() >= 3UL &&
-        kernel_scheduler_secondary_worker_min() > 0UL &&
-        kernel_scheduler_secondary_worker_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY) {
-        return 1;
     }
 
     unsigned int saved_feed = kernel_scheduler_timer_worker_feed_enabled();
