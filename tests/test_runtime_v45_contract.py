@@ -1,4 +1,5 @@
 import pathlib
+import re
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -74,5 +75,15 @@ def test_runtime_v45_does_not_break_v44_historical_markers() -> None:
 
 def test_runtime_v45_no_placeholder_selftest_emit() -> None:
     app = read_repo("Sources/Application/Application.swift")
-    assert "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 45, 0, 0)" not in app
-    assert app.count("KERNEL_EVENT_KIND_SELFTEST, 45") == 1
+    live_emit = "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 45, UInt(pt_ok), UInt(vmm_ok))"
+    assert live_emit in app
+    assert app.count("kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 45") == 1
+
+    banned_zero_patterns = (
+        r"KERNEL_EVENT_KIND_SELFTEST,\s*45,\s*0,\s*0",
+        r"KERNEL_EVENT_KIND_SELFTEST,\s*45,\s*UInt\s*\(\s*0\s*\),\s*UInt\s*\(\s*0\s*\)",
+    )
+    for pattern in banned_zero_patterns:
+        assert re.search(pattern, app) is None, (
+            f"placeholder zero-arg SELFTEST 45 emit matched: {pattern}"
+        )
