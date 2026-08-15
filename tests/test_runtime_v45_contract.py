@@ -133,8 +133,9 @@ def test_runtime_v45_boot_snapshot_contract() -> None:
     assert "kernel_vmm_pt_alloc_selftest()" not in vmm_fn
     assert "kernel_vmm_vmm_selftest()" not in vmm_fn
 
-    # printASplit / printEL0 remain live selftest readers (out of snapshot scope)
+    # printASplit reads boot snapshot; printEL0 remains live selftest (out of snapshot scope)
     asplit_fn = _swift_function_body(shell, "printASplit")
     el0_fn = _swift_function_body(shell, "printEL0")
-    assert "kernel_vmm_asplit_selftest()" in asplit_fn
+    assert "kernel_vmm_boot_asplit_proven()" in asplit_fn
+    assert "kernel_vmm_asplit_selftest()" not in asplit_fn
     assert "kernel_vmm_el0_selftest()" in el0_fn
