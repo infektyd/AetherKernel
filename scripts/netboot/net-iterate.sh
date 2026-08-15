@@ -276,6 +276,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "pcie ok=1 version=61" \
       && printf '%s' "$serial_delta" | grep -qa "vl805 ok=1 version=62" \
       && printf '%s' "$serial_delta" | grep -qa "xhci ok=1 version=63" \
+      && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
       && printf '%s' "$serial_delta" | grep -qa "syscall ok=1 version=48" \
