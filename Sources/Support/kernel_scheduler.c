@@ -2815,21 +2815,6 @@ int kernel_scheduler_secondary_job_selftest(void) {
     if (kernel_smp_online_count() != 4U || kernel_smp_online_mask() != 0xfU) {
         return 0;
     }
-    {
-        unsigned long min = kernel_scheduler_secondary_job_min();
-        unsigned long max = kernel_scheduler_secondary_job_max();
-        if (min > 0 &&
-            max >= min &&
-            kernel_scheduler_secondary_job_execution_count(0) == 0 &&
-            kernel_scheduler_secondary_job_completion_count(0) == 0 &&
-            kernel_scheduler_secondary_job_total() >= 3UL &&
-            kernel_scheduler_secondary_job_completion_total() >= 3UL &&
-            kernel_scheduler_secondary_job_checksum_total() > 0 &&
-            kernel_scheduler_secondary_job_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY &&
-            kernel_scheduler_secondary_job_completion_gap() == 0) {
-            return 1;
-        }
-    }
 
     for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
         if (kernel_scheduler_secondary_job_execution_count(core_id) == 0) {
