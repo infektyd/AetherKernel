@@ -2296,10 +2296,6 @@ int kernel_scheduler_work_steal_selftest(void) {
     if (!kernel_smp_core_online(1) || !kernel_smp_core_online(2) || !kernel_smp_core_online(3)) {
         return 0;
     }
-    if (kernel_scheduler_steal_total() >= 2U &&
-        kernel_scheduler_steal_completion_total() >= 2U) {
-        return 1;
-    }
 
     unsigned int saved_feed = kernel_scheduler_timer_worker_feed_enabled();
     set_timer_worker_feed_enabled(0);
