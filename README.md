@@ -3,7 +3,7 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-**Status:** Runtime V44 (bounded SMP concurrency soak) — hardware-verified on a real Pi 4B, 2026-06-07.
+**Status:** Runtime V45 (dynamic virtual memory) — boot event 64; live UART shell reports `bootcert ok=1 version=66` and `certificate ok=1 version=63` (`sched12 ok=1 version=44` remains the concurrency-soak feature version).
 
 ## What makes this unusual
 

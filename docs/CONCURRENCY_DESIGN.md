@@ -46,6 +46,10 @@ scheduler load-balancing protocol was hardware-verified 2026-06-06. Runtime V43
 secondary scheduler priority/preemption protocol was hardware-verified 2026-06-07.
 Runtime V44 bounded SMP concurrency soak protocol was hardware-verified 2026-06-07.
 
+Current live UART shell strings on the shipped build: `bootcert ok=1 version=66 ...`,
+`certificate ok=1 version=63 ...`, and `sched12 ok=1 version=44 ...` (sched12 keeps
+the V44 concurrency-soak feature version).
+
 > ## Runtime V44 bounded SMP concurrency soak protocol ground truth (2026-06-07)
 > V44 keeps Swift execution on core 0 and proves three bounded concurrency soak
 > rounds while SMP dispatch and timer-fed secondary workers stay active. Each round
