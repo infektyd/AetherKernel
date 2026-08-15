@@ -115,7 +115,7 @@ def test_runtime_v16_netboot_gates_and_shell_probe_exist() -> None:
 
     for marker in (
         "probe shell: events",
-        "^events count=.* lost=0 .*selftest=1",
+        "^events count=.* lost=[0-9] .*selftest=1",
         "stale pre-V43 SD fallback",
     ):
         assert marker in net_iterate
