@@ -33,6 +33,37 @@ die() {
   exit 1
 }
 
+sha256_file() {
+  shasum -a 256 "$1" | awk '{print $1}'
+}
+
+parse_netflash_kernel_sha256() {
+  local output="$1"
+  local hash
+  hash="$(printf '%s\n' "$output" | sed -n 's/^verified kernel8\.img sha256 \([0-9a-f]\{64\}\)$/\1/p' | head -n 1)"
+  if [ -z "$hash" ]; then
+    die "netflash did not report verified kernel8.img sha256"
+  fi
+  printf '%s' "$hash"
+}
+
+bind_staged_kernel_sha256() {
+  local netflash_output="$1"
+  local staged_kernel="$2"
+  local netflash_hash
+  local staged_hash
+
+  netflash_hash="$(parse_netflash_kernel_sha256 "$netflash_output")"
+  staged_hash="$(sha256_file "$staged_kernel")"
+  if [ "$netflash_hash" != "$staged_hash" ]; then
+    echo "net-iterate: staged kernel8.img sha256 mismatch" >&2
+    echo "  netflash: $netflash_hash" >&2
+    echo "  staged:   $staged_hash" >&2
+    exit 1
+  fi
+  printf '%s' "$netflash_hash"
+}
+
 print_tftp_diagnostics() {
   local dns_delta="$1"
 
@@ -119,7 +150,10 @@ fi
 # tftp_server_running || die "TFTP server does not appear to be serving $TFTP_ROOT"
 if ! tftp_server_running; then echo "net-iterate: (tftp check bypassed for proof; serve confirmed up via manual launch + prior kernel8.img serve in dns log)"; fi
 
-"$SCRIPT_DIR/netflash.sh" "$TFTP_ROOT"
+STAGED_KERNEL="$TFTP_ROOT/$PREFIX/kernel8.img"
+netflash_output="$("$SCRIPT_DIR/netflash.sh" "$TFTP_ROOT")"
+printf '%s\n' "$netflash_output"
+KERNEL_SHA256="$(bind_staged_kernel_sha256 "$netflash_output" "$STAGED_KERNEL")"
 
 attempt=1
 last_dns_delta=""
@@ -255,6 +289,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "rtv13 mail rx 0x0000000000000000" \
       && printf '%s' "$serial_delta" | grep -qa "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci"; then
       echo "netboot iteration verified on attempt ${attempt}/${RETRIES}"
+      echo "verified kernel8.img sha256 $KERNEL_SHA256"
       if [ "${AETHER_NETITERATE_SKIP_SHELL_PROBES:-0}" != "1" ]; then
         export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
         # probe shell: status
