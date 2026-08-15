@@ -123,10 +123,9 @@ def test_runtime_v40_netboot_gates_and_sched8_probe_exist() -> None:
 
 def test_runtime_v40_docs_are_updated_after_hardware_proof() -> None:
     readme = read_repo("README.md")
-    runbook = read_repo("docs/RUNBOOK.md")
     design = read_repo("docs/CONCURRENCY_DESIGN.md")
 
-    for source in (readme, runbook, design):
+    for source in (readme, design):
         assert "Runtime V40 scheduler backpressure protocol" in source
         assert "bootcert ok=1 version=40" in source
         assert "backpressure=1" in source

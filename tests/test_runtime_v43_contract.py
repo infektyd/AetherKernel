@@ -71,8 +71,8 @@ def test_runtime_v43_priority_preemption_contract_exists() -> None:
     for marker in (
         "priority_lanes_enabled && is_scheduler_priority_token",
         "KERNEL_SCHEDULER_PRIORITY_TOKEN_BASE | 0x1000U",
-        "is_scheduler_steal_token(head_token)",
-        "is_scheduler_balance_token(head_token)",
+        "!is_scheduler_steal_token(cores[source_core].queue[cores[source_core].head])",
+        "!is_scheduler_balance_token(cores[source_core].queue[cores[source_core].head])",
         "kernel_scheduler_try_preempt_priority_work(1)",
         "set_smp_dispatch_enabled(0)",
         "saved_dispatch = kernel_scheduler_smp_dispatch_enabled()",
