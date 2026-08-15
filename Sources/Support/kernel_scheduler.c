@@ -2214,10 +2214,6 @@ int kernel_scheduler_backpressure_selftest(void) {
         kernel_scheduler_runqueue_capacity() != KERNEL_SCHEDULER_RUNQUEUE_CAPACITY) {
         return 0;
     }
-    if (kernel_scheduler_runqueue_overflow_total() >= KERNEL_SCHEDULER_CORE_CAPACITY &&
-        kernel_scheduler_runqueue_high_water_max() >= KERNEL_SCHEDULER_RUNQUEUE_CAPACITY) {
-        return 1;
-    }
 
     unsigned int saved_feed = kernel_scheduler_timer_worker_feed_enabled();
     set_timer_worker_feed_enabled(0);
