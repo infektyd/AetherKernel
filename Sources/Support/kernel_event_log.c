@@ -185,6 +185,22 @@ int kernel_event_log_selftest(void) {
         if (kernel_event_kind(last) != KERNEL_EVENT_KIND_SELFTEST) {
             return 0;
         }
+    } else {
+        /* Full ring: read-only walk — no emit (would bump lost_count). */
+        unsigned int full_count = kernel_event_count();
+        if (full_count != KERNEL_EVENT_CAPACITY_VALUE) {
+            return 0;
+        }
+        for (unsigned int i = 0; i < full_count; i++) {
+            if (kernel_event_seq(i) == 0UL) {
+                return 0;
+            }
+            (void)kernel_event_kind(i);
+            (void)kernel_event_ticks(i);
+            (void)kernel_event_arg0(i);
+            (void)kernel_event_arg1(i);
+            (void)kernel_event_arg2(i);
+        }
     }
     return 1;
 }
