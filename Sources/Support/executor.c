@@ -9,7 +9,6 @@
 //===----------------------------------------------------------------------===//
 
 #define READY_CAPACITY 64
-#define DELAY_CAPACITY 32
 
 static unsigned long long swift_time_to_ns(SwiftTime t) {
     return (unsigned long long)t.seconds * 1000000000ULL
@@ -117,5 +116,5 @@ unsigned int executor_delayed_count(void) {
 }
 
 unsigned int executor_delayed_capacity(void) {
-    return DELAY_CAPACITY;
+    return 0;
 }
