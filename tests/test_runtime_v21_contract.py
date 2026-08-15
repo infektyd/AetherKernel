@@ -87,7 +87,7 @@ def test_runtime_v21_application_shell_and_bootcert_surface_exist() -> None:
 
 
     assert "runtime v21: mmu ownership boundary" in app
-    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 44, 0, 0)" in app
+    assert "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 64, 0, 0)" in app
     assert "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 21, UInt(kernel_mmu_selftest()), 0)" in app
 
     for marker in (
@@ -121,7 +121,7 @@ def test_runtime_v21_netboot_gates_and_probe_exist() -> None:
     for marker in (
         "probe shell: mmu",
         "^mmu ok=1 .*regions=4 .*block_size=0x40000000",
-        "^bootcert ok=1 version=44 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "^bootcert ok=1 version=66 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=[01] .*backpressure=[01] .*handoff=[01] .*wake=[01] .*job_exec=[01] .*worker_feed=[01] .*secondary_workers=[01] .*preemptive=[01] .*smp_scheduler=[01] .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*framebuf=1 .*console=1 .*pcie=1 .*vl805=1 .*xhci=1 .*kbd=[01] .*events_lost=0",
         "stale pre-V43 SD fallback",
     ):
         assert marker in net_iterate

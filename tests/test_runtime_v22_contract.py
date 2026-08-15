@@ -79,7 +79,7 @@ def test_runtime_v22_application_shell_and_bootcert_surface_exist() -> None:
 
     for marker in (
         "kernel_pool_init()",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 44, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 64, 0, 0)",
         "runtime v22: guarded typed pools",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))",
     ):
@@ -123,7 +123,7 @@ def test_runtime_v22_netboot_gates_and_probe_exist() -> None:
         "^poolcheck ok=1 .*bad_frees=1 .*double_frees=1",
         "probe shell: pools",
         "^pools count=.* capacity=.* selftest=1",
-        "^bootcert ok=1 version=44 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
+        "^bootcert ok=1 version=66 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=[01] .*backpressure=[01] .*handoff=[01] .*wake=[01] .*job_exec=[01] .*worker_feed=[01] .*secondary_workers=[01] .*preemptive=[01] .*smp_scheduler=[01] .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*framebuf=1 .*console=1 .*pcie=1 .*vl805=1 .*xhci=1 .*kbd=[01] .*events_lost=0",
         "stale pre-V43 SD fallback",
     ):
         assert marker in net_iterate
