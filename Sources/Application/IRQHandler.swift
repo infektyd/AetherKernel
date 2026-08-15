@@ -12,7 +12,7 @@ func irqHandler() {
   if intid == CNTP_GIC_INTID {             // CNTP timer
     kernel_scheduler_on_timer_irq()        // Runtime V31 preemption/accounting tick
     serviceTimerSleepers()                 // resume due sleep continuations; re-arms shared CNTP
-    executor_on_timer_irq()                // promote due executor-delayed jobs on the same timer
+    executor_on_timer_irq()                // must match no-op kernel_executor_on_timer_irq (KernelExecutor delay panics)
   } else if intid == UART0_GIC_INTID {     // PL011 UART0 RX
     serviceUartRxIrq()
   }
