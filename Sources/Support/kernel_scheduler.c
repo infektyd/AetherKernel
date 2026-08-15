@@ -2597,11 +2597,6 @@ int kernel_scheduler_concurrency_soak_selftest(void) {
         !kernel_smp_core_online(1)) {
         return 0;
     }
-    if (kernel_scheduler_concurrency_soak_round_total() >= KERNEL_SCHEDULER_CONCURRENCY_SOAK_ROUNDS &&
-        kernel_scheduler_concurrency_soak_failure_total() == 0U &&
-        kernel_scheduler_concurrency_soak_completion_total() >= KERNEL_SCHEDULER_CONCURRENCY_SOAK_ROUNDS) {
-        return 1;
-    }
 
     wait_for_secondary_queues_empty();
 
