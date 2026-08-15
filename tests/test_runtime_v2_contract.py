@@ -32,21 +32,40 @@ def test_timer_sleep_uses_fixed_multi_sleeper_queue() -> None:
     assert "concurrent sleeper unsupported" not in timer_sleep
 
 
-def test_executor_delay_hooks_schedule_against_shared_timer() -> None:
+def test_executor_delay_hooks_panic_instead_of_scheduling() -> None:
     executor = read_repo("Sources/Support/executor.c")
+    kernel_executor = read_repo("Sources/Application/KernelExecutor.swift")
 
+    # C trampolines still exist and forward into Swift-owned panic paths.
     assert "swift_task_enqueueGlobalWithDelayImpl" in executor
-    assert "delay_schedule_ns" in executor
-    assert "kernel_timer_set_deadline(KERNEL_TIMER_CLIENT_EXECUTOR" in executor
-    assert "runtime delay hook unsupported" not in executor
-    assert "runtime deadline hook unsupported" not in executor
+    assert "swift_task_enqueueGlobalWithDeadlineImpl" in executor
+    assert "kernel_executor_enqueue_delay_ns" in executor
+    assert "kernel_executor_enqueue_deadline_ns" in executor
+
+    # Delay scheduler removed from executor.c (TimerSleep owns timed wakeups).
+    assert "delay_schedule_ns" not in executor
+    assert "kernel_timer_set_deadline(KERNEL_TIMER_CLIENT_EXECUTOR" not in executor
+
+    # Swift side panics loudly so any runtime path that routes here fails visibly.
+    assert (
+        'executorPanic("delay enqueue is unsupported (proven dead; use TimerSleep)")'
+        in kernel_executor
+    )
+    assert (
+        'executorPanic("deadline enqueue is unsupported (proven dead; use TimerSleep)")'
+        in kernel_executor
+    )
 
 
-def test_timer_irq_services_sleepers_and_executor_delays() -> None:
+def test_timer_irq_services_sleepers_executor_irq_is_noop() -> None:
     irq = read_repo("Sources/Application/IRQHandler.swift")
+    kernel_executor = read_repo("Sources/Application/KernelExecutor.swift")
 
     assert "serviceTimerSleepers()" in irq
     assert "executor_on_timer_irq()" in irq
+
+    # Delay queue gone: IRQ still calls through but kernel_executor_on_timer_irq is empty.
+    assert "func kernel_executor_on_timer_irq() {\n}" in kernel_executor
 
 
 def test_runtime_v2_demo_and_net_iterate_expect_machine_checkable_cadences() -> None:
