@@ -83,3 +83,20 @@ def test_event_log_reuses_kernel_spinlock_not_new_lock_type() -> None:
     assert "void kernel_spinlock_lock(kernel_spinlock_t *lock);" in support
     assert "ticket" not in source.lower()
     assert "mutex" not in source.lower()
+
+
+def test_event_log_selftest_full_ring_checks_lost_count_before_pass() -> None:
+    """EL-18 (S43): full-ring selftest path must observe lost_count before return 1."""
+    source = read_repo("Sources/Support/kernel_event_log.c")
+    selftest = source.split("int kernel_event_log_selftest(", 1)[1].split("\n}\n", 1)[0]
+
+    assert "kernel_event_lost_count" in selftest
+    assert "lost_before" in selftest
+
+    full_ring = selftest.split("Full ring: read-only walk", 1)[1]
+    lost_gate = full_ring.split("if (lost != expected_lost)", 1)[0]
+    assert "unsigned long lost = kernel_event_lost_count()" in lost_gate
+    assert "expected_lost" in full_ring
+    assert full_ring.index("unsigned long lost = kernel_event_lost_count()") < full_ring.index(
+        "if (lost != expected_lost)"
+    )

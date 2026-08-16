@@ -199,12 +199,17 @@ int kernel_event_log_selftest(void) {
     }
     if (kernel_event_count() < KERNEL_EVENT_CAPACITY_VALUE) {
         unsigned int before = kernel_event_count();
-        kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, before, KERNEL_EVENT_CAPACITY_VALUE, kernel_event_lost_count());
+        unsigned long lost_before = kernel_event_lost_count();
+        kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, before, KERNEL_EVENT_CAPACITY_VALUE, lost_before);
         if (kernel_event_count() != before + 1U) {
             return 0;
         }
         unsigned int last = kernel_event_count() - 1U;
         if (kernel_event_kind(last) != KERNEL_EVENT_KIND_SELFTEST) {
+            return 0;
+        }
+        /* Non-full emit must not wrap or increment lost_count. */
+        if (kernel_event_lost_count() != lost_before || lost_before != 0UL) {
             return 0;
         }
     } else {
@@ -222,6 +227,14 @@ int kernel_event_log_selftest(void) {
             (void)kernel_event_arg0(i);
             (void)kernel_event_arg1(i);
             (void)kernel_event_arg2(i);
+        }
+        unsigned long lost = kernel_event_lost_count();
+        unsigned long seq = kernel_event_sequence();
+        unsigned long expected_lost = (seq >= KERNEL_EVENT_CAPACITY_VALUE)
+            ? (seq - KERNEL_EVENT_CAPACITY_VALUE)
+            : 0UL;
+        if (lost != expected_lost) {
+            return 0;
         }
     }
     return 1;
