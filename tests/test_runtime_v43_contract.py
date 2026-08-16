@@ -148,8 +148,10 @@ def test_runtime_v43_netboot_gates_and_sched11_probe_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
-        assert "runtime v43: secondary scheduler priority preemption" in source
         assert COMMANDS_V43 in source
+
+    assert "schedselftest ok=1 version=43" in net_iterate
+    assert "runtime v43: secondary scheduler priority preemption" in doctor
 
     for marker in (
         "probe shell: sched11",

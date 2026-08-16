@@ -103,8 +103,10 @@ def test_runtime_v31_netboot_gates_and_scheduler_probe_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
-        assert "runtime v31: preemptive scheduler substrate" in source
         assert COMMANDS_V31 in source
+
+    assert "schedselftest ok=1 version=31" in net_iterate
+    assert "runtime v31: preemptive scheduler substrate" in doctor
 
     for marker in (
         "probe shell: sched",

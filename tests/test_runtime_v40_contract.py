@@ -106,8 +106,10 @@ def test_runtime_v40_netboot_gates_and_sched8_probe_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
-        assert "runtime v40: scheduler backpressure protocol" in source
         assert COMMANDS_V40 in source
+
+    assert "schedselftest ok=1 version=40" in net_iterate
+    assert "runtime v40: scheduler backpressure protocol" in doctor
 
     for marker in (
         "probe shell: sched8",

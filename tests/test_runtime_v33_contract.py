@@ -154,8 +154,10 @@ def test_runtime_v33_netboot_gates_and_probes_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
-        assert "runtime v33: atomics spinlocks per-core run queues" in source
         assert COMMANDS_V33 in source
+
+    assert "schedselftest ok=1 version=33" in net_iterate
+    assert "runtime v33: atomics spinlocks per-core run queues" in doctor
 
     for marker in (
         "probe shell: locks",

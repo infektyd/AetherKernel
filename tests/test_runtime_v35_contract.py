@@ -115,8 +115,10 @@ def test_runtime_v35_netboot_gates_and_sched3_probe_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
-        assert "runtime v35: secondary-owned scheduler workers" in source
         assert COMMANDS_V35 in source
+
+    assert "schedselftest ok=1 version=35" in net_iterate
+    assert "runtime v35: secondary-owned scheduler workers" in doctor
 
     for marker in (
         "probe shell: sched3",

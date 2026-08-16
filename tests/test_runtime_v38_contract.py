@@ -136,8 +136,10 @@ def test_runtime_v38_netboot_gates_and_sched6_probe_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
-        assert "runtime v38: secondary scheduler wake protocol" in source
         assert COMMANDS_V38 in source
+
+    assert "schedselftest ok=1 version=38" in net_iterate
+    assert "runtime v38: secondary scheduler wake protocol" in doctor
 
     for marker in (
         "probe shell: sched6",

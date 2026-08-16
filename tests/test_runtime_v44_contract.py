@@ -111,8 +111,10 @@ def test_runtime_v44_netboot_gates_and_sched12_probe_exist() -> None:
     soak_loop = read_repo("scripts/soak-loop.sh")
 
     for source in (net_iterate, doctor):
-        assert "runtime v44: bounded smp concurrency soak" in source
         assert COMMANDS_V44 in source
+
+    assert "schedselftest ok=1 version=44" in net_iterate
+    assert "runtime v44: bounded smp concurrency soak" in doctor
 
     for marker in (
         "probe shell: sched12",

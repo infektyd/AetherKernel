@@ -138,8 +138,10 @@ def test_runtime_v39_netboot_gates_and_sched7_probe_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
-        assert "runtime v39: secondary scheduler handoff protocol" in source
         assert COMMANDS_V39 in source
+
+    assert "schedselftest ok=1 version=39" in net_iterate
+    assert "runtime v39: secondary scheduler handoff protocol" in doctor
 
     for marker in (
         "probe shell: sched7",

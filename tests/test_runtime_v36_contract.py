@@ -110,8 +110,10 @@ def test_runtime_v36_netboot_gates_and_sched4_probe_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
-        assert "runtime v36: timer-fed secondary scheduler workers" in source
         assert COMMANDS_V36 in source
+
+    assert "schedselftest ok=1 version=36" in net_iterate
+    assert "runtime v36: timer-fed secondary scheduler workers" in doctor
 
     for marker in (
         "probe shell: sched4",

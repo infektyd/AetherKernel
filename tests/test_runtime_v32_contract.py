@@ -85,7 +85,8 @@ def test_runtime_v32_application_boot_marker_and_selftest_exist() -> None:
         "Runtime V32 adds SMP secondary-core bring-up accounting.",
         "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 64, 0, 0)",
         "runtime v32: smp secondary-core bring-up",
-        "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 32, UInt(kernel_smp_selftest()), UInt(kernel_smp_online_count()))",
+        "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 32, UInt(runtimeV32), UInt(kernel_smp_online_count()))",
+        "schedselftest ok=1 version=32",
     ):
         assert marker in app
 
@@ -131,8 +132,10 @@ def test_runtime_v32_netboot_gates_and_cores_probe_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
-        assert "runtime v32: smp secondary-core bring-up" in source
         assert COMMANDS_V32 in source
+
+    assert "schedselftest ok=1 version=32" in net_iterate
+    assert "runtime v32: smp secondary-core bring-up" in doctor
 
     for marker in (
         "probe shell: cores",

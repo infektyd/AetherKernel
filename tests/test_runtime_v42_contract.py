@@ -133,8 +133,10 @@ def test_runtime_v42_netboot_gates_and_sched10_probe_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
-        assert "runtime v42: secondary scheduler load balancing" in source
         assert COMMANDS_V42 in source
+
+    assert "schedselftest ok=1 version=42" in net_iterate
+    assert "runtime v42: secondary scheduler load balancing" in doctor
 
     for marker in (
         "probe shell: sched10",

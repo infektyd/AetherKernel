@@ -112,8 +112,10 @@ def test_runtime_v34_netboot_gates_and_sched2_probe_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
-        assert "runtime v34: timer-driven smp scheduler dispatch" in source
         assert COMMANDS_V34 in source
+
+    assert "schedselftest ok=1 version=34" in net_iterate
+    assert "runtime v34: timer-driven smp scheduler dispatch" in doctor
 
     for marker in (
         "probe shell: sched2",
