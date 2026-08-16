@@ -645,32 +645,76 @@ struct Application {
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 28, UInt(kernel_runtime_audit_selftest()), UInt(kernel_runtime_required_symbol_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 29, 1, UInt(kernel_event_lost_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 30, 1, UInt(kernel_event_lost_count()))
-    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 31, UInt(kernel_scheduler_selftest()), UInt(kernel_scheduler_core_count()))
-    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 32, UInt(kernel_smp_selftest()), UInt(kernel_smp_online_count()))
+    let runtimeV31 = kernel_scheduler_selftest()
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 31, UInt(runtimeV31), UInt(kernel_scheduler_core_count()))
+    if runtimeV31 != 0 {
+        uartPuts("schedselftest ok=1 version=31\n")
+    }
+    let runtimeV32 = kernel_smp_selftest()
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 32, UInt(runtimeV32), UInt(kernel_smp_online_count()))
+    if runtimeV32 != 0 {
+        uartPuts("schedselftest ok=1 version=32\n")
+    }
     let runtimeV33 = kernel_atomic_selftest() != 0 && kernel_spinlock_selftest() != 0 && kernel_scheduler_runqueue_selftest() != 0 ? 1 : 0
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 33, UInt(runtimeV33), UInt(kernel_scheduler_core_count()))
+    if runtimeV33 != 0 {
+        uartPuts("schedselftest ok=1 version=33\n")
+    }
     let runtimeV34 = kernel_scheduler_smp_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 34, UInt(runtimeV34), UInt(kernel_scheduler_total_dispatch_count()))
+    if runtimeV34 != 0 {
+        uartPuts("schedselftest ok=1 version=34\n")
+    }
     let runtimeV35 = kernel_scheduler_secondary_worker_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 35, UInt(runtimeV35), UInt(kernel_scheduler_secondary_worker_total()))
+    if runtimeV35 != 0 {
+        uartPuts("schedselftest ok=1 version=35\n")
+    }
     let runtimeV36 = kernel_scheduler_timer_worker_feed_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 36, UInt(runtimeV36), UInt(kernel_scheduler_secondary_worker_feed_total()))
+    if runtimeV36 != 0 {
+        uartPuts("schedselftest ok=1 version=36\n")
+    }
     let runtimeV37 = kernel_scheduler_secondary_job_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 37, UInt(runtimeV37), UInt(kernel_scheduler_secondary_job_total()))
+    if runtimeV37 != 0 {
+        uartPuts("schedselftest ok=1 version=37\n")
+    }
     let runtimeV38 = kernel_scheduler_secondary_wake_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 38, UInt(runtimeV38), UInt(kernel_scheduler_secondary_wake_signal_total()))
+    if runtimeV38 != 0 {
+        uartPuts("schedselftest ok=1 version=38\n")
+    }
     let runtimeV39 = kernel_scheduler_secondary_handoff_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 39, UInt(runtimeV39), UInt(kernel_scheduler_secondary_handoff_issue_total()))
+    if runtimeV39 != 0 {
+        uartPuts("schedselftest ok=1 version=39\n")
+    }
     let runtimeV40 = kernel_scheduler_backpressure_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 40, UInt(runtimeV40), UInt(kernel_scheduler_runqueue_overflow_total()))
+    if runtimeV40 != 0 {
+        uartPuts("schedselftest ok=1 version=40\n")
+    }
     let runtimeV41 = kernel_scheduler_work_steal_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 41, UInt(runtimeV41), UInt(kernel_scheduler_steal_total()))
+    if runtimeV41 != 0 {
+        uartPuts("schedselftest ok=1 version=41\n")
+    }
     let runtimeV42 = kernel_scheduler_fairness_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 42, UInt(runtimeV42), UInt(kernel_scheduler_balance_total()))
+    if runtimeV42 != 0 {
+        uartPuts("schedselftest ok=1 version=42\n")
+    }
     let runtimeV43 = kernel_scheduler_priority_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 43, UInt(runtimeV43), UInt(kernel_scheduler_priority_preempt_total()))
+    if runtimeV43 != 0 {
+        uartPuts("schedselftest ok=1 version=43\n")
+    }
     let runtimeV44 = kernel_scheduler_concurrency_soak_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 44, UInt(runtimeV44), UInt(kernel_scheduler_concurrency_soak_round_total()))
+    if runtimeV44 != 0 {
+        uartPuts("schedselftest ok=1 version=44\n")
+    }
     let handleSelftest = kernel_object_handle_selftest()
     let capSelftest = kernel_object_capcheck_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_HANDLE, UInt(handleSelftest), UInt(capSelftest), 0)
