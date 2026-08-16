@@ -139,7 +139,7 @@ if [ "${AETHER_NETITERATE_DRY_RUN:-0}" = "1" ]; then
   echo "expect TFTP prefix: $PREFIX/"
   echo "attempts: $RETRIES"
   echo "timeout per attempt: ${TIMEOUT_S}s"
-  echo "shell probes: ./serial-probe.sh status protocol bootcert sched sched2 sched3 sched4 sched5 sched6 sched7 sched8 sched9 sched10 sched11 cores locks runqueues req-status req-sched req-cores req-locks req-runqueues req-sched2 req-sched3 req-sched4 req-sched5 req-sched6 req-sched7 req-sched8 req-sched9 req-sched10 req-sched11 canceltest taskcheck channeltest mmu poolcheck pools heapfrag poolstats bootcheck stress soak kobjects drivers drivercheck tasks2 mailboxes sendtest supervisor health capcheck events"
+  echo "shell probes: ./serial-probe.sh status protocol bootcert sched sched2 sched3 sched4 sched5 sched6 sched7 sched8 sched9 sched10 sched11 cores locks runqueues req-status req-sched req-cores req-locks req-runqueues req-sched2 req-sched3 req-sched4 req-sched5 req-sched6 req-sched7 req-sched8 req-sched9 req-sched10 req-sched11 canceltest taskcheck channeltest mmu poolcheck pools heapfrag poolstats bootcheck stress soak kobjects drivers drivercheck tasks2 mailboxes sendtest supervisor health capcheck events vmm asplit el0 syscall uaccess usermode process loader multiprocess sdhci card block fat32 mailbox framebuf console pcie vl805 xhci"
   exit 0
 fi
 
@@ -402,6 +402,36 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "asplit" "^asplit ok=1 version=46"
         # probe shell: el0
         probe_shell "el0" "^el0 ok=1 version=47"
+        # probe shell: syscall (printSyscall schema: ok= version=48 abi= table=)
+        probe_shell "syscall" "^syscall ok=1 version=48 .*"
+        # probe shell: uaccess
+        probe_shell "uaccess" "^uaccess ok=1 version=49"
+        # probe shell: usermode (boot grep: fault_contained=1 when ok=1)
+        probe_shell "usermode" "^usermode ok=1 version=50 fault_contained=1"
+        # probe shell: process
+        probe_shell "process" "^process ok=1 version=51 .*"
+        # probe shell: loader
+        probe_shell "loader" "^loader ok=1 version=52"
+        # probe shell: multiprocess
+        probe_shell "multiprocess" "^multiprocess ok=1 version=53"
+        # probe shell: sdhci
+        probe_shell "sdhci" "^sdhci ok=1 version=54 .*"
+        # probe shell: card
+        probe_shell "card" "^card ok=1 version=55 .*"
+        # probe shell: block
+        probe_shell "block" "^block ok=1 version=56 .*"
+        # probe shell: fat32 (printFat32: file=config.txt is literal)
+        probe_shell "fat32" "^fat32 ok=1 version=57 file=config.txt .*"
+        # probe shell: mailbox
+        probe_shell "mailbox" "^mailbox ok=1 version=58 .*"
+        # probe shell: framebuf
+        probe_shell "framebuf" "^framebuf ok=1 version=59 .*"
+        # probe shell: console (printConsole: display=0 is literal)
+        probe_shell "console" "^console ok=1 version=60 .* display=0"
+        # probe shell: pcie
+        probe_shell "pcie" "^pcie ok=1 version=61 .*"
+        # probe shell: vl805
+        probe_shell "vl805" "^vl805 ok=1 version=62 .*"
         # probe shell: poolcheck
         probe_shell "poolcheck" "^poolcheck ok=1 .*bad_frees=1 .*double_frees=1"
         # probe shell: pools
