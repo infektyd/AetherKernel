@@ -127,3 +127,13 @@ def test_runtime_v31_docs_are_updated_after_hardware_proof() -> None:
         assert "bootcert ok=1 version=31" in source
         assert "scheduler=1" in source
         assert "sched ok=1 version=31" in source
+
+    # S40: V31 narrative must not claim a live executor timer client.
+    assert "sleep/executor timer clients" not in readme
+    assert "then the armed SLEEP" in readme
+    assert "client (TimerSleep)" in readme
+    assert "EXECUTOR CNTP slot" in readme
+    assert "never armed" in readme
+    assert "sleep and executor timer" not in design
+    assert "armed SLEEP client (TimerSleep)" in design
+    assert "EXECUTOR CNTP slot never armed" in design

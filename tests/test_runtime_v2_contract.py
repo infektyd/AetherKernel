@@ -32,6 +32,14 @@ def test_timer_sleep_uses_fixed_multi_sleeper_queue() -> None:
     assert "concurrent sleeper unsupported" not in timer_sleep
 
 
+def test_timer_sleep_header_matches_sealed_executor_timer_truth() -> None:
+    timer_sleep = read_repo("Sources/Application/TimerSleep.swift")
+
+    assert "executor owns its own delayed-job client" not in timer_sleep
+    assert "EXECUTOR CNTP slot is never armed" in timer_sleep
+    assert "executor delay/deadline hooks panic" in timer_sleep
+
+
 def test_executor_delay_hooks_panic_instead_of_scheduling() -> None:
     executor = read_repo("Sources/Support/executor.c")
     kernel_executor = read_repo("Sources/Application/KernelExecutor.swift")
@@ -77,6 +85,30 @@ def test_support_h_does_not_claim_live_executor_delay_queue() -> None:
 
     assert "executor's delayed jobs" not in support
     assert "Delay/deadline enqueue panic in Swift" in support
+
+
+def test_concurrency_design_historical_delay_queue_blockquotes_labeled() -> None:
+    design = read_repo("docs/CONCURRENCY_DESIGN.md")
+
+    # Current Runtime V2 ground truth.
+    assert "delay queue removed; timed wakeups live in TimerSleep only" in design
+    assert "executor delay hooks panic; no delayed queue" in design
+
+    # Historical Mach-O research quotes must be labeled superseded, not read as live behavior.
+    for marker in (
+        "Historical (superseded by Runtime V2 ground truth, S5/S36)",
+        "Historical pump recipe (superseded by Runtime V2 ground truth, S5/S36)",
+        "Historical (superseded by Runtime V2 ground truth, S5/S36/S40)",
+        "historical: route to delay queue or enqueue if due (superseded",
+        "historical plan: enqueue runs in task context, the timer IRQ only matures the delay queue",
+        "historical plan: IRQ matures the delay queue",
+    ):
+        assert marker in design
+
+    # V31 ground truth must not claim a live executor timer client.
+    assert "sleep and executor timer" not in design
+    assert "armed SLEEP client (TimerSleep)" in design
+    assert "EXECUTOR CNTP slot never armed" in design
 
 
 def test_runtime_v2_demo_and_net_iterate_expect_machine_checkable_cadences() -> None:

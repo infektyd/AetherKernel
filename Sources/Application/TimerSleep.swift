@@ -2,8 +2,9 @@
 // Timer-backed async sleep. Task.sleep is unavailable in Embedded Swift, so we
 // build suspension from withUnsafeContinuation + the CNTP timer IRQ.
 //
-// Runtime V2: this file owns the SLEEP client of the shared CNTP arbiter. The
-// executor owns its own delayed-job client. Swift stores/resumes continuations;
+// Runtime V2: this file owns the SLEEP client of the shared CNTP arbiter.
+// TimerSleep owns all timed wakeups; executor delay/deadline hooks panic and
+// the EXECUTOR CNTP slot is never armed. Swift stores/resumes continuations;
 // all load-bearing CNTP register work stays in non-inline C.
 //===----------------------------------------------------------------------===//
 import Support
