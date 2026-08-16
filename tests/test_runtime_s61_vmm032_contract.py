@@ -9,18 +9,18 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 # abi=48 table=1 dispatched=1 num=1 (SYS_PING) ret=0x482026 (full 64-bit hex).
 SYSCALL_BOOT_GREP = (
     'grep -qa "syscall ok=1 version=48 abi=48 table=1 '
-    'dispatched=1 num=1 ret=0x00000000000482026"'
+    'dispatched=1 num=1 ret=0x0000000000482026"'
 )
 
 SYSCALL_DOCTOR_GREP = (
     'grep -q "syscall ok=1 version=48 abi=48 table=1 '
-    'dispatched=1 num=1 ret=0x00000000000482026"'
+    'dispatched=1 num=1 ret=0x0000000000482026"'
 )
 
 # DOC-syscall-short: operator docs must name the S61 boot grep schema atoms.
 SYSCALL_BOOT_MARKER = (
     "syscall ok=1 version=48 abi=48 table=1 "
-    "dispatched=1 num=1 ret=0x00000000000482026"
+    "dispatched=1 num=1 ret=0x0000000000482026"
 )
 SYSCALL_SHORT_README_MARKER = "`syscall ok=1 version=48`"
 DOC_PATHS = (

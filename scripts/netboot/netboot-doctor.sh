@@ -209,7 +209,7 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \
-      && printf '%s' "$serial_delta" | grep -q "syscall ok=1 version=48 abi=48 table=1 dispatched=1 num=1 ret=0x00000000000482026" \
+      && printf '%s' "$serial_delta" | grep -q "syscall ok=1 version=48 abi=48 table=1 dispatched=1 num=1 ret=0x0000000000482026" \
       && printf '%s' "$serial_delta" | grep -q "uaccess ok=1 version=49" \
       && printf '%s' "$serial_delta" | grep -q "usermode ok=1 version=50 fault_contained=1" \
       && printf '%s' "$serial_delta" | grep -q "process ok=1 version=51" \

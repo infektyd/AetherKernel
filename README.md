@@ -286,7 +286,7 @@ The full table (one row per milestone, each with its serial proof) is collapsed:
 | Runtime V45 dynamic virtual memory (page tables + TLB) | shipped | boot emits `runtime v45: dynamic virtual memory (page tables + TLB)`; `net-iterate.sh` cold-boot gate greps require it |
 | Runtime V46 kernel/user address-space split | shipped | boot emits `runtime v46: kernel/user address-space split (isolated page tables)`; cold-boot gate greps require it |
 | Runtime V47 EL0 entry/exit and context save/restore | shipped | boot emits `runtime v47: EL0 entry/exit and context save/restore`; `el0 ok=1 version=47` |
-| Runtime V48 syscall ABI via SVC from EL0 | shipped | boot emits `runtime v48: syscall ABI via SVC from EL0`; cold-boot gate greps `syscall ok=1 version=48 abi=48 table=1 dispatched=1 num=1 ret=0x00000000000482026` |
+| Runtime V48 syscall ABI via SVC from EL0 | shipped | boot emits `runtime v48: syscall ABI via SVC from EL0`; cold-boot gate greps `syscall ok=1 version=48 abi=48 table=1 dispatched=1 num=1 ret=0x0000000000482026` |
 | Runtime V49 fault-safe copy_from_user / copy_to_user | shipped | boot emits `runtime v49: fault-safe copy_from_user / copy_to_user`; `uaccess ok=1 version=49` |
 | Runtime V50 EPIC A capstone (EL0 syscall + user fault containment) | shipped | boot emits `runtime v50: EPIC A capstone — EL0 syscall + user fault containment`; `usermode ok=1 version=50` |
 | Runtime V51 process abstraction | shipped | boot emits `runtime v51: process abstraction (address space + lifecycle)`; `process ok=1 version=51` |

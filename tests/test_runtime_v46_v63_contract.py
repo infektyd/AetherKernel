@@ -60,7 +60,7 @@ VERSION_BOOT_CONTRACTS: tuple[VersionBootContract, ...] = (
         ),
         (
             'grep -qa "syscall ok=1 version=48 abi=48 table=1 '
-            'dispatched=1 num=1 ret=0x00000000000482026"'
+            'dispatched=1 num=1 ret=0x0000000000482026"'
         ),
     ),
     VersionBootContract(
