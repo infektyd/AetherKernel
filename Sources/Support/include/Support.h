@@ -1144,6 +1144,14 @@ unsigned int kernel_hubwalk_ports(void);
 unsigned int kernel_hubwalk_connected(void);
 unsigned int kernel_hubwalk_hid(void);
 
+// V67: GENET SYS_REV + bounded MDIO/link. Boot-time only. ok=1 means
+// SYS_REV_CTRL looked like a live block; mdio/link may stay 0.
+int          kernel_genet_selftest(void);
+int          kernel_genet_ok(void);
+unsigned int kernel_genet_rev(void);
+unsigned int kernel_genet_mdio(void);
+unsigned int kernel_genet_link(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.
