@@ -51,3 +51,7 @@ monitor-v45.sh
 
 # Internal process data — agent-generated reports/metrics, not for publication
 .internal/
+
+# Agent git worktrees (never create AetherKernel-* siblings under ~/Projects)
+.worktrees/*
+!.worktrees/README.md

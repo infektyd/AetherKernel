@@ -15,8 +15,10 @@
 # BACKENDS (set AETHER_POWER_BACKEND):
 #   wemo     Belkin Wemo plug, local UPnP/SOAP (no cloud). needs AETHER_POWER_HOST=<ip>
 #            Port drifts (49153/49152/49154); set AETHER_POWER_WEMO_PORT if needed.
-#   shelly   Shelly Plus/Gen2 plug, local HTTP RPC.   needs AETHER_POWER_HOST=<ip>
-#   shelly1  Shelly Gen1 plug, local HTTP.            needs AETHER_POWER_HOST=<ip>
+#   shelly   Shelly Gen2+/Gen4 (Plug US Gen4 S4PL-00116US), local HTTP RPC
+#            Switch.Set / Switch.GetStatus.           needs AETHER_POWER_HOST=<ip>
+#            Optional digest: AETHER_POWER_SHELLY_AUTH=user:pass
+#   shelly1  Shelly Gen1 plug, local HTTP /relay/0.   needs AETHER_POWER_HOST=<ip>
 #   kasa     TP-Link Kasa via python-kasa CLI.        needs AETHER_POWER_HOST=<ip>
 #   tasmota  Tasmota-flashed plug, local HTTP.        needs AETHER_POWER_HOST=<ip>
 #   cmd      Generic: run your own shell commands.    needs AETHER_POWER_OFF_CMD
@@ -28,6 +30,7 @@
 # ENV:
 #   AETHER_POWER_BACKEND      one of the above (default: manual)
 #   AETHER_POWER_HOST         plug IP/host (shelly/shelly1/kasa/tasmota)
+#   AETHER_POWER_SHELLY_AUTH  digest user:pass if Shelly Gen2+/Gen4 has auth
 #   AETHER_POWER_OFF_CMD      off command (cmd backend)
 #   AETHER_POWER_ON_CMD       on command (cmd backend)
 #   AETHER_POWER_DISCHARGE_S  seconds power stays off (default 4) for cap discharge
@@ -52,7 +55,7 @@ die() { echo "power-cycle: $*" >&2; exit 1; }
 log() { echo "power-cycle: $*"; }
 
 if [ "$ACTION" = "-h" ] || [ "$ACTION" = "--help" ]; then
-  sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,42p' "$0" | sed 's/^# \{0,1\}//'
   exit 0
 fi
 
@@ -131,10 +134,35 @@ wemo_set() {  # $1 = desired BinaryState (1/0): set, verify, retry; loud-fail if
   return 1
 }
 
+# Shelly Gen2+/Gen4 (S4PL-00116US) local HTTP RPC. Backend name is `shelly`.
+# Optional digest: AETHER_POWER_SHELLY_AUTH=user:password (not a cloud API).
+shelly_set() {  # $1=true|false — Switch.Set then confirm via Switch.GetStatus output
+  need_host
+  local want="$1" got
+  if [ -n "${AETHER_POWER_SHELLY_AUTH:-}" ]; then
+    run "curl -fsS --digest -u \"$AETHER_POWER_SHELLY_AUTH\" --max-time 8 \"http://$HOST/rpc/Switch.Set?id=0&on=$want\" >/dev/null"
+  else
+    run "curl -fsS --max-time 8 \"http://$HOST/rpc/Switch.Set?id=0&on=$want\" >/dev/null"
+  fi
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "  [dry-run] would confirm via http://$HOST/rpc/Switch.GetStatus?id=0 output==$want"
+    return 0
+  fi
+  if [ -n "${AETHER_POWER_SHELLY_AUTH:-}" ]; then
+    got="$(curl -fsS --digest -u "$AETHER_POWER_SHELLY_AUTH" --max-time 5 \
+      "http://$HOST/rpc/Switch.GetStatus?id=0" 2>/dev/null \
+      | grep -oE '"output"[[:space:]]*:[[:space:]]*(true|false)' | grep -oE 'true|false' || true)"
+  else
+    got="$(curl -fsS --max-time 5 "http://$HOST/rpc/Switch.GetStatus?id=0" 2>/dev/null \
+      | grep -oE '"output"[[:space:]]*:[[:space:]]*(true|false)' | grep -oE 'true|false' || true)"
+  fi
+  [ "$got" = "$want" ] || die "shelly set on=$want unconfirmed (GetStatus output='${got:-no-response}')"
+}
+
 power_off() {
   case "$BACKEND" in
     wemo)    wemo_set 0 ;;
-    shelly)  need_host; run "curl -fsS --max-time 8 \"http://$HOST/rpc/Switch.Set?id=0&on=false\" >/dev/null" ;;
+    shelly)  shelly_set false ;;
     shelly1) need_host; run "curl -fsS --max-time 8 \"http://$HOST/relay/0?turn=off\" >/dev/null" ;;
     kasa)    need_host; run "kasa --host \"$HOST\" off >/dev/null" ;;
     tasmota) need_host; run "curl -fsS --max-time 8 \"http://$HOST/cm?cmnd=Power%20off\" >/dev/null" ;;
@@ -147,7 +175,7 @@ power_off() {
 power_on() {
   case "$BACKEND" in
     wemo)    wemo_set 1 ;;
-    shelly)  need_host; run "curl -fsS --max-time 8 \"http://$HOST/rpc/Switch.Set?id=0&on=true\" >/dev/null" ;;
+    shelly)  shelly_set true ;;
     shelly1) need_host; run "curl -fsS --max-time 8 \"http://$HOST/relay/0?turn=on\" >/dev/null" ;;
     kasa)    need_host; run "kasa --host \"$HOST\" on >/dev/null" ;;
     tasmota) need_host; run "curl -fsS --max-time 8 \"http://$HOST/cm?cmnd=Power%20on\" >/dev/null" ;;

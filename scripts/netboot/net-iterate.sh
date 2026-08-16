@@ -167,7 +167,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
 
   # Start (or re-start) serial capture BEFORE the power-cycle / reset.
   # This ensures the one-time early boot banner (e.g. "runtime v45: ...") and initial
-  # kernel output are captured in the log. For cold-cycles (Wemo via netboot-auto)
+  # kernel output are captured in the log. For cold-cycles (Shelly via netboot-auto)
   # the power-on triggers the bootloader netboot + kernel boot; logger must be
   # attached to the serial port *before* power-on. Warm resets may miss it too.
   # Moving this before the cycle fixes the ordering for all future slices.
@@ -183,7 +183,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
   else
     # Default: warm serial reset. NOTE: this does NOT re-arm netboot mode, so the
     # Pi must already be in netboot (fresh cold boot). Set AETHER_POWER_BACKEND
-    # (e.g. wemo) for a true unattended cold cycle. See power-cycle.sh.
+    # (e.g. shelly) for a true unattended cold cycle. See power-cycle.sh.
     "$SCRIPTS_ROOT/serial/serial-reset.sh" "$SERIAL_PORT"
   fi
   # (serial-capture now started before the cycle above; removed duplicate start)

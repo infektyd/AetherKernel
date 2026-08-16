@@ -15,13 +15,14 @@ Working branch: `feat/macho-concurrency`.
 ## Build & hardware-proof loop
 
 - Flash + prove on metal: `./net-iterate.sh` (TFTP `kernel8.img` → serial markers).
-- Unattended cold-cycle (Wemo WSP080): run via `./netboot-auto.sh` (exports `AETHER_POWER_BACKEND=wemo HOST=192.168.179.222 WEMO_PORT=49152`), which `exec`s `net-iterate.sh`. Without `AETHER_POWER_BACKEND` set, the loop does a warm reset only (does not re-arm netboot).
+- Unattended cold-cycle (Shelly Plug US Gen4 / S4PL-00116US): run via `./netboot-auto.sh` (exports `AETHER_POWER_BACKEND=shelly`; default `AETHER_POWER_HOST=192.168.179.184` — DHCP-reserve that IP; do not reuse the retired Wemo `192.168.179.222`), which `exec`s `net-iterate.sh`. Without `AETHER_POWER_BACKEND` set, the loop does a warm reset only (does not re-arm netboot). Optional digest: `AETHER_POWER_SHELLY_AUTH=user:pass`.
 - Power-cycle plumbing: `./power-cycle.sh {off|on|cycle}` (pluggable backend; see script `--help`).
 
 ## Version control
 
 - Conventional-commit messages. One accepted slice per commit where practical.
 - Record hardware proofs in the commit/notes with: runtime version, kernel8.img sha256, and the literal serial marker lines.
+- **Worktrees stay in-repo.** Create them under `.worktrees/<slice-name>` (gitignored). Never add sibling dirs like `~/Projects/AetherKernel-s*`.
 
 ## Cross-agent planning (Minni)
 
