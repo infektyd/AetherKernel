@@ -2,6 +2,8 @@
 
 import pathlib
 
+from tests.netiterate_boot_gate import extract_net_iterate_success_boot_gate
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -47,9 +49,10 @@ def test_s44_net027_boot_grep_ceiling_after_v63_xhci() -> None:
 
 def test_s44_net027_v46_v63_grep_ceiling_unchanged() -> None:
     net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    boot_gate = extract_net_iterate_success_boot_gate(net_iterate)
 
     for marker in BOOT_GREPS_V46_V63_SAMPLE:
-        assert marker in net_iterate, f"v46–v63 grep regressed: {marker}"
+        assert marker in boot_gate, f"v46–v63 grep regressed: {marker}"
 
 
 def test_s44_net028_no_probe_shell_for_boot_only_usb_markers() -> None:

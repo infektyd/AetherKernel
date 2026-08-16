@@ -1,18 +1,24 @@
 import pathlib
 import re
 
+from tests.netiterate_boot_gate import extract_net_iterate_success_boot_gate
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 COMMANDS_V45 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
-    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,"
+    "mailboxes,sendtest,supervisor,health,handlecheck,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,"
     "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,"
     "heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,"
     "canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
-    "heap-double-free-test,panic-test,fault-test,reboot,vmm"
+    "heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,"
+    "uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,"
+    "framebuf,console,pcie,vl805,xhci"
 )
+
+SHELL_READY_V45 = f"shell ready {COMMANDS_V45}"
 
 
 def read_repo(path: str) -> str:
@@ -37,7 +43,8 @@ def test_runtime_v45_version_bump_and_skeleton_exist() -> None:
         assert marker in app
 
     # vmm command surface: printVMM wired with version=50
-    assert ",vmm\n" in shell or ",vmm\"" in shell or "vmm" in shell.split("shell ready commands=")[1].split("\n")[0]
+    assert "let SHELL_COMMAND_LIST =" in shell
+    assert ",vmm,asplit,el0" in shell
     assert "func printVMM()" in shell
     assert "version=50" in shell
 
@@ -63,6 +70,34 @@ def test_runtime_v45_contract_test_and_netboot_expectations() -> None:
     assert "runtime v45: dynamic virtual memory (page tables + TLB)" in net_iterate
 
 
+def test_runtime_v45_shell_help_matches_ready() -> None:
+    """help and ready must advertise the same command list through xhci (DOC-shell-help)."""
+    shell = read_repo("Sources/Application/UARTShell.swift")
+
+    assert "let SHELL_COMMAND_LIST =" in shell
+    ready_fn = _swift_function_body(shell, "printShellReady")
+    help_fn = _swift_function_body(shell, "printShellHelp")
+    assert "SHELL_COMMAND_LIST" in ready_fn
+    assert "SHELL_COMMAND_LIST" in help_fn
+    assert COMMANDS_V45 in shell
+
+
+def test_runtime_v45_shell_ready_doctor_netiterate_ceiling() -> None:
+    """COMMANDS_V45 must lock live ready list through xhci on shell, doctor, net-iterate."""
+    shell = read_repo("Sources/Application/UARTShell.swift")
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+
+    for source in (shell, doctor, net_iterate):
+        assert COMMANDS_V45 in source
+        assert ",xhci" in source
+        assert ",vmm,asplit,el0" in source
+
+    assert "let SHELL_COMMAND_LIST =" in shell
+    assert SHELL_READY_V45 in doctor
+    assert SHELL_READY_V45 in net_iterate
+
+
 def test_runtime_v45_netboot_vmm_boot_greps_and_shell_probes() -> None:
     net_iterate = read_repo("scripts/netboot/net-iterate.sh")
 
@@ -78,6 +113,61 @@ def test_runtime_v45_netboot_vmm_boot_greps_and_shell_probes() -> None:
         'probe_shell "el0" "^el0 ok=1 version=47"',
     ):
         assert marker in net_iterate
+
+
+def test_runtime_v45_netboot_doctor_boot_ceiling_through_v66() -> None:
+    """netboot-doctor bring-up gate must match net-iterate metal floor through v66 + xhci ready."""
+    doctor = read_repo("scripts/netboot/netboot-doctor.sh")
+
+    for marker in (
+        'grep -q "runtime v45: dynamic virtual memory (page tables + TLB)"',
+        'grep -q "runtime v63: xHCI capability register probe"',
+        'grep -q "runtime v64: xHCI controller init"',
+        'grep -q "xhci_run ok=1 version=64 ports_connected=.*"',
+        'grep -q "runtime v66: HID boot-protocol keyboard"',
+        'grep -q "kbd ok=[01] version=66 keycode=.* char="',
+        'grep -q "usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw="',
+        'grep -q "vmmcheck ok=1"',
+        'grep -q "xhci ok=1 version=63"',
+        SHELL_READY_V45,
+    ):
+        assert marker in doctor
+
+
+def test_runtime_v45_netboot_grep_ceiling_through_v63() -> None:
+    """v45 partial lock: metal boot greps must still reach v63 xhci before v64+ (S44)."""
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    boot_gate = extract_net_iterate_success_boot_gate(net_iterate)
+
+    for marker in (
+        'grep -qa "runtime v46: kernel/user address-space split (isolated page tables)"',
+        'grep -qa "runtime v63: xHCI capability register probe"',
+        'grep -qa "xhci ok=1 version=63"',
+    ):
+        assert marker in boot_gate
+
+
+def test_runtime_v45_docs_boot_ceiling_through_v66() -> None:
+    """Operator docs must name v64–v66 boot greps (DOC-s44-docs)."""
+    readme = read_repo("README.md")
+    runbook = read_repo("docs/RUNBOOK.md")
+    roadmap = read_repo("docs/ROADMAP.md")
+
+    for marker in (
+        "runtime v64: xHCI controller init",
+        "xhci_run ok=1 version=64 ports_connected=.*",
+        "runtime v65: USB device enumeration",
+        (
+            "usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* "
+            "stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw="
+        ),
+        "runtime v66: HID boot-protocol keyboard",
+        "kbd ok=[01] version=66 keycode=.* char=",
+    ):
+        assert marker in readme
+        assert marker in runbook
+
+    assert "Where we are now (V66)" in roadmap
 
 
 def test_runtime_v45_does_not_break_v44_historical_markers() -> None:
