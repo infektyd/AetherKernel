@@ -2683,7 +2683,8 @@ func printCanceltest() {
   kernel_task_record_tick(TASK_CANCEL_ID)
   kernel_supervisor_heartbeat(TASK_CANCEL_ID)
   kernel_task_mark_state(TASK_CANCEL_ID, KERNEL_TASK_STATE_IDLE)
-  kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(selftest), UInt(kernel_cancel_completed_count()))
+  // Shell rerun: SHELL id 18 (arg1=completed_count). Boot proof stays SELFTEST id 18 @ Application.swift.
+  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 18, UInt(selftest), UInt(kernel_cancel_completed_count()))
 
   uartPuts("canceltest ok=")
   uartPutDec(UInt64(selftest))
