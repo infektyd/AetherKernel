@@ -2539,6 +2539,16 @@ static int secondary_scheduler_queues_drained(void) {
     return 1;
 }
 
+static void reset_concurrency_soak_progress(void) {
+    concurrency_soak_rounds = 0;
+    concurrency_soak_completions = 0;
+    concurrency_soak_failures = 0;
+    concurrency_soak_dispatch_total = 0;
+    for (unsigned int core_id = 0; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+        concurrency_soak_core_completions[core_id] = 0;
+    }
+}
+
 unsigned long kernel_scheduler_concurrency_soak_round_total(void) {
     return concurrency_soak_rounds;
 }
@@ -2598,6 +2608,7 @@ int kernel_scheduler_concurrency_soak_selftest(void) {
         return 0;
     }
 
+    reset_concurrency_soak_progress();
     wait_for_secondary_queues_empty();
 
     int ok = 1;
@@ -2652,7 +2663,8 @@ int kernel_scheduler_concurrency_soak_selftest(void) {
     return ok &&
         kernel_scheduler_concurrency_soak_round_total() >= KERNEL_SCHEDULER_CONCURRENCY_SOAK_ROUNDS &&
         kernel_scheduler_concurrency_soak_failure_total() == 0U &&
-        kernel_scheduler_concurrency_soak_completion_total() >= KERNEL_SCHEDULER_CONCURRENCY_SOAK_ROUNDS ? 1 : 0;
+        kernel_scheduler_concurrency_soak_completion_total() >= KERNEL_SCHEDULER_CONCURRENCY_SOAK_ROUNDS &&
+        kernel_scheduler_concurrency_soak_dispatch_total() > 0U ? 1 : 0;
 }
 
 int kernel_scheduler_smp_selftest(void) {

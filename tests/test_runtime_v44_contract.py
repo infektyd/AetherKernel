@@ -51,6 +51,8 @@ def test_runtime_v44_concurrency_soak_contract_exists() -> None:
         "kernel_scheduler_concurrency_soak_round_total() >= KERNEL_SCHEDULER_CONCURRENCY_SOAK_ROUNDS",
         "kernel_scheduler_concurrency_soak_failure_total() == 0U",
         "kernel_scheduler_concurrency_soak_completion_total() >= KERNEL_SCHEDULER_CONCURRENCY_SOAK_ROUNDS",
+        "kernel_scheduler_concurrency_soak_dispatch_total() > 0U",
+        "reset_concurrency_soak_progress",
     ):
         assert marker in scheduler
 
