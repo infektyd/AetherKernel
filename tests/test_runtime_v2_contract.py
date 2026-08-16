@@ -60,12 +60,23 @@ def test_executor_delay_hooks_panic_instead_of_scheduling() -> None:
 def test_timer_irq_services_sleepers_executor_irq_is_noop() -> None:
     irq = read_repo("Sources/Application/IRQHandler.swift")
     kernel_executor = read_repo("Sources/Application/KernelExecutor.swift")
+    shell = read_repo("Sources/Application/UARTShell.swift")
 
     assert "serviceTimerSleepers()" in irq
     assert "executor_on_timer_irq()" in irq
 
     # Delay queue gone: IRQ still calls through but kernel_executor_on_timer_irq is empty.
     assert "func kernel_executor_on_timer_irq() {\n}" in kernel_executor
+
+    # EXECUTOR timer client is never armed — printTimers must not imply a live deadline.
+    assert "executor_deadline=" not in shell
+
+
+def test_support_h_does_not_claim_live_executor_delay_queue() -> None:
+    support = read_repo("Sources/Support/include/Support.h")
+
+    assert "executor's delayed jobs" not in support
+    assert "Delay/deadline enqueue panic in Swift" in support
 
 
 def test_runtime_v2_demo_and_net_iterate_expect_machine_checkable_cadences() -> None:

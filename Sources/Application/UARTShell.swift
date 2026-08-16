@@ -1699,8 +1699,6 @@ func printTimers() {
   uartPutHexCompact(UInt64(kernel_timer_active_mask()))
   uartPuts(" sleep_deadline=")
   uartPutDec(UInt64(kernel_timer_deadline_ticks(KERNEL_TIMER_CLIENT_SLEEP)))
-  uartPuts(" executor_deadline=")
-  uartPutDec(UInt64(kernel_timer_deadline_ticks(KERNEL_TIMER_CLIENT_EXECUTOR)))
   uartPuts("\n")
 }
 

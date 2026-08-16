@@ -97,11 +97,12 @@ void *realloc(void *ptr, unsigned long size);
 // in libswift_Concurrency.a; it forwards to our swift_task_asyncMainDrainQueueImpl).
 // It is void(void) so the swiftcall/cdecl ABI difference is immaterial here.
 void swift_task_asyncMainDrainQueue(void);
-// Executor delayed jobs share CNTP through the Runtime V2 timer arbiter.
+// IRQ ordering stub: forwards to kernel_executor_on_timer_irq (no-op; delay queue removed).
 void executor_on_timer_irq(void);
 
 // Swift-owned executor queues (Sources/Application/KernelExecutor.swift).
 void kernel_executor_enqueue(void *job);
+// Delay/deadline enqueue panic in Swift (proven dead; TimerSleep owns timed wakeups).
 void kernel_executor_enqueue_delay_ns(unsigned long long ns, void *job);
 void kernel_executor_enqueue_deadline_ns(unsigned long long targetNs,
                                          unsigned long long nowNs,
@@ -114,8 +115,9 @@ unsigned int kernel_executor_delayed_count(void);
 
 // Shared CNTP timer arbiter (Sources/Support/timersleep_hw.c). All CNTP register
 // work stays in non-inline C because the inline-asm helpers were previously
-// miscompiled when inlined into the Swift IRQ path. Runtime V2 has two clients:
-// Swift continuation sleeps and the Swift executor's delayed jobs.
+// miscompiled when inlined into the Swift IRQ path. Armed clients: SLEEP
+// (TimerSleep.swift) and SCHEDULER (kernel_scheduler.c). EXECUTOR slot exists
+// but is never armed — executor delay hooks panic instead of scheduling.
 #define KERNEL_TIMER_CLIENT_SLEEP    0U
 #define KERNEL_TIMER_CLIENT_EXECUTOR 1U
 #define KERNEL_TIMER_CLIENT_SCHEDULER 2U
