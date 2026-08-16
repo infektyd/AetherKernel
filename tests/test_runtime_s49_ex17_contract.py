@@ -7,7 +7,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 TIMERS_PROBE_LINE = (
     'probe_shell "timers" '
-    '"^timers now=.* freq=.* active_count=.* active_mask=.* sleep_deadline="'
+    '"^timers now=.* freq=.* active_count=.* active_mask=.* sleep_deadline=.* sleepers="'
 )
 
 
@@ -55,4 +55,7 @@ def test_s49_ex17_print_timers_emits_required_atoms() -> None:
     assert 'uartPuts(" active_count=")' in shell
     assert 'uartPuts(" active_mask=")' in shell
     assert 'uartPuts(" sleep_deadline=")' in shell
+    assert 'uartPuts(" sleepers=")' in shell
+    assert "timerSleepPendingCount()" in shell
+    assert "timerSleepCapacity()" in shell
     assert "executor_deadline=" not in shell

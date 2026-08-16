@@ -94,3 +94,42 @@ def test_s44_net029_kbd_not_required_ok1_in_boot_greps() -> None:
     net_iterate = read_repo("scripts/netboot/net-iterate.sh")
     assert 'grep -qa "kbd ok=[01] version=66 keycode=.* char="' in net_iterate
     assert 'grep -qa "kbd ok=1 version=66"' not in net_iterate
+
+
+# DOC-s44-docs: operator docs must name the v64–v66 boot ceiling net-iterate greps.
+DOC_MARKERS_V64_V66 = (
+    "runtime v64: xHCI controller init",
+    "xhci_run ok=1 version=64 ports_connected=.*",
+    "runtime v65: USB device enumeration",
+    (
+        "usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* "
+        "stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw="
+    ),
+    "runtime v66: HID boot-protocol keyboard",
+    "kbd ok=[01] version=66 keycode=.* char=",
+)
+
+
+def test_s44_doc_s44_docs_readme_runbook_roadmap() -> None:
+    readme = read_repo("README.md")
+    runbook = read_repo("docs/RUNBOOK.md")
+    roadmap = read_repo("docs/ROADMAP.md")
+
+    for marker in DOC_MARKERS_V64_V66:
+        assert marker in readme, f"README missing {marker!r}"
+        assert marker in runbook, f"RUNBOOK missing {marker!r}"
+
+    assert "Where we are now (V66)" in roadmap
+    assert "xhci_run ok=1 version=64 ports_connected=.*" in roadmap
+    assert (
+        "usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* "
+        "stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw="
+    ) in roadmap
+    assert "kbd ok=[01] version=66 keycode=.* char=" in roadmap
+
+
+def test_s44_doc_s44_docs_concurrency_boot_ceiling() -> None:
+    design = read_repo("docs/CONCURRENCY_DESIGN.md")
+
+    for marker in DOC_MARKERS_V64_V66:
+        assert marker in design, f"CONCURRENCY_DESIGN missing {marker!r}"

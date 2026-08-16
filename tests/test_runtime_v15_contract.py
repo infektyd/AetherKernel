@@ -94,6 +94,8 @@ def test_uart_shell_v15_capcheck_command_and_handle_details_exist() -> None:
         " stale=",
         " last_error=",
         'shellBufferSliceEquals(commandStart, commandLen, "capcheck")',
+        'shellBufferSliceEquals(commandStart, commandLen, "handlecheck")',
+        "func printHandlecheck()",
     ):
         assert marker in shell
 
@@ -107,6 +109,8 @@ def test_runtime_v15_netboot_gates_and_shell_probe_exist() -> None:
         assert_commands_era_in_netboot_sources(COMMANDS_V15, COMMANDS_V45, source, label="V15")
 
     for marker in (
+        "probe shell: handlecheck",
+        "^handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1",
         "probe shell: capcheck",
         "^capcheck ok=1 .*denied=1 .*stale=1",
         "^kobjects count=.* active=.* handle_selftest=1 .*cap_selftest=1",

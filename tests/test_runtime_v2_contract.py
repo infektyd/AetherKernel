@@ -117,5 +117,17 @@ def test_runtime_v2_demo_and_net_iterate_expect_machine_checkable_cadences() -> 
 
     for marker in ("rtv2 fast ", "rtv2 slow ", "rtv2 long "):
         assert marker in app
+    for marker in ("rtv2 fast woke ", "rtv2 slow woke ", "rtv2 long woke "):
+        assert marker in app
         assert marker in net_iterate
+    assert "await timerSleepMillis(250)" in app
+    assert "await timerSleepSeconds(1)" in app
+    assert "await timerSleepSeconds(2)" in app
+    assert app.index("await timerSleepMillis(250)") < app.index("rtv2 fast woke ")
+    assert app.index("await timerSleepSeconds(1)") < app.index("rtv2 slow woke ")
+    assert app.index("await timerSleepSeconds(2)") < app.index("rtv2 long woke ")
+    assert "rtv2 fast woke 0x0000000000000000" in net_iterate
+    assert "rtv2 slow woke 0x0000000000000000" in net_iterate
+    assert "rtv2 long woke 0x0000000000000000" in net_iterate
+    assert "rtv2 fast 0x0000000000000000" not in net_iterate
     assert "async tick 0x0000000000000000" not in net_iterate

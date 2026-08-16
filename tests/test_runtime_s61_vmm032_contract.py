@@ -17,6 +17,19 @@ SYSCALL_DOCTOR_GREP = (
     'dispatched=1 num=1 ret=0x00000000000482026"'
 )
 
+# DOC-syscall-short: operator docs must name the S61 boot grep schema atoms.
+SYSCALL_BOOT_MARKER = (
+    "syscall ok=1 version=48 abi=48 table=1 "
+    "dispatched=1 num=1 ret=0x00000000000482026"
+)
+SYSCALL_SHORT_README_MARKER = "`syscall ok=1 version=48`"
+DOC_PATHS = (
+    "README.md",
+    "docs/RUNBOOK.md",
+    "docs/ROADMAP.md",
+    "docs/CONCURRENCY_DESIGN.md",
+)
+
 
 def read_repo(path: str) -> str:
     return (ROOT / path).read_text()
@@ -63,3 +76,19 @@ def test_s61_vmm032_print_syscall_stops_at_table() -> None:
     assert " num=" not in fn
     assert " ret=" not in fn
     assert 'probe_shell "syscall" "^syscall ok=1 version=48 .*"' in net_iterate
+
+
+def test_s64_doc_syscall_readme_full_schema() -> None:
+    """README V48 row must match net-iterate boot grep (DOC-syscall-short)."""
+    readme = read_repo("README.md")
+    assert SYSCALL_BOOT_MARKER in readme
+    assert SYSCALL_SHORT_README_MARKER not in readme
+
+
+def test_s64_doc_syscall_short_form_absent_from_operator_docs() -> None:
+    """No operator doc may snapshot the pre-S61 short syscall boot marker."""
+    for path in DOC_PATHS:
+        text = read_repo(path)
+        assert SYSCALL_SHORT_README_MARKER not in text, f"{path} still has short syscall marker"
+        if "syscall ok=1 version=48" in text:
+            assert SYSCALL_BOOT_MARKER in text, f"{path} mentions syscall v48 without full schema"

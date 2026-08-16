@@ -3,6 +3,12 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+from tests.commands_contract_helpers import (
+    assert_commands_era_in_netboot_sources,
+    assert_commands_era_prefix_of_live,
+)
+from tests.test_runtime_v45_contract import COMMANDS_V45
+
 
 COMMANDS_V35 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
@@ -76,9 +82,10 @@ def test_runtime_v35_application_boot_marker_and_selftest_exist() -> None:
 
 def test_runtime_v35_shell_sched3_and_certificate_surface_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V35, label="V35")
+
 
     for marker in (
-        COMMANDS_V35,
         "func printScheduler3()",
         "sched3 ok=",
         " version=35",
@@ -115,7 +122,7 @@ def test_runtime_v35_netboot_gates_and_sched3_probe_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
-        assert COMMANDS_V35 in source
+        assert_commands_era_in_netboot_sources(COMMANDS_V35, COMMANDS_V45, source, label="V35")
 
     assert "schedselftest ok=1 version=35" in net_iterate
     assert "schedselftest ok=1 version=35" in doctor
