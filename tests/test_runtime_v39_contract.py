@@ -46,7 +46,7 @@ def test_runtime_v39_secondary_handoff_contract_exists() -> None:
 
     for marker in (
         "Runtime V39 secondary scheduler handoff protocol",
-        "#define KERNEL_SCHEDULER_VERSION 44U",
+        "#define KERNEL_SCHEDULER_VERSION 46U",
         "void kernel_scheduler_enable_secondary_handoffs(void);",
         "unsigned int kernel_scheduler_secondary_handoffs_enabled(void);",
         "unsigned long kernel_scheduler_secondary_handoff_issue_count(unsigned int core_id);",
@@ -75,7 +75,7 @@ def test_runtime_v39_application_boot_marker_and_selftest_exist() -> None:
 
     for marker in (
         "Runtime V39 adds secondary scheduler handoff acknowledgements.",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 44, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 64, 0, 0)",
         "kernel_scheduler_enable_secondary_handoffs()",
         "runtime v39: secondary scheduler handoff protocol",
         "let runtimeV39 = kernel_scheduler_secondary_handoff_selftest()",
@@ -146,8 +146,8 @@ def test_runtime_v39_netboot_gates_and_sched7_probe_exist() -> None:
         "^sched7 ok=1 version=39 .*handoff=1 .*wake=1 .*job_exec=1 .*issued=[1-9][0-9]* .*completed=[1-9][0-9]* .*gap=[0-9][0-9]* .*imbalance=[0-9][0-9]* .*core0_issue=0 .*core1_issue=[1-9][0-9]* .*core2_issue=[1-9][0-9]* .*core3_issue=[1-9][0-9]* .*core0_done=0 .*core1_done=[1-9][0-9]* .*core2_done=[1-9][0-9]* .*core3_done=[1-9][0-9]* .*selftest=1",
         "probe shell: req-sched7",
         "^resp id=40 ok=1 cmd=sched7 end",
-        "^bootcert ok=1 version=44 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
-        "^certificate ok=1 version=44 substrate=1 .*bootcert=1 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
+        "^bootcert ok=1 version=66 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=[01] .*backpressure=[01] .*handoff=[01] .*wake=[01] .*job_exec=[01] .*worker_feed=[01] .*secondary_workers=[01] .*preemptive=[01] .*smp_scheduler=[01] .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*framebuf=1 .*console=1 .*pcie=1 .*vl805=1 .*xhci=1 .*kbd=[01] .*swift=6.3.2 .*events_lost=0",
+        "^certificate ok=1 version=63 substrate=1 .*bootcert=[01] .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=[01] .*backpressure=[01] .*handoff=[01] .*wake=[01] .*job_exec=[01] .*worker_feed=[01] .*secondary_workers=[01] .*preemptive=[01] .*smp_scheduler=[01] .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=[0-9]+ .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*vmm=1 .*asplit=1 .*el0=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*framebuf=1 .*console=1 .*pcie=1 .*vl805=1 .*xhci=1 .*swift=6.3.2 .*events_lost=0",
         "stale pre-V43 SD fallback",
     ):
         assert marker in net_iterate

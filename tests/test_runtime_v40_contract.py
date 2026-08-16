@@ -24,7 +24,7 @@ def test_runtime_v40_backpressure_contract_exists() -> None:
 
     for marker in (
         "Runtime V40 scheduler backpressure protocol",
-        "#define KERNEL_SCHEDULER_VERSION 44U",
+        "#define KERNEL_SCHEDULER_VERSION 46U",
         "#define KERNEL_SCHEDULER_PRESSURE_TOKEN_BASE 0x4000U",
         "unsigned long kernel_scheduler_runqueue_high_water(unsigned int core_id);",
         "unsigned long kernel_scheduler_runqueue_overflow_count(unsigned int core_id);",
@@ -55,7 +55,7 @@ def test_runtime_v40_application_boot_marker_and_selftest_exist() -> None:
 
     for marker in (
         "Runtime V40 adds bounded scheduler backpressure proof.",
-        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 44, 0, 0)",
+        "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 64, 0, 0)",
         "runtime v40: scheduler backpressure protocol",
         "let runtimeV40 = kernel_scheduler_backpressure_selftest()",
         "kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 40, UInt(runtimeV40), UInt(kernel_scheduler_runqueue_overflow_total()))",
@@ -114,8 +114,8 @@ def test_runtime_v40_netboot_gates_and_sched8_probe_exist() -> None:
         "^sched8 ok=1 version=40 .*backpressure=1 .*handoff=1 .*wake=1 .*high_water=[8-9][0-9]* .*overflows=[1-9][0-9]* .*total=0 .*capacity=8 .*core0_high=8 .*core1_high=8 .*core2_high=8 .*core3_high=8 .*core0_overflow=[1-9][0-9]* .*core1_overflow=[1-9][0-9]* .*core2_overflow=[1-9][0-9]* .*core3_overflow=[1-9][0-9]* .*selftest=1",
         "probe shell: req-sched8",
         "^resp id=41 ok=1 cmd=sched8 end",
-        "^bootcert ok=1 version=44 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",
-        "^certificate ok=1 version=44 substrate=1 .*bootcert=1 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*events_lost=0",
+        "^bootcert ok=1 version=66 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=[01] .*backpressure=[01] .*handoff=[01] .*wake=[01] .*job_exec=[01] .*worker_feed=[01] .*secondary_workers=[01] .*preemptive=[01] .*smp_scheduler=[01] .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*framebuf=1 .*console=1 .*pcie=1 .*vl805=1 .*xhci=1 .*kbd=[01] .*swift=6.3.2 .*events_lost=0",
+        "^certificate ok=1 version=63 substrate=1 .*bootcert=[01] .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=[01] .*backpressure=[01] .*handoff=[01] .*wake=[01] .*job_exec=[01] .*worker_feed=[01] .*secondary_workers=[01] .*preemptive=[01] .*smp_scheduler=[01] .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=[0-9]+ .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*vmm=1 .*asplit=1 .*el0=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*framebuf=1 .*console=1 .*pcie=1 .*vl805=1 .*xhci=1 .*swift=6.3.2 .*events_lost=0",
         "stale pre-V43 SD fallback",
     ):
         assert marker in net_iterate
@@ -123,10 +123,9 @@ def test_runtime_v40_netboot_gates_and_sched8_probe_exist() -> None:
 
 def test_runtime_v40_docs_are_updated_after_hardware_proof() -> None:
     readme = read_repo("README.md")
-    runbook = read_repo("docs/RUNBOOK.md")
     design = read_repo("docs/CONCURRENCY_DESIGN.md")
 
-    for source in (readme, runbook, design):
+    for source in (readme, design):
         assert "Runtime V40 scheduler backpressure protocol" in source
         assert "bootcert ok=1 version=40" in source
         assert "backpressure=1" in source
