@@ -21,11 +21,27 @@ typedef struct event_record {
 } event_record;
 
 static event_record events[KERNEL_EVENT_CAPACITY_VALUE];
+static kernel_spinlock_t event_log_lock;
+static unsigned int lock_initialized;
 static unsigned int initialized;
 static unsigned int write_index;
 static unsigned int count_value;
 static unsigned long next_sequence;
 static unsigned long lost_count;
+
+static void event_log_lock_irq(unsigned long *flags) {
+    if (!lock_initialized) {
+        kernel_spinlock_init(&event_log_lock);
+        lock_initialized = 1;
+    }
+    *flags = irq_save();
+    kernel_spinlock_lock(&event_log_lock);
+}
+
+static void event_log_unlock_irq(unsigned long flags) {
+    kernel_spinlock_unlock(&event_log_lock);
+    irq_restore(flags);
+}
 
 static void clear_events_unsafe(void) {
     for (unsigned int i = 0; i < KERNEL_EVENT_CAPACITY_VALUE; i++) {
@@ -44,17 +60,23 @@ static void clear_events_unsafe(void) {
 }
 
 void kernel_event_log_init(void) {
-    unsigned long flags = irq_save();
+    if (!lock_initialized) {
+        kernel_spinlock_init(&event_log_lock);
+        lock_initialized = 1;
+    }
+    unsigned long flags;
+    event_log_lock_irq(&flags);
     clear_events_unsafe();
     initialized = 1;
-    irq_restore(flags);
+    event_log_unlock_irq(flags);
 }
 
 void kernel_event_emit(unsigned int kind,
                        unsigned long arg0,
                        unsigned long arg1,
                        unsigned long arg2) {
-    unsigned long flags = irq_save();
+    unsigned long flags;
+    event_log_lock_irq(&flags);
     if (!initialized) {
         clear_events_unsafe();
         initialized = 1;
@@ -76,7 +98,7 @@ void kernel_event_emit(unsigned int kind,
     } else {
         lost_count++;
     }
-    irq_restore(flags);
+    event_log_unlock_irq(flags);
 }
 
 unsigned int kernel_event_capacity(void) {
@@ -84,23 +106,26 @@ unsigned int kernel_event_capacity(void) {
 }
 
 unsigned int kernel_event_count(void) {
-    unsigned long flags = irq_save();
+    unsigned long flags;
+    event_log_lock_irq(&flags);
     unsigned int count = count_value;
-    irq_restore(flags);
+    event_log_unlock_irq(flags);
     return count;
 }
 
 unsigned long kernel_event_lost_count(void) {
-    unsigned long flags = irq_save();
+    unsigned long flags;
+    event_log_lock_irq(&flags);
     unsigned long count = lost_count;
-    irq_restore(flags);
+    event_log_unlock_irq(flags);
     return count;
 }
 
 unsigned long kernel_event_sequence(void) {
-    unsigned long flags = irq_save();
+    unsigned long flags;
+    event_log_lock_irq(&flags);
     unsigned long seq = next_sequence == 0 ? 0 : next_sequence - 1UL;
-    irq_restore(flags);
+    event_log_unlock_irq(flags);
     return seq;
 }
 
@@ -121,50 +146,56 @@ static event_record *event_at_logical_index(unsigned int index) {
 }
 
 unsigned int kernel_event_kind(unsigned int index) {
-    unsigned long flags = irq_save();
+    unsigned long flags;
+    event_log_lock_irq(&flags);
     event_record *record = event_at_logical_index(index);
     unsigned int value = record ? record->kind : 0;
-    irq_restore(flags);
+    event_log_unlock_irq(flags);
     return value;
 }
 
 unsigned long kernel_event_ticks(unsigned int index) {
-    unsigned long flags = irq_save();
+    unsigned long flags;
+    event_log_lock_irq(&flags);
     event_record *record = event_at_logical_index(index);
     unsigned long value = record ? record->ticks : 0;
-    irq_restore(flags);
+    event_log_unlock_irq(flags);
     return value;
 }
 
 unsigned long kernel_event_seq(unsigned int index) {
-    unsigned long flags = irq_save();
+    unsigned long flags;
+    event_log_lock_irq(&flags);
     event_record *record = event_at_logical_index(index);
     unsigned long value = record ? record->seq : 0;
-    irq_restore(flags);
+    event_log_unlock_irq(flags);
     return value;
 }
 
 unsigned long kernel_event_arg0(unsigned int index) {
-    unsigned long flags = irq_save();
+    unsigned long flags;
+    event_log_lock_irq(&flags);
     event_record *record = event_at_logical_index(index);
     unsigned long value = record ? record->arg0 : 0;
-    irq_restore(flags);
+    event_log_unlock_irq(flags);
     return value;
 }
 
 unsigned long kernel_event_arg1(unsigned int index) {
-    unsigned long flags = irq_save();
+    unsigned long flags;
+    event_log_lock_irq(&flags);
     event_record *record = event_at_logical_index(index);
     unsigned long value = record ? record->arg1 : 0;
-    irq_restore(flags);
+    event_log_unlock_irq(flags);
     return value;
 }
 
 unsigned long kernel_event_arg2(unsigned int index) {
-    unsigned long flags = irq_save();
+    unsigned long flags;
+    event_log_lock_irq(&flags);
     event_record *record = event_at_logical_index(index);
     unsigned long value = record ? record->arg2 : 0;
-    irq_restore(flags);
+    event_log_unlock_irq(flags);
     return value;
 }
 
@@ -175,9 +206,9 @@ int kernel_event_log_selftest(void) {
     if (kernel_event_capacity() != KERNEL_EVENT_CAPACITY_VALUE) {
         return 0;
     }
-    if (count_value < KERNEL_EVENT_CAPACITY_VALUE) {
+    if (kernel_event_count() < KERNEL_EVENT_CAPACITY_VALUE) {
         unsigned int before = kernel_event_count();
-        kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, before, KERNEL_EVENT_CAPACITY_VALUE, lost_count);
+        kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, before, KERNEL_EVENT_CAPACITY_VALUE, kernel_event_lost_count());
         if (kernel_event_count() != before + 1U) {
             return 0;
         }
