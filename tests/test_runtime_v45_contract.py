@@ -170,29 +170,6 @@ def test_runtime_v45_docs_boot_ceiling_through_v66() -> None:
     assert "Where we are now (V66)" in roadmap
 
 
-def test_runtime_v45_docs_boot_ceiling_through_v66() -> None:
-    """Operator docs must name v64–v66 boot greps (DOC-s44-docs)."""
-    readme = read_repo("README.md")
-    runbook = read_repo("docs/RUNBOOK.md")
-    roadmap = read_repo("docs/ROADMAP.md")
-
-    for marker in (
-        "runtime v64: xHCI controller init",
-        "xhci_run ok=1 version=64 ports_connected=.*",
-        "runtime v65: USB device enumeration",
-        (
-            "usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* "
-            "stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw="
-        ),
-        "runtime v66: HID boot-protocol keyboard",
-        "kbd ok=[01] version=66 keycode=.* char=",
-    ):
-        assert marker in readme
-        assert marker in runbook
-
-    assert "Where we are now (V66)" in roadmap
-
-
 def test_runtime_v45_does_not_break_v44_historical_markers() -> None:
     # Ensure we did not clobber prior version strings needed by the v44 contract test
     support = read_repo("Sources/Support/include/Support.h")

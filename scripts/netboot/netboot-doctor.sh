@@ -157,20 +157,20 @@ while [ "$SECONDS" -lt "$deadline" ]; do
     && printf '%s' "$serial_delta" | grep -q "runtime v28: swift runtime dependency audit" \
     && printf '%s' "$serial_delta" | grep -q "runtime v29: agent-oriented control session" \
     && printf '%s' "$serial_delta" | grep -q "runtime v30: swift-native kernel substrate certificate" \
-    && printf '%s' "$serial_delta" | grep -q "runtime v31: preemptive scheduler substrate" \
-    && printf '%s' "$serial_delta" | grep -q "runtime v32: smp secondary-core bring-up" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v33: atomics spinlocks per-core run queues" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v34: timer-driven smp scheduler dispatch" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v35: secondary-owned scheduler workers" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v36: timer-fed secondary scheduler workers" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v37: timer-fed secondary C scheduler jobs" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v38: secondary scheduler wake protocol" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v39: secondary scheduler handoff protocol" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v40: scheduler backpressure protocol" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v41: secondary scheduler work stealing" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v42: secondary scheduler load balancing" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
+    && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=31" \
+    && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=32" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=33" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=34" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=35" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=36" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=37" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=38" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=39" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=40" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=41" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=42" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=43" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=44" \
       && printf '%s' "$serial_delta" | grep -q "runtime v45: dynamic virtual memory (page tables + TLB)" \
       && printf '%s' "$serial_delta" | grep -q "runtime v46: kernel/user address-space split (isolated page tables)" \
       && printf '%s' "$serial_delta" | grep -q "runtime v47: EL0 entry/exit and context save/restore" \

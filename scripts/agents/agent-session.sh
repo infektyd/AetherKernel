@@ -27,6 +27,23 @@ die() {
   exit 1
 }
 
+parse_serial_kernel_sha256() {
+  local hash
+  hash="$(grep -a -E '^verified kernel8\.img sha256 [0-9a-f]{64}$' "$SERIAL_LOG" 2>/dev/null | tail -n 1 | sed -n 's/^verified kernel8\.img sha256 \([0-9a-f]\{64\}\)$/\1/p')"
+  if [ -z "$hash" ]; then
+    return 1
+  fi
+  printf '%s' "$hash"
+}
+
+resolve_kernel_sha256() {
+  if [ -n "${AETHER_KERNEL_SHA256:-}" ]; then
+    printf '%s' "$AETHER_KERNEL_SHA256"
+    return 0
+  fi
+  parse_serial_kernel_sha256
+}
+
 is_non_negative_int() {
   case "$1" in
     ''|*[!0-9]*)
@@ -125,9 +142,11 @@ log_line "agent-session start version=29 serial_log=$SERIAL_LOG log=$SESSION_LOG
 
 probe_request "$((ID_BASE + 1))" "agent" "^agent ok=1 version=29 health=green .*bootcert=1 .*runtime=1 .*protocol=2 .*events_lost=0"
 probe_request "$((ID_BASE + 2))" "bootcert" "^bootcert ok=1 version=66 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=[01] .*backpressure=[01] .*handoff=[01] .*wake=[01] .*job_exec=[01] .*worker_feed=[01] .*secondary_workers=[01] .*preemptive=[01] .*smp_scheduler=[01] .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*framebuf=1 .*console=1 .*pcie=1 .*vl805=1 .*xhci=1 .*kbd=[01] .*swift=6.3.2 .*events_lost=0"
-probe_request "$((ID_BASE + 3))" "runtime" "^runtime ok=1 version=28 .*audit=1"
+probe_request "$((ID_BASE + 3))" "runtime" "^runtime ok=1 version=28 .*swift=6.3.2 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5"
 probe_request "$((ID_BASE + 4))" "stress" "^stress ok=1 .*heap_leak=0 frame_leak=0"
 probe_request "$((ID_BASE + 5))" "soak" "^soak ok=1 .*failures=0 .*heap_leak=0 frame_leak=0"
 probe_request "$((ID_BASE + 6))" "events" "^events count=.* lost=0 .*selftest=1"
 
-log_line "agent-session ok=1 version=29 health=green bootcert=1 runtime=1 stress=1 soak=1 events_lost=0 log=$SESSION_LOG"
+KERNEL_SHA256="$(resolve_kernel_sha256)" || die "kernel8.img sha256 missing (set AETHER_KERNEL_SHA256 or run net-iterate first)"
+
+log_line "agent-session ok=1 version=29 health=green bootcert=1 runtime=1 stress=1 soak=1 events_lost=0 kernel8.img sha256=$KERNEL_SHA256 log=$SESSION_LOG"

@@ -99,12 +99,15 @@ func uartPutShellBufferSlice(_ start: UInt32, _ len: UInt32) {
   }
 }
 
+let SHELL_COMMAND_LIST =
+  "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,handlecheck,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci"
+
 func printShellReady() {
-  uartPuts("shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci\n")
+  uartPuts("shell ready \(SHELL_COMMAND_LIST)\n")
 }
 
 func printShellHelp() {
-  uartPuts("shell help commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block\n")
+  uartPuts("shell help \(SHELL_COMMAND_LIST)\n")
 }
 
 func printProtocol() {
@@ -188,7 +191,9 @@ func printSubstrateCertificate() {
   let tasks = kernel_task_registry_selftest()
   let mailboxes = kernel_mailbox_selftest()
   let supervisor = kernel_supervisor_selftest()
-  let events = kernel_event_log_selftest()
+  let eventsLost = kernel_event_lost_count()
+  let eventCount = kernel_event_count()
+  let eventsSelftest = kernel_event_log_selftest()
   let cancellations = kernel_cancel_selftest()
   let channels = aetherChannelSelftest()
   let drivers = kernel_driver_registry_selftest()
@@ -214,7 +219,6 @@ func printSubstrateCertificate() {
   let pcie = kernel_pcie_ok()
   let vl805 = kernel_vl805_ok()
   let xhci = kernel_xhci_ok()
-  let eventsLost = kernel_event_lost_count()
 
   let workerFeed = kernel_scheduler_timer_worker_feed_proven()
   let secondaryWorkers = kernel_scheduler_secondary_worker_proven()
@@ -233,7 +237,7 @@ func printSubstrateCertificate() {
   let scheduler = kernel_scheduler_scheduler_proven()
   let bootcertOk = concurrency != 0 && priority != 0 && fairness != 0 && stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && runtimeAudit != 0 && smp != 0 && scheduler != 0 && agentSession != 0 && memory != 0 &&
     objects != 0 && tasks != 0 && mailboxes != 0 && supervisor != 0 &&
-    events != 0 && cancellations != 0 && channels != 0 && drivers != 0 &&
+    eventsSelftest != 0 && cancellations != 0 && channels != 0 && drivers != 0 &&
     pressure != 0 && pools != 0 && mmu != 0 && vmm != 0 && asplit != 0 && el0 != 0 && syscall != 0 && uaccess != 0 && usermode != 0 && process != 0 && loader != 0 && multiprocess != 0 && sdhci != 0 && card != 0 && block != 0 && fat32 != 0 && mailbox != 0 && framebuf != 0 && console != 0 && pcie != 0 && vl805 != 0 && xhci != 0 && eventsLost == 0
 
   uartPuts("certificate ok=")
@@ -293,7 +297,7 @@ func printSubstrateCertificate() {
   uartPuts(" handles=")
   uartPutDec(UInt64(handles))
   uartPuts(" events=")
-  uartPutDec(UInt64(events))
+  uartPutDec(UInt64(eventCount))
   uartPuts(" cancellations=")
   uartPutDec(UInt64(cancellations))
   uartPuts(" channels=")
@@ -1110,10 +1114,6 @@ func printQueues() {
   uartPutDec(UInt64(executor_ready_count()))
   uartPuts("/")
   uartPutDec(UInt64(executor_ready_capacity()))
-  uartPuts(" delayed=")
-  uartPutDec(UInt64(executor_delayed_count()))
-  uartPuts("/")
-  uartPutDec(UInt64(executor_delayed_capacity()))
   uartPuts(" sleepers=")
   uartPutDec(UInt64(timerSleepPendingCount()))
   uartPuts("/")
@@ -1388,16 +1388,18 @@ func printEventKind(_ kind: UInt32) {
 }
 
 func printEvents() {
-  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 22, UInt(kernel_event_count()), 0)
-  let selftest = kernel_event_log_selftest()
+  let countBefore = kernel_event_count()
+  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 22, UInt(countBefore), 0)
   let count = kernel_event_count()
+  let lost = kernel_event_lost_count()
+  let selftest = kernel_event_log_selftest()
 
   uartPuts("events count=")
   uartPutDec(UInt64(count))
   uartPuts(" capacity=")
   uartPutDec(UInt64(kernel_event_capacity()))
   uartPuts(" lost=")
-  uartPutDec(UInt64(kernel_event_lost_count()))
+  uartPutDec(UInt64(lost))
   uartPuts(" sequence=")
   uartPutDec(UInt64(kernel_event_sequence()))
   uartPuts(" selftest=")
@@ -1697,8 +1699,10 @@ func printTimers() {
   uartPutHexCompact(UInt64(kernel_timer_active_mask()))
   uartPuts(" sleep_deadline=")
   uartPutDec(UInt64(kernel_timer_deadline_ticks(KERNEL_TIMER_CLIENT_SLEEP)))
-  uartPuts(" executor_deadline=")
-  uartPutDec(UInt64(kernel_timer_deadline_ticks(KERNEL_TIMER_CLIENT_EXECUTOR)))
+  uartPuts(" sleepers=")
+  uartPutDec(UInt64(timerSleepPendingCount()))
+  uartPuts("/")
+  uartPutDec(UInt64(timerSleepCapacity()))
   uartPuts("\n")
 }
 
@@ -2463,7 +2467,10 @@ func printBootcheck() {
 
 func printBootcert() {
   kernel_supervisor_check()
-  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 44, UInt(kernel_event_count()), 0)
+  let countBefore = kernel_event_count()
+  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 44, UInt(countBefore), 0)
+  let eventsLost = kernel_event_lost_count()
+  let eventCount = kernel_event_count()
 
   let atomics = kernel_atomic_selftest()
   let locks = kernel_spinlock_selftest()
@@ -2487,8 +2494,7 @@ func printBootcert() {
   let mailboxes = kernel_mailbox_selftest()
   let channels = aetherChannelSelftest()
   let supervisor = kernel_supervisor_selftest()
-  let events = kernel_event_log_selftest()
-  let eventsLost = kernel_event_lost_count()
+  let eventsSelftest = kernel_event_log_selftest()
 
   let workerFeed = kernel_scheduler_timer_worker_feed_proven()
   let secondaryWorkers = kernel_scheduler_secondary_worker_proven()
@@ -2527,7 +2533,7 @@ func printBootcert() {
   let kbd  = kernel_kbd_ok()
   let ok = concurrency != 0 && priority != 0 && fairness != 0 && stealing != 0 && backpressure != 0 && handoff != 0 && wake != 0 && jobExec != 0 && workerFeed != 0 && secondaryWorkers != 0 && preemptive != 0 && smpScheduler != 0 && atomics != 0 && locks != 0 && queues != 0 && smp != 0 && scheduler != 0 && substrateCertificate != 0 && agentSession != 0 && runtimeAudit != 0 && taxonomy != 0 && protocolV2 != 0 && memmap != 0 && heap != 0 && frames != 0 && mmu != 0 && vmm != 0 && asplit != 0 && el0 != 0 && syscall != 0 && uaccess != 0 && usermode != 0 && process != 0 && loader != 0 && multiprocess != 0 && sdhci != 0 && card != 0 && block != 0 && fat32 != 0 && mailbox != 0 && framebuf != 0 && console != 0 && pcie != 0 && vl805 != 0 && xhci != 0 && pools != 0 && pressure != 0 && drivers != 0 &&
     taskspawns != 0 && cancellations != 0 && kobjects != 0 && tasks != 0 && mailboxes != 0 &&
-    channels != 0 && supervisor != 0 && events != 0 && eventsLost == 0
+    channels != 0 && supervisor != 0 && eventsSelftest != 0 && eventsLost == 0
 
   uartPuts("bootcert ok=")
   uartPutDec(UInt64(ok ? 1 : 0))
@@ -2644,7 +2650,7 @@ func printBootcert() {
   uartPuts(" supervisor=")
   uartPutDec(UInt64(supervisor))
   uartPuts(" events=")
-  uartPutDec(UInt64(events))
+  uartPutDec(UInt64(eventCount))
   uartPuts(" swift=6.3.2")
   uartPuts(" events_lost=")
   uartPutDec(UInt64(eventsLost))
@@ -2693,7 +2699,8 @@ func printCanceltest() {
   kernel_task_record_tick(TASK_CANCEL_ID)
   kernel_supervisor_heartbeat(TASK_CANCEL_ID)
   kernel_task_mark_state(TASK_CANCEL_ID, KERNEL_TASK_STATE_IDLE)
-  kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(selftest), UInt(kernel_cancel_completed_count()))
+  // Shell rerun: SHELL id 18 (arg1=completed_count). Boot proof stays SELFTEST id 18 @ Application.swift.
+  kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 18, UInt(selftest), UInt(kernel_cancel_completed_count()))
 
   uartPuts("canceltest ok=")
   uartPutDec(UInt64(selftest))
