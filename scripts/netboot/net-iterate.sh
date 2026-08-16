@@ -283,7 +283,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
-      && printf '%s' "$serial_delta" | grep -qa "syscall ok=1 version=48 abi=48 table=1 dispatched=1 num=1 ret=0x00000000000482026" \
+      && printf '%s' "$serial_delta" | grep -qa "syscall ok=1 version=48 abi=48 table=1 dispatched=1 num=1 ret=0x0000000000482026" \
       && printf '%s' "$serial_delta" | grep -qa "uaccess ok=1 version=49" \
       && printf '%s' "$serial_delta" | grep -qa "usermode ok=1 version=50 fault_contained=1" \
       && printf '%s' "$serial_delta" | grep -qa "process ok=1 version=51" \
@@ -436,6 +436,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
         # probe shell: framebuf
         probe_shell "framebuf" "^framebuf ok=1 version=59 .*"
         # probe shell: console (printConsole: display=0 is literal)
+        # Live counter: boot prints counter=0 (IRQs still off); this shell
+        # line is the second sample. A second back-to-back `console` probe
+        # consistently missed its reply (host saw timeout; kernel printed
+        # ~3s later). Do not add a duplicate console probe.
         probe_shell "console" "^console ok=1 version=60 .* display=0"
         # probe shell: pcie
         probe_shell "pcie" "^pcie ok=1 version=61 .*"

@@ -33,7 +33,7 @@ A strong **microkernel-style runtime core**, with cold-boot metal floor through 
 - Boot certificate + substrate certificate; panic/fault retained records; watchdog.
 - **EPIC B**: **process abstraction** — address space (isolated page table + ASID) + lifecycle state (create/destroy), with a fixed process table and ASID bitmap allocator. **User binary loader** — flat blob loaded into a fresh address space, runs at EL0, calls `sys_write` syscall (UART output "Hi\n"), proves end-to-end: process create → binary load → EL0 execute → syscall dispatch → UART write. **Multi-process isolation** — per-core `_kernel_el1_saved_sp` and `uaccess_active_pt`; 3 independent user processes each run isolated and print "Hi\n", proving address-space and EL0 isolation between processes.
 - **EPIC C** ✓: **BCM2711 EMMC2/SDHCI register probe** (V54) — `sdhci ok=1 version=54 host_version=2 cap=0x45ee6432`. **SD card identification** (V55) — `card ok=1 version=55 rca=0xaaaa`. **Single block read via CMD17** (V56) — `block ok=1 version=56 mbr=0xaa55`. **FAT32 file read** (V57) — walk root directory (case-insensitive, multi-cluster chain), read config.txt; `fat32 ok=1 version=57 file=config.txt bytes=558 checksum=0xb362`. Certificate v57 fat32=1. SHA 4bc4dc050d9827d33d87f62042c699e44c866871.
-- **EPIC D (in progress):** V58–V60 boot markers ship mailbox/framebuffer/text-console probes (`mailbox ok=1 version=58`, `framebuf ok=1 version=59`, `console ok=1 version=60`); HDMI console proof remains open.
+- **EPIC D ✓:** V58–V60 mailbox/framebuffer/text-console. HDMI live counter + UART→HDMI mirror proven on metal: boot `console ok=1 version=60 … counter=0 display=0` then shell `counter=64` (sha256 `6d1d24b2ac950e09070b5bbd5ec49bcc4e5ef8b6127485e13a293d1a48d4f426`); later `counter=63 display=0 mirror=37674` (sha256 `5547eaac2f7e317fdff0c76e39f7b95675bbfb4689e5ff7be8a24252122b5f37`). Tick-only in CNTP; one-glyph idle paint; no blit on IRQ/secondary/hot path.
 - **EPIC E (in progress):** V61–V66 boot markers ship PCIe/VL805/xHCI capability (`pcie ok=1 version=61`, `vl805 ok=1 version=62`, `xhci ok=1 version=63`), xHCI controller init (`xhci_run ok=1 version=64 ports_connected=.*`), USB enumeration (`usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw=`), and HID keyboard selftest (`kbd ok=[01] version=66 keycode=.* char=` — `ok=1` not required on unattended netboot); interactive keypress proof remains open.
 
 **The gap to the North Star** is everything that makes an OS *general-purpose*: user
@@ -74,10 +74,11 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - *First proof:* `fat32 ok=1 version=57 file=config.txt bytes=558 checksum=0xb362` on Pi4 metal. ✓
 
 ### EPIC D — Console & display  (see it without a laptop)
-- VideoCore **mailbox property interface** (clocks, power domains, framebuffer alloc).
-- HDMI **framebuffer** → a text console (font blit) mirroring the UART console.
-- *First proof:* a banner + live counter rendered on an attached HDMI screen; marker
-  reports framebuffer geometry/pitch obtained from the mailbox.
+- [x] VideoCore **mailbox property interface** (clocks, power domains, framebuffer alloc).
+- [x] HDMI **framebuffer** → a text console (font blit) mirroring the UART console.
+- [x] *First proof:* live counter + UART glyph mirror on HDMI, reported on UART.
+  `console ok=1 version=60 rows=78 cols=148 glyphs=16 counter=64 display=0`
+  (sha256 `6d1d24b2…`); `counter=63 display=0 mirror=37674` (sha256 `5547eaac…`).
 
 ### EPIC E — Input & USB  (the hard one — real interactivity)
 - USB host stack for Pi 4: **xHCI behind the VL805** (PCIe) — or DWC2 for the simpler

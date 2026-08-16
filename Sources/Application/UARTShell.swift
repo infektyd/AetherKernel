@@ -923,6 +923,7 @@ func printScheduler12() {
 
   uartPuts("sched12 ok=")
   uartPutDec(UInt64(ok))
+  // Feature token: V44 concurrency soak. Package KERNEL_SCHEDULER_VERSION is 46.
   uartPuts(" version=44")
   uartPuts(" concurrency=")
   uartPutDec(UInt64(concurrency))
@@ -2067,7 +2068,11 @@ func printConsole() {
   uartPutDec(UInt64(kernel_vc_console_cols()))
   uartPuts(" glyphs=")
   uartPutDec(UInt64(kernel_vc_console_glyphs()))
-  uartPuts(" display=0\n")
+  uartPuts(" counter=")
+  uartPutDec(UInt64(kernel_vc_console_counter()))
+  uartPuts(" display=0 mirror=")
+  uartPutDec(UInt64(kernel_vc_console_mirror_count()))
+  uartPuts("\n")
 }
 
 func printPcie() {

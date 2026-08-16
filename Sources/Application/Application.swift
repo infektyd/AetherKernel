@@ -471,6 +471,8 @@ struct Application {
     uartPutDec(UInt64(kernel_vc_console_cols()))
     uartPuts(" glyphs=")
     uartPutDec(UInt64(kernel_vc_console_glyphs()))
+    uartPuts(" counter=")
+    uartPutDec(UInt64(kernel_vc_console_counter()))
     uartPuts(" display=0\n")
 
     // Runtime V61: BCM2711 PCIe RC bring-up
@@ -725,6 +727,7 @@ struct Application {
     let runtimeV44 = kernel_scheduler_concurrency_soak_selftest()
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 44, UInt(runtimeV44), UInt(kernel_scheduler_concurrency_soak_round_total()))
     if runtimeV44 != 0 {
+        // Feature token: V44 concurrency soak. Package KERNEL_SCHEDULER_VERSION is 46.
         uartPuts("schedselftest ok=1 version=44\n")
     }
     let handleSelftest = kernel_object_handle_selftest()

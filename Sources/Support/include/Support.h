@@ -260,6 +260,8 @@ int kernel_spinlock_selftest(void);
 // preemptive yield when high-priority work arrives behind low-priority tokens.
 // V44 proves bounded concurrency soak rounds while SMP dispatch and timer-fed
 // secondary workers stay active and every per-core queue drains back to zero.
+// Package version 46 (proven/selftest gates use < 45U). sched12/schedselftest
+// feature token stays 44 (V44 concurrency soak), not this package number.
 #define KERNEL_SCHEDULER_VERSION 46U
 #define KERNEL_SCHEDULER_CONCURRENCY_SOAK_ROUNDS 3U
 #define KERNEL_SCHEDULER_CORE_CAPACITY 4U
@@ -995,6 +997,12 @@ int          kernel_vc_console_ok(void);
 unsigned int kernel_vc_console_rows(void);
 unsigned int kernel_vc_console_cols(void);
 unsigned int kernel_vc_console_glyphs(void);
+unsigned long kernel_vc_console_counter(void);
+unsigned long kernel_vc_console_mirror_count(void);
+void         kernel_vc_console_blit_counter(unsigned long value);
+void         kernel_vc_console_tick(unsigned long scheduler_tick);
+void         kernel_vc_console_note_uart(unsigned int byte);
+int          kernel_vc_console_paint_if_needed(void);
 
 // Runtime V61: BCM2711 PCIe RC bring-up (Sources/Support/kernel_pcie.c).
 // selftest de-asserts PERST#, polls PHYLINKUP|DL_ACTIVE, sets outbound win0.

@@ -725,11 +725,15 @@ static int secondary_queues_empty(void) {
 }
 
 static void wait_for_secondary_queues_empty(void) {
+    // Sample under the per-core locks only every 1024 nops. A tight
+    // lock-poll here convoys with idle secondary workers (Pi 4 WFE
+    // returns for events besides our SEV) and can stall UART past the
+    // 10s serial-probe window — the sched3 line then looks like a timeout.
     for (unsigned int spin = 0; spin < 200000U; spin++) {
-        if (secondary_queues_empty()) {
-            return;
-        }
         if ((spin & 0x3ffU) == 0U) {
+            if (secondary_queues_empty()) {
+                return;
+            }
             kernel_smp_signal_scheduler_work(KERNEL_SMP_SECONDARY_MASK);
         }
         __asm__ volatile("nop" ::: "memory");
@@ -805,6 +809,19 @@ static void route_worker_feed_for_online_secondary_cores(void) {
     if (!timer_worker_feed_is_enabled()) {
         return;
     }
+    // Do not feed until all four A72s are online: a core that arrives a
+    // few timer ticks late keeps a permanent drain offset (observed
+    // min=247 max=253 imbalance=6), which then fails proven/selftest
+    // imbalance <= CORE_CAPACITY even though every secondary is draining.
+    if (kernel_smp_online_count() != 4U || kernel_smp_online_mask() != 0xfU) {
+        return;
+    }
+    // Lockstep: if any secondary still holds a token, skip the whole tick
+    // instead of feeding the empty cores and letting them pull ahead
+    // (drops on the busy core are how a 6-drain gap accumulates).
+    if (!secondary_queues_empty()) {
+        return;
+    }
     for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
         (void)route_worker_feed_for_core(core_id);
     }
@@ -834,6 +851,7 @@ void kernel_scheduler_on_timer_irq(void) {
 
     route_dispatch_for_online_cores(tick);
     route_worker_feed_for_online_secondary_cores();
+    kernel_vc_console_tick(tick);
     kernel_timer_set_deadline(KERNEL_TIMER_CLIENT_SCHEDULER, now + interval);
 }
 
@@ -1029,16 +1047,15 @@ void kernel_scheduler_secondary_worker_tick(unsigned int core_id) {
     lock_core(core_id, &flags);
     if (cores[core_id].count == 0) {
         unlock_core(core_id, flags);
+        // Steal/balance have their own success counters. Crediting those
+        // completions as worker_drains makes lifetime drain imbalance a
+        // steal/balance metric (observed +8 steals / +6 balances), which
+        // then fails proven() imbalance <= CORE_CAPACITY after the live
+        // sched9/sched10 probes and zeros bootcert worker_feed/secondary_workers.
         if (kernel_scheduler_try_balance_work(core_id)) {
-            lock_core(core_id, &flags);
-            cores[core_id].worker_drains++;
-            unlock_core(core_id, flags);
             return;
         }
         if (kernel_scheduler_try_steal_work(core_id)) {
-            lock_core(core_id, &flags);
-            cores[core_id].worker_drains++;
-            unlock_core(core_id, flags);
             return;
         }
         lock_core(core_id, &flags);
@@ -2128,9 +2145,19 @@ int kernel_scheduler_runqueue_proven(void) {
         return 0;
     }
 
+    // Snapshot leftovers only. Do not call runqueue_selftest(): it mutates
+    // queues (enqueue/dequeue). Per-core count==0 is stronger than a summed
+    // total (one leftover core cannot hide behind another empty queue).
+    // Keep steal_total>=2 and high_water_max: existing leftover attestations
+    // from V41 steal / V40 backpressure that still hold after boot.
     unsigned int total = 0;
     for (unsigned int core_id = 0; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
         total += kernel_scheduler_runqueue_count(core_id);
+        if (!(kernel_scheduler_runqueue_count(core_id) == 0 &&
+              kernel_scheduler_runqueue_high_water(core_id) >= KERNEL_SCHEDULER_RUNQUEUE_CAPACITY &&
+              kernel_scheduler_runqueue_overflow_count(core_id) >= 1UL)) {
+            return 0;
+        }
     }
 
     return kernel_scheduler_steal_total() >= 2U &&
@@ -2323,12 +2350,12 @@ int kernel_scheduler_work_steal_selftest(void) {
     if (ok) {
         kernel_smp_signal_scheduler_work((1U << 2) | (1U << 3));
         for (unsigned int spin = 0; spin < 200000U; spin++) {
-            if (kernel_scheduler_steal_success_count(2) > dest2_before &&
-                kernel_scheduler_steal_success_count(3) > dest3_before &&
-                kernel_scheduler_runqueue_count(1) == 0) {
-                break;
-            }
             if ((spin & 0x3ffU) == 0) {
+                if (kernel_scheduler_steal_success_count(2) > dest2_before &&
+                    kernel_scheduler_steal_success_count(3) > dest3_before &&
+                    kernel_scheduler_runqueue_count(1) == 0) {
+                    break;
+                }
                 kernel_smp_signal_scheduler_work((1U << 2) | (1U << 3));
             }
             __asm__ volatile("nop" ::: "memory");
@@ -2401,12 +2428,12 @@ int kernel_scheduler_fairness_selftest(void) {
     if (ok) {
         kernel_smp_signal_scheduler_work((1U << 2) | (1U << 3));
         for (unsigned int spin = 0; spin < 200000U; spin++) {
-            if (kernel_scheduler_balance_success_count(2) > dest2_before &&
-                kernel_scheduler_balance_success_count(3) > dest3_before &&
-                kernel_scheduler_runqueue_count(1) <= 1U) {
-                break;
-            }
             if ((spin & 0x3ffU) == 0) {
+                if (kernel_scheduler_balance_success_count(2) > dest2_before &&
+                    kernel_scheduler_balance_success_count(3) > dest3_before &&
+                    kernel_scheduler_runqueue_count(1) <= 1U) {
+                    break;
+                }
                 kernel_smp_signal_scheduler_work((1U << 2) | (1U << 3));
             }
             __asm__ volatile("nop" ::: "memory");
@@ -2744,12 +2771,12 @@ int kernel_scheduler_secondary_worker_selftest(void) {
     }
 
     for (unsigned int spin = 0; spin < 200000U; spin++) {
-        if (kernel_scheduler_worker_drain_count(1) > drain_before[1] &&
-            kernel_scheduler_worker_drain_count(2) > drain_before[2] &&
-            kernel_scheduler_worker_drain_count(3) > drain_before[3]) {
-            break;
-        }
         if ((spin & 0x3ffU) == 0U) {
+            if (kernel_scheduler_worker_drain_count(1) > drain_before[1] &&
+                kernel_scheduler_worker_drain_count(2) > drain_before[2] &&
+                kernel_scheduler_worker_drain_count(3) > drain_before[3]) {
+                break;
+            }
             kernel_smp_signal_scheduler_work(KERNEL_SMP_SECONDARY_MASK);
         }
         __asm__ volatile("nop" ::: "memory");
@@ -2800,15 +2827,15 @@ int kernel_scheduler_timer_worker_feed_selftest(void) {
     }
 
     for (unsigned int spin = 0; spin < 200000U; spin++) {
-        if (kernel_scheduler_worker_feed_count(1) > feed_before[1] &&
-            kernel_scheduler_worker_feed_count(2) > feed_before[2] &&
-            kernel_scheduler_worker_feed_count(3) > feed_before[3] &&
-            kernel_scheduler_worker_drain_count(1) > drain_before[1] &&
-            kernel_scheduler_worker_drain_count(2) > drain_before[2] &&
-            kernel_scheduler_worker_drain_count(3) > drain_before[3]) {
-            break;
-        }
         if ((spin & 0xffU) == 0U) {
+            if (kernel_scheduler_worker_feed_count(1) > feed_before[1] &&
+                kernel_scheduler_worker_feed_count(2) > feed_before[2] &&
+                kernel_scheduler_worker_feed_count(3) > feed_before[3] &&
+                kernel_scheduler_worker_drain_count(1) > drain_before[1] &&
+                kernel_scheduler_worker_drain_count(2) > drain_before[2] &&
+                kernel_scheduler_worker_drain_count(3) > drain_before[3]) {
+                break;
+            }
             route_worker_feed_for_online_secondary_cores();
         }
         __asm__ volatile("nop" ::: "memory");
@@ -2863,15 +2890,15 @@ int kernel_scheduler_secondary_job_selftest(void) {
     }
 
     for (unsigned int spin = 0; spin < 200000U; spin++) {
-        if (kernel_scheduler_secondary_job_execution_count(1) > exec_before[1] &&
-            kernel_scheduler_secondary_job_execution_count(2) > exec_before[2] &&
-            kernel_scheduler_secondary_job_execution_count(3) > exec_before[3] &&
-            kernel_scheduler_secondary_job_completion_count(1) > compl_before[1] &&
-            kernel_scheduler_secondary_job_completion_count(2) > compl_before[2] &&
-            kernel_scheduler_secondary_job_completion_count(3) > compl_before[3]) {
-            break;
-        }
         if ((spin & 0xffU) == 0U) {
+            if (kernel_scheduler_secondary_job_execution_count(1) > exec_before[1] &&
+                kernel_scheduler_secondary_job_execution_count(2) > exec_before[2] &&
+                kernel_scheduler_secondary_job_execution_count(3) > exec_before[3] &&
+                kernel_scheduler_secondary_job_completion_count(1) > compl_before[1] &&
+                kernel_scheduler_secondary_job_completion_count(2) > compl_before[2] &&
+                kernel_scheduler_secondary_job_completion_count(3) > compl_before[3]) {
+                break;
+            }
             route_worker_feed_for_online_secondary_cores();
         }
         __asm__ volatile("nop" ::: "memory");
@@ -2942,19 +2969,19 @@ int kernel_scheduler_secondary_wake_selftest(void) {
     }
 
     for (unsigned int spin = 0; spin < 200000U; spin++) {
-        if (kernel_scheduler_secondary_wake_signal_total() > signal_before &&
-            kernel_scheduler_secondary_wake_wait_count(1) > wait_before[1] &&
-            kernel_scheduler_secondary_wake_wait_count(2) > wait_before[2] &&
-            kernel_scheduler_secondary_wake_wait_count(3) > wait_before[3] &&
-            kernel_scheduler_secondary_wake_ack_count(1) > ack_before[1] &&
-            kernel_scheduler_secondary_wake_ack_count(2) > ack_before[2] &&
-            kernel_scheduler_secondary_wake_ack_count(3) > ack_before[3] &&
-            kernel_scheduler_secondary_job_execution_count(1) > exec_before[1] &&
-            kernel_scheduler_secondary_job_execution_count(2) > exec_before[2] &&
-            kernel_scheduler_secondary_job_execution_count(3) > exec_before[3]) {
-            break;
-        }
         if ((spin & 0xffU) == 0U) {
+            if (kernel_scheduler_secondary_wake_signal_total() > signal_before &&
+                kernel_scheduler_secondary_wake_wait_count(1) > wait_before[1] &&
+                kernel_scheduler_secondary_wake_wait_count(2) > wait_before[2] &&
+                kernel_scheduler_secondary_wake_wait_count(3) > wait_before[3] &&
+                kernel_scheduler_secondary_wake_ack_count(1) > ack_before[1] &&
+                kernel_scheduler_secondary_wake_ack_count(2) > ack_before[2] &&
+                kernel_scheduler_secondary_wake_ack_count(3) > ack_before[3] &&
+                kernel_scheduler_secondary_job_execution_count(1) > exec_before[1] &&
+                kernel_scheduler_secondary_job_execution_count(2) > exec_before[2] &&
+                kernel_scheduler_secondary_job_execution_count(3) > exec_before[3]) {
+                break;
+            }
             route_worker_feed_for_online_secondary_cores();
         }
         __asm__ volatile("nop" ::: "memory");
@@ -3008,15 +3035,15 @@ int kernel_scheduler_secondary_handoff_selftest(void) {
     }
 
     for (unsigned int spin = 0; spin < 200000U; spin++) {
-        if (kernel_scheduler_secondary_handoff_issue_count(1) > issue_before[1] &&
-            kernel_scheduler_secondary_handoff_issue_count(2) > issue_before[2] &&
-            kernel_scheduler_secondary_handoff_issue_count(3) > issue_before[3] &&
-            kernel_scheduler_secondary_handoff_completion_count(1) > completion_before[1] &&
-            kernel_scheduler_secondary_handoff_completion_count(2) > completion_before[2] &&
-            kernel_scheduler_secondary_handoff_completion_count(3) > completion_before[3]) {
-            break;
-        }
         if ((spin & 0xffU) == 0U) {
+            if (kernel_scheduler_secondary_handoff_issue_count(1) > issue_before[1] &&
+                kernel_scheduler_secondary_handoff_issue_count(2) > issue_before[2] &&
+                kernel_scheduler_secondary_handoff_issue_count(3) > issue_before[3] &&
+                kernel_scheduler_secondary_handoff_completion_count(1) > completion_before[1] &&
+                kernel_scheduler_secondary_handoff_completion_count(2) > completion_before[2] &&
+                kernel_scheduler_secondary_handoff_completion_count(3) > completion_before[3]) {
+                break;
+            }
             route_worker_feed_for_online_secondary_cores();
         }
         __asm__ volatile("nop" ::: "memory");

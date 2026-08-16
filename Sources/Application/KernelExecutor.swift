@@ -139,6 +139,15 @@ func kernel_executor_drain_main() -> Never {
       runJob(job)
       continue
     }
+    // One HDMI glyph, then re-check jobs. Never tight-loop paint.
+    _ = kernel_vc_console_paint_if_needed()
+    let flags2 = irq_save()
+    let job2 = readyPopUnsafe()
+    irq_restore(flags2)
+    if let job2 = job2 {
+      runJob(job2)
+      continue
+    }
     wait_for_interrupt()
   }
 }

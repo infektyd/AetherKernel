@@ -114,6 +114,15 @@ static int          console_ok_val     = 0;
 static unsigned int console_rows_val   = 0;
 static unsigned int console_cols_val   = 0;
 static unsigned int console_glyphs_val = 0;
+static unsigned long console_counter_val = 0;
+static unsigned long console_painted_val = ~(0UL);
+static unsigned long console_mirror_val = 0;
+#define CONSOLE_MIRROR_CAP 256U
+static unsigned char console_mirror_ring[CONSOLE_MIRROR_CAP];
+static unsigned int  console_mirror_head;
+static unsigned int  console_mirror_tail;
+static unsigned int  console_mirror_col;
+static unsigned int  console_mirror_row = 2U;
 
 // ---------------------------------------------------------------------------
 // Internal: write one 8x8 glyph at (col, row) in character-cell coordinates.
@@ -194,10 +203,118 @@ int kernel_vc_console_selftest(void)
     }
 
     console_ok_val = bad ? 0 : 1;
+    if (console_ok_val) {
+        console_counter_val = 0;
+        kernel_vc_console_blit_counter(0);
+    }
     return console_ok_val;
+}
+
+static void blit_decimal_row1(unsigned long value)
+{
+    /* Fixed 10-digit field so a smaller number does not leave stale glyphs. */
+    char digits[10];
+    unsigned long n = value;
+    for (int i = 9; i >= 0; i--) {
+        digits[i] = (char)('0' + (n % 10UL));
+        n /= 10UL;
+    }
+    uint32_t fg = 0xFFFFFFFFU;
+    uint32_t bg = 0x00000000U;
+    for (unsigned int i = 0U; i < 10U && i < console_cols_val; i++) {
+        blit_char(i, 1U, (unsigned char)digits[i], fg, bg);
+    }
+}
+
+void kernel_vc_console_blit_counter(unsigned long value)
+{
+    if (!console_ok_val || console_rows_val < 2U) {
+        return;
+    }
+    console_counter_val = value;
+    console_painted_val = value;
+    blit_decimal_row1(value);
+}
+
+void kernel_vc_console_tick(unsigned long scheduler_tick)
+{
+    if (!console_ok_val) {
+        return;
+    }
+    /* Scheduler interval is timerFrequency()/20 → 20 ticks/s.
+     * Increment only here. Uncached FB blits in the CNTP IRQ delayed
+     * core0 enough that job_proven saw job_exec=0 at bootcert. */
+    if ((scheduler_tick % 20UL) != 0UL) {
+        return;
+    }
+    console_counter_val++;
+}
+
+void kernel_vc_console_note_uart(unsigned int byte)
+{
+    unsigned char c = (unsigned char)byte;
+    if (!console_ok_val) {
+        return;
+    }
+    unsigned long flags = irq_save();
+    unsigned int next = (console_mirror_tail + 1U) % CONSOLE_MIRROR_CAP;
+    if (next != console_mirror_head) {
+        console_mirror_ring[console_mirror_tail] = c;
+        console_mirror_tail = next;
+    }
+    irq_restore(flags);
+}
+
+unsigned long kernel_vc_console_mirror_count(void)
+{
+    return console_mirror_val;
+}
+
+int kernel_vc_console_paint_if_needed(void)
+{
+    /* One UART glyph per call, from core0 idle only. FB is Normal cached
+     * (mmu l1[0]); do not blit from IRQ or secondary workers. */
+    if (!console_ok_val || console_rows_val < 3U) {
+        return 0;
+    }
+    if (uart_rx_ring_count() != 0U) {
+        return 0;
+    }
+
+    unsigned long flags = irq_save();
+    if (console_mirror_head == console_mirror_tail) {
+        irq_restore(flags);
+        return 0;
+    }
+    unsigned char c = console_mirror_ring[console_mirror_head];
+    console_mirror_head = (console_mirror_head + 1U) % CONSOLE_MIRROR_CAP;
+    irq_restore(flags);
+
+    if (c == (unsigned char)'\n' || c == (unsigned char)'\r') {
+        console_mirror_col = 0;
+        if (c == (unsigned char)'\n' && console_mirror_row + 1U < console_rows_val) {
+            console_mirror_row++;
+        }
+        console_mirror_val++;
+        return 1;
+    }
+    if (c < 0x20U || c > 0x7EU) {
+        return 1;
+    }
+    if (console_mirror_col >= console_cols_val) {
+        console_mirror_col = 0;
+        if (console_mirror_row + 1U < console_rows_val) {
+            console_mirror_row++;
+        }
+    }
+    blit_char(console_mirror_col, console_mirror_row, c, 0xFFFFFFFFU, 0x00000000U);
+    console_mirror_col++;
+    console_mirror_val++;
+    return 1;
 }
 
 int          kernel_vc_console_ok(void)     { return console_ok_val;     }
 unsigned int kernel_vc_console_rows(void)   { return console_rows_val;   }
 unsigned int kernel_vc_console_cols(void)   { return console_cols_val;   }
 unsigned int kernel_vc_console_glyphs(void) { return console_glyphs_val; }
+unsigned long kernel_vc_console_counter(void) { return console_counter_val; }

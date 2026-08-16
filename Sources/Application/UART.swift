@@ -50,6 +50,7 @@ func uartPutc(_ c: UInt8) {
   // Spin until the transmit FIFO has room.
   while (mmio_read32(UART0_BASE + FR) & FR_TXFF) != 0 { nop() }
   mmio_write32(UART0_BASE + DR, UInt32(c))
+  kernel_vc_console_note_uart(UInt32(c))
 }
 
 func uartPuts(_ s: StaticString) {
@@ -61,6 +62,15 @@ func uartPuts(_ s: StaticString) {
     if b == 0x0A { uartPutc(0x0D) }  // LF -> CR LF for terminals
     uartPutc(b)
     i += 1
+  }
+}
+
+// Interpolation (`"shell ready \(SHELL_COMMAND_LIST)\n"`) is a String.
+// v3/v4 contracts lock that form; Embedded uartPuts was StaticString-only.
+func uartPuts(_ s: String) {
+  for b in s.utf8 {
+    if b == 0x0A { uartPutc(0x0D) }
+    uartPutc(b)
   }
 }
 
