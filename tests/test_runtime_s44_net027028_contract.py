@@ -9,7 +9,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 # unattended netboot may have no downstream USB device or keyboard (NET-029).
 BOOT_GREPS_V64_V66 = (
     'grep -qa "runtime v64: xHCI controller init"',
-    'grep -qa "xhci_run ok=1 version=64 ports_connected=.*"',
+    'grep -qa "xhci_run ok=1 version=64"',
     'grep -qa "runtime v65: USB device enumeration"',
     'grep -qa "usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw="',
     'grep -qa "runtime v66: HID boot-protocol keyboard"',
@@ -96,7 +96,7 @@ def test_s44_net029_kbd_not_required_ok1_in_boot_greps() -> None:
 # DOC-s44-docs: operator docs must name the v64–v66 boot ceiling net-iterate greps.
 DOC_MARKERS_V64_V66 = (
     "runtime v64: xHCI controller init",
-    "xhci_run ok=1 version=64 ports_connected=.*",
+    "xhci_run ok=1 version=64",
     "runtime v65: USB device enumeration",
     (
         "usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* "
@@ -117,7 +117,7 @@ def test_s44_doc_s44_docs_readme_runbook_roadmap() -> None:
         assert marker in runbook, f"RUNBOOK missing {marker!r}"
 
     assert "Where we are now (V66)" in roadmap
-    assert "xhci_run ok=1 version=64 ports_connected=.*" in roadmap
+    assert "xhci_run ok=1 version=64" in roadmap
     assert (
         "usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* "
         "stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw="

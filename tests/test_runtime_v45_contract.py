@@ -180,9 +180,12 @@ def test_runtime_v45_docs_boot_ceiling_through_v66() -> None:
         "runtime v64: xHCI controller init",
         "xhci_run ok=1 version=64 ports_connected=.*",
         "runtime v65: USB device enumeration",
-        "usb_enum ok=[01] version=65",
+        (
+            "usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* "
+            "stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw="
+        ),
         "runtime v66: HID boot-protocol keyboard",
-        "kbd ok=[01] version=66",
+        "kbd ok=[01] version=66 keycode=.* char=",
     ):
         assert marker in readme
         assert marker in runbook
