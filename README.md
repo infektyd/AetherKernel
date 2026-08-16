@@ -3,7 +3,7 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-**Status:** Runtime V45 (dynamic virtual memory) — boot event 64; live UART shell reports `bootcert ok=1 version=66` and `certificate ok=1 version=63` (`sched12 ok=1 version=44` remains the concurrency-soak feature version).
+**Status:** Runtime V66 (HID boot-protocol keyboard) — current cold-boot metal floor through `runtime v66: HID boot-protocol keyboard`; live UART shell reports `bootcert ok=1 version=66` and `certificate ok=1 version=63` (`sched12 ok=1 version=44` remains the concurrency-soak feature version). Boot-only markers `xhci_run ok=1 version=64`, `usb_enum ok=[01] version=65`, and `kbd ok=[01] version=66` are gated by `net-iterate.sh` (unattended netboot may report `usb_enum ok=0` / `kbd ok=0` when no downstream USB device or keyboard is attached — `ok=1` is not required for those two).
 
 ## What makes this unusual
 
@@ -229,7 +229,7 @@ runtime → an SMP scheduler across all four Cortex-A72 cores, 44 milestones dee
 The full table (one row per milestone, each with its serial proof) is collapsed:
 
 <details>
-<summary><b>Full verified-milestone table (44 runtime milestones + boot bring-up)</b></summary>
+<summary><b>Full verified-milestone table (66 runtime milestones + boot bring-up)</b></summary>
 
 | Milestone | State | Verified how |
 |-----------|-------|--------------|
@@ -283,6 +283,28 @@ The full table (one row per milestone, each with its serial proof) is collapsed:
 | Runtime V42 secondary scheduler load-balancing protocol | ✅ | hardware run printed `runtime v42: secondary scheduler load balancing`; `bootcert ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=42 substrate=1 bootcert=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched10 ok=1 version=42 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 balances=3 completions=3 total=0 capacity=8 source_core1=3 source_core2=0 source_core3=0 dest_core1=0 dest_core2=2 dest_core3=1 queue_imbalance=0 selftest=1`; `runqueues ok=1 version=33 cores=4 capacity=8 total=0`; clean 3-cycle live netboot repeat passed |
 | Runtime V43 secondary scheduler priority/preemption protocol | ✅ | hardware run printed `runtime v43: secondary scheduler priority preemption`; `bootcert ok=1 version=43 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=43 substrate=1 bootcert=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched11 ok=1 version=43 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 preemptions=2 yields=2 completions=4 total=0 capacity=8 low_core1=2 high_core1=2 preempt_core1=2 yield_core1=2 selftest=1`; `net-iterate.sh` passed all shell probes on 2026-06-07 |
 | Runtime V44 bounded SMP concurrency soak protocol | ✅ | hardware run printed `runtime v44: bounded smp concurrency soak`; `bootcert ok=1 version=44 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `certificate ok=1 version=44 substrate=1 bootcert=1 concurrency=1 priority=1 fairness=1 stealing=1 backpressure=1 handoff=1 wake=1 job_exec=1 worker_feed=1 secondary_workers=1 ... events_lost=0`; `sched12 ok=1 version=44 concurrency=1 rounds=3 completions=3 failures=0 dispatches=9 soak_core1=3 soak_core2=3 soak_core3=3 selftest=1`; `soak ok=1 rounds=3 failures=0 heap_leak=0 frame_leak=0`; Wemo cold-cycle `netboot-auto.sh` + 3-cycle `soak-loop.sh` passed on 2026-06-07 |
+| Runtime V45 dynamic virtual memory (page tables + TLB) | shipped | boot emits `runtime v45: dynamic virtual memory (page tables + TLB)`; `net-iterate.sh` cold-boot gate greps require it |
+| Runtime V46 kernel/user address-space split | shipped | boot emits `runtime v46: kernel/user address-space split (isolated page tables)`; cold-boot gate greps require it |
+| Runtime V47 EL0 entry/exit and context save/restore | shipped | boot emits `runtime v47: EL0 entry/exit and context save/restore`; `el0 ok=1 version=47` |
+| Runtime V48 syscall ABI via SVC from EL0 | shipped | boot emits `runtime v48: syscall ABI via SVC from EL0`; `syscall ok=1 version=48` |
+| Runtime V49 fault-safe copy_from_user / copy_to_user | shipped | boot emits `runtime v49: fault-safe copy_from_user / copy_to_user`; `uaccess ok=1 version=49` |
+| Runtime V50 EPIC A capstone (EL0 syscall + user fault containment) | shipped | boot emits `runtime v50: EPIC A capstone — EL0 syscall + user fault containment`; `usermode ok=1 version=50` |
+| Runtime V51 process abstraction | shipped | boot emits `runtime v51: process abstraction (address space + lifecycle)`; `process ok=1 version=51` |
+| Runtime V52 user binary loader | shipped | boot emits `runtime v52: user binary loader (flat blob + sys_write)`; `processes ok=1 version=52` |
+| Runtime V53 multi-process user execution | shipped | boot emits `runtime v53: multi-process user execution (per-core EL0 + 3x isolation)`; `multiprocess ok=1 version=53` |
+| Runtime V54 BCM2711 EMMC2/SDHCI register probe | shipped | boot emits `runtime v54: BCM2711 EMMC2/SDHCI register probe`; `sdhci ok=1 version=54` |
+| Runtime V55 SD card identification | shipped | boot emits `runtime v55: SD card identification (CMD0/CMD8/ACMD41/CMD2/CMD3)`; `card ok=1 version=55` |
+| Runtime V56 single block read CMD17 | shipped | boot emits `runtime v56: single block read CMD17 + MBR 0x55AA verification`; `block ok=1 version=56` |
+| Runtime V57 FAT32 file read | shipped | boot emits `runtime v57: FAT32 file read (config.txt bytes + checksum)`; `fat32 ok=1 version=57` |
+| Runtime V58 VideoCore mailbox property interface | shipped | boot emits `runtime v58: VideoCore mailbox property interface (firmware revision)`; `mailbox ok=1 version=58` |
+| Runtime V59 VideoCore framebuffer allocation | shipped | boot emits `runtime v59: VideoCore framebuffer allocation (width/height/pitch/addr)`; `framebuf ok=1 version=59` |
+| Runtime V60 text console (font blit) | shipped | boot emits `runtime v60: text console (8x8 font blit + readback proof)`; `console ok=1 version=60` |
+| Runtime V61 BCM2711 PCIe RC bring-up | shipped | boot emits `runtime v61: BCM2711 PCIe RC bring-up`; `pcie ok=1 version=61` |
+| Runtime V62 VL805 USB 3.0 xHCI config-space probe | shipped | boot emits `runtime v62: VL805 USB 3.0 xHCI config-space probe`; `vl805 ok=1 version=62` |
+| Runtime V63 xHCI capability register probe | shipped | boot emits `runtime v63: xHCI capability register probe`; `xhci ok=1 version=63` |
+| Runtime V64 xHCI controller init | shipped | boot emits `runtime v64: xHCI controller init`; cold-boot gate greps require `xhci_run ok=1 version=64` (boot-only; no shell `xhci_run` command) |
+| Runtime V65 USB device enumeration | shipped | boot emits `runtime v65: USB device enumeration`; cold-boot gate greps `usb_enum ok=[01] version=65` — unattended netboot may report `ok=0` when no downstream USB device is attached |
+| Runtime V66 HID boot-protocol keyboard | shipped | boot emits `runtime v66: HID boot-protocol keyboard`; cold-boot gate greps `kbd ok=[01] version=66` — unattended netboot may report `ok=0` when no keyboard is attached (`ok=1` not required) |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 </details>
