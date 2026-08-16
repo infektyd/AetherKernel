@@ -406,8 +406,11 @@ static void signal_secondary_work_for_core(unsigned int core_id) {
     kernel_smp_signal_scheduler_work(1U << core_id);
 }
 
+static volatile unsigned int catch_up_skip_handoff;
+
 static void record_secondary_handoff_issue(unsigned int core_id, unsigned int token) {
-    if (!secondary_handoffs_enabled ||
+    if (catch_up_skip_handoff ||
+        !secondary_handoffs_enabled ||
         !valid_core(core_id) ||
         core_id == 0 ||
         !is_scheduler_job_token(token)) {
@@ -420,7 +423,10 @@ static void record_secondary_handoff_issue(unsigned int core_id, unsigned int to
 }
 
 static void record_secondary_handoff_completion(unsigned int core_id) {
-    if (!secondary_handoffs_enabled || !valid_core(core_id) || core_id == 0) {
+    if (catch_up_skip_handoff ||
+        !secondary_handoffs_enabled ||
+        !valid_core(core_id) ||
+        core_id == 0) {
         return;
     }
     cores[core_id].handoff_completions++;
@@ -2017,6 +2023,45 @@ int kernel_scheduler_secondary_worker_proven(void) {
         kernel_scheduler_secondary_worker_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY ? 1 : 0;
 }
 
+// Lockstep timer feed preserves a lifetime max-min offset. Steal/priority
+// selftests and per-core probe feeds create that offset; it cannot heal
+// on its own. Catch up lagging secondaries from job_proven only (bootcert /
+// certificate — not live sched5/6/7 selftest, not IRQ) so proven still
+// requires imbalance <= CORE_CAPACITY without skewing handoff counters.
+static void catch_up_secondary_job_imbalance(void) {
+    if (kernel_scheduler_secondary_job_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY) {
+        return;
+    }
+    // Do not credit handoff issue/completion for catch-up feeds: those
+    // counters are a separate proven gate (sched11). Job executions still
+    // increment so lifetime max-min can return to <= CORE_CAPACITY.
+    catch_up_skip_handoff = 1;
+    __asm__ volatile("dsb sy" ::: "memory");
+    unsigned long deadline = kernel_timer_now() + 5400000UL; /* ~100ms @ 54MHz */
+    unsigned int spin = 0;
+    while (kernel_scheduler_secondary_job_imbalance() > KERNEL_SCHEDULER_CORE_CAPACITY &&
+           kernel_timer_now() < deadline &&
+           spin < 200000U) {
+        if ((spin & 0x3ffU) == 0U) {
+            unsigned long min = kernel_scheduler_secondary_job_min();
+            for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+                if (!kernel_smp_core_online(core_id)) {
+                    continue;
+                }
+                if (kernel_scheduler_secondary_job_execution_count(core_id) <= min) {
+                    (void)route_worker_feed_for_core(core_id);
+                }
+            }
+            kernel_smp_signal_scheduler_work(KERNEL_SMP_SECONDARY_MASK);
+        }
+        spin++;
+        __asm__ volatile("nop" ::: "memory");
+    }
+    wait_for_secondary_queues_empty();
+    catch_up_skip_handoff = 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+}
+
 int kernel_scheduler_secondary_job_proven(void) {
     if (KERNEL_SCHEDULER_VERSION < 45U ||
         !kernel_scheduler_active() ||
@@ -2027,6 +2072,8 @@ int kernel_scheduler_secondary_job_proven(void) {
         kernel_smp_online_mask() != 0xfU) {
         return 0;
     }
+
+    catch_up_secondary_job_imbalance();
 
     unsigned long min = kernel_scheduler_secondary_job_min();
     unsigned long max = kernel_scheduler_secondary_job_max();

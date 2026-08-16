@@ -39,8 +39,8 @@ def test_genet2_is_read_only_mac_mib() -> None:
     assert "sched12" in iterate
     assert "kernel_genet2_selftest" not in scheduler
     assert "G32(" not in scheduler
-    # HDMI lesson: no 200k lock-spin; 50ms CNTPCT bound only.
-    assert "genet_udelay(50000)" in genet
+    # HDMI / S69 lesson: no boot-path 50ms CNTPCT spin after job_exec is live.
+    assert "genet_udelay(50000)" not in genet
     assert "200000" not in genet
     # ok=1 is leftover RX + live MIB. Do not require a non-zero UMAC MAC.
     assert "mac == 0UL" not in genet

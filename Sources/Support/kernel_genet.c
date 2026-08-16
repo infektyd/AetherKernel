@@ -109,7 +109,7 @@ unsigned int kernel_genet_mdio(void) { return genet_mdio_val; }
 unsigned int kernel_genet_link(void) { return genet_link_val; }
 
 // V68: UMAC MAC + leftover RX_EN + MIB snapshot. Do not write CMD_RX_EN
-// (firmware rings would DMA into stale buffers). Boot-time only; 50ms cap.
+// (firmware rings would DMA into stale buffers). Boot-time only; no wait.
 int kernel_genet2_selftest(void) {
     if (genet2_probed) return genet2_ok_val;
     genet2_probed = 1;
@@ -129,7 +129,9 @@ int kernel_genet2_selftest(void) {
     uint32_t cmd = G32(UMAC_CMD);
     genet2_rx_val = (cmd & CMD_RX_EN) ? 1U : 0U;
 
-    genet_udelay(50000);  // 50ms: let leftover RX accumulate if still live
+    // Snapshot leftover MIB immediately. A 50ms CNTPCT spin here runs after
+    // job execution is enabled and holds core0 off the Swift executor;
+    // leftover rx.pok is already populated by firmware netboot.
     genet2_frames_val = G32(UMAC_MIB_RX_POK);
     genet2_bytes_val = G32(UMAC_MIB_RX_BYTES);
 

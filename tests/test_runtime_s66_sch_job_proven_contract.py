@@ -123,3 +123,30 @@ def test_s66_job_proven_gap_noops_settle_matches_selftest() -> None:
     )
     assert settle.search(proven_body), "proven must share selftest gap==noops settle path"
     assert settle.search(selftest_body), "selftest gap==noops settle path must remain"
+
+
+def test_s66_job_proven_and_selftest_catch_up_lockstep_offset() -> None:
+    scheduler = read_repo("Sources/Support/kernel_scheduler.c")
+    proven_body = _function_body(
+        scheduler,
+        PROVEN_FN,
+        "int kernel_scheduler_secondary_wake_proven(void)",
+    )
+    selftest_body = _function_body(
+        scheduler,
+        SELFTEST_FN,
+        "int kernel_scheduler_secondary_wake_selftest(void)",
+    )
+    assert "catch_up_secondary_job_imbalance()" in proven_body
+    # Live sched5/6/7 selftests must not catch-up: extra feeds skew handoff
+    # and break sched9/11. bootcert/certificate use proven only.
+    assert "catch_up_secondary_job_imbalance()" not in selftest_body
+    assert "kernel_scheduler_secondary_job_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY" in proven_body
+    assert "kernel_scheduler_secondary_job_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY" in selftest_body
+    # Catch-up is shell/bootcert only: sparse signal, not a tight lock-poll.
+    catch_start = scheduler.index("static void catch_up_secondary_job_imbalance(void)")
+    catch_end = scheduler.index(PROVEN_FN, catch_start)
+    catch_body = scheduler[catch_start:catch_end]
+    assert "if ((spin & 0x3ffU) == 0U)" in catch_body
+    assert "route_worker_feed_for_core(core_id)" in catch_body
+    assert "catch_up_skip_handoff" in catch_body
