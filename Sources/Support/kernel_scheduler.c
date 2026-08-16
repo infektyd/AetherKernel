@@ -1977,6 +1977,12 @@ int kernel_scheduler_secondary_job_proven(void) {
         max >= min &&
         kernel_scheduler_secondary_job_execution_count(0) == 0 &&
         kernel_scheduler_secondary_job_completion_count(0) == 0 &&
+        kernel_scheduler_secondary_job_execution_count(1) > 0 &&
+        kernel_scheduler_secondary_job_execution_count(2) > 0 &&
+        kernel_scheduler_secondary_job_execution_count(3) > 0 &&
+        kernel_scheduler_secondary_job_completion_count(1) > 0 &&
+        kernel_scheduler_secondary_job_completion_count(2) > 0 &&
+        kernel_scheduler_secondary_job_completion_count(3) > 0 &&
         kernel_scheduler_secondary_job_total() >= 3UL &&
         kernel_scheduler_secondary_job_completion_total() >= 3UL &&
         kernel_scheduler_secondary_job_checksum_total() > 0 &&
