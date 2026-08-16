@@ -148,10 +148,8 @@ def test_runtime_v43_netboot_gates_and_sched11_probe_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
+        assert "runtime v43: secondary scheduler priority preemption" in source
         assert COMMANDS_V43 in source
-
-    assert "schedselftest ok=1 version=43" in net_iterate
-    assert "schedselftest ok=1 version=43" in doctor
 
     for marker in (
         "probe shell: sched11",
@@ -159,7 +157,7 @@ def test_runtime_v43_netboot_gates_and_sched11_probe_exist() -> None:
         "probe shell: req-sched11",
         "^resp id=44 ok=1 cmd=sched11 end",
         "^bootcert ok=1 version=66 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=[01] .*backpressure=[01] .*handoff=[01] .*wake=[01] .*job_exec=[01] .*worker_feed=[01] .*secondary_workers=[01] .*preemptive=[01] .*smp_scheduler=[01] .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*framebuf=1 .*console=1 .*pcie=1 .*vl805=1 .*xhci=1 .*kbd=[01] .*swift=6.3.2 .*events_lost=0",
-        "^certificate ok=1 version=63 substrate=1 .*bootcert=[01] .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=[01] .*backpressure=[01] .*handoff=[01] .*wake=[01] .*job_exec=[01] .*worker_feed=[01] .*secondary_workers=[01] .*preemptive=[01] .*smp_scheduler=[01] .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=[0-9]+ .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*vmm=1 .*asplit=1 .*el0=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*framebuf=1 .*console=1 .*pcie=1 .*vl805=1 .*xhci=1 .*swift=6.3.2 .*events_lost=0",
+        "^certificate ok=1 version=63 substrate=1 .*bootcert=[01] .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=[01] .*backpressure=[01] .*handoff=[01] .*wake=[01] .*job_exec=[01] .*worker_feed=[01] .*secondary_workers=[01] .*preemptive=[01] .*smp_scheduler=[01] .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*agent=1 .*runtime=1 .*memory=1 .*objects=1 .*tasks=1 .*mailboxes=1 .*supervisor=1 .*handles=1 .*events=1 .*cancellations=1 .*channels=1 .*drivers=1 .*pressure=1 .*pools=1 .*mmu=1 .*vmm=1 .*asplit=1 .*el0=1 .*syscall=1 .*uaccess=1 .*usermode=1 .*process=1 .*loader=1 .*multiprocess=1 .*sdhci=1 .*card=1 .*block=1 .*fat32=1 .*mailbox=1 .*framebuf=1 .*console=1 .*pcie=1 .*vl805=1 .*xhci=1 .*swift=6.3.2 .*events_lost=0",
         "stale pre-V44 SD fallback",
     ):
         assert marker in net_iterate
@@ -228,10 +226,10 @@ def test_runtime_v43_shell_lane_provenance_helpers_exist() -> None:
 
     bootcert = shell.split("func printBootcert()")[1].split("func ")[0]
     events_selftest_idx = bootcert.index("let eventsSelftest = kernel_event_log_selftest()")
-    count_before_idx = bootcert.index("let countBefore = kernel_event_count()")
+    event_count_idx = bootcert.index("let eventCount = kernel_event_count()")
     shell_emit_idx = bootcert.index("kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 44")
     priority_idx = bootcert.index("let priority = kernel_scheduler_priority_proven()")
-    assert count_before_idx < shell_emit_idx
+    assert event_count_idx < shell_emit_idx
     assert events_selftest_idx < priority_idx
 
     for forbidden in (
