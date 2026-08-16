@@ -276,7 +276,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "vl805 ok=1 version=62" \
       && printf '%s' "$serial_delta" | grep -qa "xhci ok=1 version=63" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v64: xHCI controller init" \
-      && printf '%s' "$serial_delta" | grep -qa "xhci_run ok=1 version=64" \
+      && printf '%s' "$serial_delta" | grep -qa "xhci_run ok=1 version=64 ports_connected=.*" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v65: USB device enumeration" \
       && printf '%s' "$serial_delta" | grep -qa "usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v66: HID boot-protocol keyboard" \

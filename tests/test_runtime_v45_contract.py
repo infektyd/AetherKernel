@@ -121,7 +121,7 @@ def test_runtime_v45_netboot_doctor_boot_ceiling_through_v66() -> None:
         'grep -q "runtime v45: dynamic virtual memory (page tables + TLB)"',
         'grep -q "runtime v63: xHCI capability register probe"',
         'grep -q "runtime v64: xHCI controller init"',
-        'grep -q "xhci_run ok=1 version=64"',
+        'grep -q "xhci_run ok=1 version=64 ports_connected=.*"',
         'grep -q "runtime v66: HID boot-protocol keyboard"',
         'grep -q "kbd ok=[01] version=66 keycode=.* char="',
         'grep -q "usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw="',
