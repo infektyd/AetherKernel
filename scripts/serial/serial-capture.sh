@@ -8,9 +8,10 @@
 #===----------------------------------------------------------------------===#
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PORT="${1:-${AETHER_SERIAL_PORT:-/dev/cu.usbserial-B0044J1V}}"
 LOG="${AETHER_SERIAL_LOG:-/tmp/aether-serial.log}"
-CAPTURE_PY="${AETHER_SERIAL_CAPTURE_PY:-/tmp/aether-serial-capture.py}"
+CAPTURE_PY="${AETHER_SERIAL_CAPTURE_PY:-$SCRIPT_DIR/aether-serial-capture.py}"
 
 if [ ! -f "$CAPTURE_PY" ]; then
   echo "serial-capture: missing capture script: $CAPTURE_PY" >&2
