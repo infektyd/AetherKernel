@@ -157,22 +157,66 @@ while [ "$SECONDS" -lt "$deadline" ]; do
     && printf '%s' "$serial_delta" | grep -q "runtime v28: swift runtime dependency audit" \
     && printf '%s' "$serial_delta" | grep -q "runtime v29: agent-oriented control session" \
     && printf '%s' "$serial_delta" | grep -q "runtime v30: swift-native kernel substrate certificate" \
-    && printf '%s' "$serial_delta" | grep -q "runtime v31: preemptive scheduler substrate" \
-    && printf '%s' "$serial_delta" | grep -q "runtime v32: smp secondary-core bring-up" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v33: atomics spinlocks per-core run queues" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v34: timer-driven smp scheduler dispatch" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v35: secondary-owned scheduler workers" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v36: timer-fed secondary scheduler workers" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v37: timer-fed secondary C scheduler jobs" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v38: secondary scheduler wake protocol" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v39: secondary scheduler handoff protocol" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v40: scheduler backpressure protocol" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v41: secondary scheduler work stealing" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v42: secondary scheduler load balancing" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v43: secondary scheduler priority preemption" \
-      && printf '%s' "$serial_delta" | grep -q "runtime v44: bounded smp concurrency soak" \
+    && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=31" \
+    && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=32" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=33" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=34" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=35" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=36" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=37" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=38" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=39" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=40" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=41" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=42" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=43" \
+      && printf '%s' "$serial_delta" | grep -q "schedselftest ok=1 version=44" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v45: dynamic virtual memory (page tables + TLB)" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v46: kernel/user address-space split (isolated page tables)" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v47: EL0 entry/exit and context save/restore" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v48: syscall ABI via SVC from EL0" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v49: fault-safe copy_from_user / copy_to_user" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v50: EPIC A capstone" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v51: process abstraction" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v52: user binary loader" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v53: multi-process user execution" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v54: BCM2711 EMMC2/SDHCI register probe" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v55: SD card identification (CMD0/CMD8/ACMD41/CMD2/CMD3)" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v56: single block read CMD17 + MBR 0x55AA verification" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v57: FAT32 file read (config.txt bytes + checksum)" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v58: VideoCore mailbox property interface (firmware revision)" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v59: VideoCore framebuffer allocation (width/height/pitch/addr)" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v60: text console (8x8 font blit + readback proof)" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v61: BCM2711 PCIe RC bring-up" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v62: VL805 USB 3.0 xHCI config-space probe" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v63: xHCI capability register probe" \
+      && printf '%s' "$serial_delta" | grep -q "sdhci ok=1 version=54" \
+      && printf '%s' "$serial_delta" | grep -q "card ok=1 version=55" \
+      && printf '%s' "$serial_delta" | grep -q "block ok=1 version=56" \
+      && printf '%s' "$serial_delta" | grep -q "fat32 ok=1 version=57" \
+      && printf '%s' "$serial_delta" | grep -q "mailbox ok=1 version=58" \
+      && printf '%s' "$serial_delta" | grep -q "framebuf ok=1 version=59" \
+      && printf '%s' "$serial_delta" | grep -q "console ok=1 version=60" \
+      && printf '%s' "$serial_delta" | grep -q "pcie ok=1 version=61" \
+      && printf '%s' "$serial_delta" | grep -q "vl805 ok=1 version=62" \
+      && printf '%s' "$serial_delta" | grep -q "xhci ok=1 version=63" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v64: xHCI controller init" \
+      && printf '%s' "$serial_delta" | grep -q "xhci_run ok=1 version=64" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v65: USB device enumeration" \
+      && printf '%s' "$serial_delta" | grep -q "usb_enum ok=[01] version=65" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v66: HID boot-protocol keyboard" \
+      && printf '%s' "$serial_delta" | grep -q "kbd ok=[01] version=66" \
+      && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
+      && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
+      && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \
+      && printf '%s' "$serial_delta" | grep -q "syscall ok=1 version=48" \
+      && printf '%s' "$serial_delta" | grep -q "uaccess ok=1 version=49" \
+      && printf '%s' "$serial_delta" | grep -q "usermode ok=1 version=50 fault_contained=1" \
+      && printf '%s' "$serial_delta" | grep -q "process ok=1 version=51" \
+      && printf '%s' "$serial_delta" | grep -q "processes ok=1 version=52" \
+      && printf '%s' "$serial_delta" | grep -q "multiprocess ok=1 version=53" \
     && printf '%s' "$serial_delta" | grep -q "handlecheck ok=1 .*handle_selftest=1 .*cap_selftest=1" \
-    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"; then
+    && printf '%s' "$serial_delta" | grep -q "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci"; then
     echo "netboot bring-up verified"
     echo "--- TFTP delta ---"
     printf '%s\n' "$dns_delta" | tail -n 80

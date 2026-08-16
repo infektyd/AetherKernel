@@ -586,6 +586,9 @@ while [ "$attempt" -le "$RETRIES" ]; do
       break
     fi
 
+    # v31–v44 stale-SD classifiers below grep unconditional enable banners only to
+    # fingerprint banner-only SD fallback images (final_exit=3). Boot proof for
+    # scheduler versions requires schedselftest ok=1 version=N (main gate :234-247).
     if printf '%s' "$serial_delta" | grep -qa "runtime v4: irq-backed uart shell" \
       && printf '%s' "$serial_delta" | grep -qa "shell ready commands=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v44: bounded smp concurrency soak" \
