@@ -307,3 +307,53 @@ int kernel_vc_mbox_set_pcie_reset(unsigned int reset_id, unsigned int state) {
 
 int          kernel_vc_mbox_pcie_reset_result(void)   { return pcie_reset_result;                  }
 unsigned int kernel_vc_mbox_pcie_reset_response(void) { return (unsigned int)pcie_reset_response;  }
+
+// RPI_FIRMWARE_GET_BOARD_MAC_ADDRESS (0x00010003). Six bytes, network order.
+// Boot/shell only — shares vc_buf with the other property calls; not IRQ-safe.
+#define TAG_GET_BOARD_MAC 0x00010003U
+
+static int board_mac_probed;
+static int board_mac_ok;
+static unsigned long board_mac_val;
+
+int kernel_vc_mbox_board_mac(unsigned long *out) {
+    if (board_mac_probed) {
+        if (out) {
+            *out = board_mac_val;
+        }
+        return board_mac_ok;
+    }
+    board_mac_probed = 1;
+    board_mac_ok = 0;
+    board_mac_val = 0;
+
+    vc_buf[0] = 8U * 4U;
+    vc_buf[1] = MBOX_REQ;
+    vc_buf[2] = TAG_GET_BOARD_MAC;
+    vc_buf[3] = 8U;
+    vc_buf[4] = 0U;
+    vc_buf[5] = 0U;
+    vc_buf[6] = 0U;
+    vc_buf[7] = TAG_END;
+
+    if (!vc_call(32U)) {
+        if (out) {
+            *out = 0;
+        }
+        return 0;
+    }
+
+    const volatile uint8_t *b = (const volatile uint8_t *)&vc_buf[5];
+    unsigned long mac = ((unsigned long)b[0] << 40) |
+                        ((unsigned long)b[1] << 32) |
+                        ((unsigned long)b[2] << 24) |
+                        ((unsigned long)b[3] << 16) |
+                        ((unsigned long)b[4] << 8) |
+                        (unsigned long)b[5];
+    board_mac_val = mac;
+    board_mac_ok = (mac != 0UL) ? 1 : 0;
+    if (out) {
+        *out = mac;
+    }
+    return board_mac_ok;
+}

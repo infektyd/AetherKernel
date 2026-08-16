@@ -989,6 +989,9 @@ unsigned int  kernel_vc_mbox_pwr_state_response(void);
 int           kernel_vc_mbox_set_pcie_reset(unsigned int reset_id, unsigned int state);
 int           kernel_vc_mbox_pcie_reset_result(void);
 unsigned int  kernel_vc_mbox_pcie_reset_response(void);
+// V69: GET_BOARD_MAC_ADDRESS (0x00010003). Read-only. Returns 1 and writes
+// *out when firmware returns a non-zero 48-bit MAC. Boot/shell only.
+int           kernel_vc_mbox_board_mac(unsigned long *out);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.
@@ -1159,6 +1162,13 @@ unsigned long kernel_genet2_mac(void);
 unsigned int  kernel_genet2_rx(void);
 unsigned int  kernel_genet2_frames(void);
 unsigned int  kernel_genet2_bytes(void);
+
+// V69: firmware station MAC via mailbox. No UMAC write, no DMA, no RX enable.
+int           kernel_genet3_selftest(void);
+int           kernel_genet3_ok(void);
+unsigned long kernel_genet3_mac(void);
+unsigned int  kernel_genet3_mbox(void);
+unsigned long kernel_genet3_umac(void);
 
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);

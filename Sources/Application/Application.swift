@@ -690,6 +690,20 @@ struct Application {
     uartPutDec(UInt64(kernel_genet2_bytes()))
     uartPuts("\n")
 
+    // Runtime V69: firmware station MAC via mailbox. No UMAC write, no DMA.
+    uartPuts("runtime v69: GENET mailbox station MAC\n")
+    let genet3_ok_boot = kernel_genet3_selftest()
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 69, UInt(genet3_ok_boot), UInt(kernel_genet3_mbox()))
+    uartPuts("genet3 ok=")
+    uartPutDec(UInt64(genet3_ok_boot))
+    uartPuts(" version=69 mac=")
+    uartPutHexCompact(UInt64(kernel_genet3_mac()))
+    uartPuts(" mbox=")
+    uartPutDec(UInt64(kernel_genet3_mbox()))
+    uartPuts(" umac=")
+    uartPutHexCompact(UInt64(kernel_genet3_umac()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

@@ -1,5 +1,6 @@
 // Runtime V67: BCM2711 GENET register probe (SYS_REV + bounded MDIO/link).
 // Runtime V68: UMAC station MAC + leftover RX_EN + MIB snapshot (read-only).
+// Runtime V69: firmware station MAC via mailbox GET_BOARD_MAC_ADDRESS.
 // Sources/Support/kernel_genet.c
 //
 // ARM low-peripheral GENET base 0xFD580000 (same 1GB Device block as PCIe
@@ -149,3 +150,40 @@ unsigned long kernel_genet2_mac(void)    { return genet2_mac_val;    }
 unsigned int  kernel_genet2_rx(void)     { return genet2_rx_val;     }
 unsigned int  kernel_genet2_frames(void) { return genet2_frames_val; }
 unsigned int  kernel_genet2_bytes(void)  { return genet2_bytes_val;  }
+
+static int genet3_probed;
+static int genet3_ok_val;
+static unsigned long genet3_mac_val;
+static unsigned int genet3_mbox_val;
+static unsigned long genet3_umac_val;
+
+// V69: mailbox station MAC. Do not write UMAC_MAC0/1. Do not touch CMD_RX_EN.
+int kernel_genet3_selftest(void) {
+    if (genet3_probed) return genet3_ok_val;
+    genet3_probed = 1;
+    genet3_ok_val = 0;
+    genet3_mac_val = 0;
+    genet3_mbox_val = 0;
+    genet3_umac_val = 0;
+
+    if (!kernel_genet2_selftest()) return 0;
+    genet3_umac_val = kernel_genet2_mac();
+
+    unsigned long mac = 0;
+    if (kernel_vc_mbox_board_mac(&mac)) {
+        genet3_mbox_val = 1;
+        genet3_mac_val = mac;
+    }
+
+    // ok=1 is a non-zero firmware MAC. umac stays leftover (observed 0).
+    // Do not program UMAC — that is a later DMA-adjacent slice.
+    if (genet3_mbox_val == 0U || genet3_mac_val == 0UL) return 0;
+
+    genet3_ok_val = 1;
+    return 1;
+}
+
+int           kernel_genet3_ok(void)   { return genet3_ok_val;   }
+unsigned long kernel_genet3_mac(void)  { return genet3_mac_val;  }
+unsigned int  kernel_genet3_mbox(void) { return genet3_mbox_val; }
+unsigned long kernel_genet3_umac(void) { return genet3_umac_val; }

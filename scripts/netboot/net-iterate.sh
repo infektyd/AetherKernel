@@ -285,6 +285,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "genet ok=1 version=67 rev=.* mdio=.* link=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v68: GENET UMAC MAC and RX MIB" \
       && printf '%s' "$serial_delta" | grep -qa "genet2 ok=1 version=68 mac=.* rx=.* frames=.* bytes=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v69: GENET mailbox station MAC" \
+      && printf '%s' "$serial_delta" | grep -qa "genet3 ok=1 version=69 mac=.* mbox=.* umac=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -404,6 +406,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "genet" "^genet ok=1 version=67 rev=.* mdio=.* link="
         # GENET2: ok=1 is a valid unicast UMAC MAC. frames=0 is honest (no DMA rings).
         probe_shell "genet2" "^genet2 ok=1 version=68 mac=.* rx=.* frames=.* bytes="
+        # GENET3: ok=1 is a non-zero firmware MAC. umac=0 is honest (no UMAC write).
+        probe_shell "genet3" "^genet3 ok=1 version=69 mac=.* mbox=1 umac="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
