@@ -61,6 +61,22 @@ def test_event_log_print_events_snapshots_lost_after_shell_emit() -> None:
     assert "kernel_event_count()" not in post_selftest
 
 
+def test_event_log_certificate_snapshots_count_before_selftest() -> None:
+    """EL-11 (S59): certificate must snapshot events before selftest emit."""
+    shell = read_repo("Sources/Application/UARTShell.swift")
+    certificate = _swift_function_body(shell, "printSubstrateCertificate")
+
+    lost_idx = certificate.index("let eventsLost = kernel_event_lost_count()")
+    count_idx = certificate.index("let eventCount = kernel_event_count()")
+    selftest_idx = certificate.index("let eventsSelftest = kernel_event_log_selftest()")
+    assert lost_idx < selftest_idx
+    assert count_idx < selftest_idx
+
+    post_selftest = certificate[selftest_idx:]
+    assert "kernel_event_lost_count()" not in post_selftest
+    assert "kernel_event_count()" not in post_selftest
+
+
 def test_event_log_certificate_and_bootcert_print_live_event_count() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
 

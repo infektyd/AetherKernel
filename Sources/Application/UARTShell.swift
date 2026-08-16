@@ -191,8 +191,9 @@ func printSubstrateCertificate() {
   let tasks = kernel_task_registry_selftest()
   let mailboxes = kernel_mailbox_selftest()
   let supervisor = kernel_supervisor_selftest()
-  let eventsSelftest = kernel_event_log_selftest()
+  let eventsLost = kernel_event_lost_count()
   let eventCount = kernel_event_count()
+  let eventsSelftest = kernel_event_log_selftest()
   let cancellations = kernel_cancel_selftest()
   let channels = aetherChannelSelftest()
   let drivers = kernel_driver_registry_selftest()
@@ -218,7 +219,6 @@ func printSubstrateCertificate() {
   let pcie = kernel_pcie_ok()
   let vl805 = kernel_vl805_ok()
   let xhci = kernel_xhci_ok()
-  let eventsLost = kernel_event_lost_count()
 
   let workerFeed = kernel_scheduler_timer_worker_feed_proven()
   let secondaryWorkers = kernel_scheduler_secondary_worker_proven()
