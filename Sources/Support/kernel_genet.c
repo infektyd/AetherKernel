@@ -1,4 +1,5 @@
 // Runtime V67: BCM2711 GENET register probe (SYS_REV + bounded MDIO/link).
+// Runtime V68: UMAC station MAC + leftover RX_EN + MIB snapshot (read-only).
 // Sources/Support/kernel_genet.c
 //
 // ARM low-peripheral GENET base 0xFD580000 (same 1GB Device block as PCIe
@@ -18,6 +19,13 @@
 #define RGMII_LINK (1U << 4)
 
 #define UMAC_OFF 0x0800U
+#define UMAC_CMD (UMAC_OFF + 0x008U)
+#define CMD_RX_EN (1U << 1)
+#define UMAC_MAC0 (UMAC_OFF + 0x00CU)
+#define UMAC_MAC1 (UMAC_OFF + 0x010U)
+#define UMAC_MIB_RX_PKT (UMAC_OFF + 0x428U)
+#define UMAC_MIB_RX_BYTES (UMAC_OFF + 0x42CU)
+#define UMAC_MIB_RX_POK (UMAC_OFF + 0x464U)
 #define UMAC_MDIO_CMD (UMAC_OFF + 0x614U)
 #define MDIO_START_BUSY (1U << 29)
 #define MDIO_READ_FAIL (1U << 28)
@@ -34,6 +42,13 @@ static int genet_ok_val;
 static unsigned int genet_rev_val;
 static unsigned int genet_mdio_val;
 static unsigned int genet_link_val;
+
+static int genet2_probed;
+static int genet2_ok_val;
+static unsigned long genet2_mac_val;
+static unsigned int genet2_rx_val;
+static unsigned int genet2_frames_val;
+static unsigned int genet2_bytes_val;
 
 static void genet_udelay(unsigned int us) {
     uint64_t freq, start, now;
@@ -92,3 +107,43 @@ int          kernel_genet_ok(void)   { return genet_ok_val;   }
 unsigned int kernel_genet_rev(void)  { return genet_rev_val;  }
 unsigned int kernel_genet_mdio(void) { return genet_mdio_val; }
 unsigned int kernel_genet_link(void) { return genet_link_val; }
+
+// V68: UMAC MAC + leftover RX_EN + MIB snapshot. Do not write CMD_RX_EN
+// (firmware rings would DMA into stale buffers). Boot-time only; 50ms cap.
+int kernel_genet2_selftest(void) {
+    if (genet2_probed) return genet2_ok_val;
+    genet2_probed = 1;
+    genet2_ok_val = 0;
+    genet2_mac_val = 0;
+    genet2_rx_val = 0;
+    genet2_frames_val = 0;
+    genet2_bytes_val = 0;
+
+    if (!kernel_genet_selftest()) return 0;
+
+    uint32_t mac0 = G32(UMAC_MAC0);
+    uint32_t mac1 = G32(UMAC_MAC1) & 0xFFFFU;
+    unsigned long mac = ((unsigned long)mac0 << 16) | (unsigned long)mac1;
+    genet2_mac_val = mac;
+
+    uint32_t cmd = G32(UMAC_CMD);
+    genet2_rx_val = (cmd & CMD_RX_EN) ? 1U : 0U;
+
+    genet_udelay(50000);  // 50ms: let leftover RX accumulate if still live
+    genet2_frames_val = G32(UMAC_MIB_RX_POK);
+    genet2_bytes_val = G32(UMAC_MIB_RX_BYTES);
+
+    // Firmware netboot leaves UMAC_MAC0/1 at 0 on this board (observed).
+    // ok=1 is leftover RX_EN + live MIB, not a station MAC. Do not write MAC.
+    if (cmd == 0xFFFFFFFFU || cmd == 0xDEADDEADU) return 0;
+    if (genet2_frames_val == 0xFFFFFFFFU || genet2_bytes_val == 0xFFFFFFFFU) return 0;
+
+    genet2_ok_val = 1;
+    return 1;
+}
+
+int           kernel_genet2_ok(void)     { return genet2_ok_val;     }
+unsigned long kernel_genet2_mac(void)    { return genet2_mac_val;    }
+unsigned int  kernel_genet2_rx(void)     { return genet2_rx_val;     }
+unsigned int  kernel_genet2_frames(void) { return genet2_frames_val; }
+unsigned int  kernel_genet2_bytes(void)  { return genet2_bytes_val;  }

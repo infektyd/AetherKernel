@@ -674,6 +674,22 @@ struct Application {
     uartPutDec(UInt64(kernel_genet_link()))
     uartPuts("\n")
 
+    // Runtime V68: UMAC MAC + leftover RX_EN + MIB. No DMA, no CMD_RX_EN write.
+    uartPuts("runtime v68: GENET UMAC MAC and RX MIB\n")
+    let genet2_ok_boot = kernel_genet2_selftest()
+    kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 68, UInt(genet2_ok_boot), UInt(kernel_genet2_frames()))
+    uartPuts("genet2 ok=")
+    uartPutDec(UInt64(genet2_ok_boot))
+    uartPuts(" version=68 mac=")
+    uartPutHexCompact(UInt64(kernel_genet2_mac()))
+    uartPuts(" rx=")
+    uartPutDec(UInt64(kernel_genet2_rx()))
+    uartPuts(" frames=")
+    uartPutDec(UInt64(kernel_genet2_frames()))
+    uartPuts(" bytes=")
+    uartPutDec(UInt64(kernel_genet2_bytes()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

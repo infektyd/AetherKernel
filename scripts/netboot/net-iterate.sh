@@ -283,6 +283,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "hubwalk ok=[01] version=66 ports=.* connected=.* hid=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v67: GENET register probe" \
       && printf '%s' "$serial_delta" | grep -qa "genet ok=1 version=67 rev=.* mdio=.* link=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v68: GENET UMAC MAC and RX MIB" \
+      && printf '%s' "$serial_delta" | grep -qa "genet2 ok=1 version=68 mac=.* rx=.* frames=.* bytes=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -400,6 +402,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "xhci" "^xhci ok=1 version=63 hciversion=0x100 ports=5 slots=32 scratch=31"
         # GENET probe: ok=1 is SYS_REV live. mdio/link may be 0 (fail-closed MDIO).
         probe_shell "genet" "^genet ok=1 version=67 rev=.* mdio=.* link="
+        # GENET2: ok=1 is a valid unicast UMAC MAC. frames=0 is honest (no DMA rings).
+        probe_shell "genet2" "^genet2 ok=1 version=68 mac=.* rx=.* frames=.* bytes="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

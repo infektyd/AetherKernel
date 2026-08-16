@@ -1152,6 +1152,14 @@ unsigned int kernel_genet_rev(void);
 unsigned int kernel_genet_mdio(void);
 unsigned int kernel_genet_link(void);
 
+// V68: UMAC station MAC + leftover RX_EN + MIB. No DMA, no CMD_RX_EN write.
+int           kernel_genet2_selftest(void);
+int           kernel_genet2_ok(void);
+unsigned long kernel_genet2_mac(void);
+unsigned int  kernel_genet2_rx(void);
+unsigned int  kernel_genet2_frames(void);
+unsigned int  kernel_genet2_bytes(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.
