@@ -21,8 +21,7 @@ typedef struct event_record {
 } event_record;
 
 static event_record events[KERNEL_EVENT_CAPACITY_VALUE];
-static kernel_spinlock_t event_log_lock;
-static unsigned int lock_initialized;
+static kernel_spinlock_t event_log_lock; /* BSS-zero: state/acquisitions/contentions == 0 == unlocked */
 static unsigned int initialized;
 static unsigned int write_index;
 static unsigned int count_value;
@@ -30,10 +29,6 @@ static unsigned long next_sequence;
 static unsigned long lost_count;
 
 static void event_log_lock_irq(unsigned long *flags) {
-    if (!lock_initialized) {
-        kernel_spinlock_init(&event_log_lock);
-        lock_initialized = 1;
-    }
     *flags = irq_save();
     kernel_spinlock_lock(&event_log_lock);
 }
@@ -60,10 +55,6 @@ static void clear_events_unsafe(void) {
 }
 
 void kernel_event_log_init(void) {
-    if (!lock_initialized) {
-        kernel_spinlock_init(&event_log_lock);
-        lock_initialized = 1;
-    }
     unsigned long flags;
     event_log_lock_irq(&flags);
     clear_events_unsafe();

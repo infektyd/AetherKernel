@@ -20,10 +20,29 @@ def test_event_log_emit_takes_irq_save_and_smp_spinlock() -> None:
     lock_helper = lock_helper.split("static void event_log_unlock_irq", 1)[0]
     assert "irq_save()" in lock_helper
     assert "kernel_spinlock_lock(&event_log_lock)" in lock_helper
+    assert "kernel_spinlock_init" not in lock_helper
+    assert lock_helper.index("irq_save()") < lock_helper.index(
+        "kernel_spinlock_lock(&event_log_lock)"
+    )
 
     emit_fn = source.split("void kernel_event_emit(", 1)[1].split("\n}\n", 1)[0]
     assert "event_log_lock_irq(&flags)" in emit_fn
     assert "event_log_unlock_irq(flags)" in emit_fn
+
+
+def test_event_log_spinlock_init_site() -> None:
+    source = read_repo("Sources/Support/kernel_event_log.c")
+    lock_path = read_repo("Sources/Support/kernel_lock.c")
+
+    lock_helper = source.split("static void event_log_lock_irq", 1)[1]
+    lock_helper = lock_helper.split("static void event_log_unlock_irq", 1)[0]
+    assert "kernel_spinlock_init" not in lock_helper
+
+    init_fn = source.split("void kernel_event_log_init(", 1)[1].split("\n}\n", 1)[0]
+    # BSS-zero is a valid unlocked lock (kernel_spinlock_init stores state=0).
+    assert "kernel_spinlock_init" not in init_fn
+    assert "lock_initialized" not in source
+    assert "kernel_atomic_store_u32(&lock->state, 0)" in lock_path
 
 
 def test_event_log_readers_hold_same_smp_lock() -> None:
