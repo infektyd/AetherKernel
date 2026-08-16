@@ -178,7 +178,7 @@ def test_runtime_v45_docs_boot_ceiling_through_v66() -> None:
 
     for marker in (
         "runtime v64: xHCI controller init",
-        "xhci_run ok=1 version=64",
+        "xhci_run ok=1 version=64 ports_connected=.*",
         "runtime v65: USB device enumeration",
         "usb_enum ok=[01] version=65",
         "runtime v66: HID boot-protocol keyboard",

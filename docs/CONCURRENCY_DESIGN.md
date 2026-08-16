@@ -50,9 +50,9 @@ Current live UART shell strings on the shipped build: `bootcert ok=1 version=66 
 `certificate ok=1 version=63 ...`, and `sched12 ok=1 version=44 ...` (sched12 keeps
 the V44 concurrency-soak feature version). Current cold-boot serial floor (after
 `xhci ok=1 version=63`) adds boot-only markers: `runtime v64: xHCI controller init`,
-`xhci_run ok=1 version=64`, `runtime v65: USB device enumeration`,
-`usb_enum ok=[01] version=65`, `runtime v66: HID boot-protocol keyboard`, and
-`kbd ok=[01] version=66` (`usb_enum`/`kbd` may report `ok=0` on unattended netboot
+`xhci_run ok=1 version=64 ports_connected=.*`, `runtime v65: USB device enumeration`,
+`usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw=`, `runtime v66: HID boot-protocol keyboard`, and
+`kbd ok=[01] version=66 keycode=.* char=` (`usb_enum`/`kbd` may report `ok=0` on unattended netboot
 when no USB device or keyboard is attached).
 
 > ## Runtime V44 bounded SMP concurrency soak protocol ground truth (2026-06-07)
@@ -262,8 +262,10 @@ when no USB device or keyboard is attached).
 > V31 keeps the V25 request envelope and V30 certificate surface, then adds a
 > fixed C-owned scheduler timer client plus a `sched` command. This is the first
 > preemptive layer over the cooperative executor: the IRQ path records scheduler
-> ticks/preemption accounting before the existing sleep and executor timer
-> clients run. The live Pi proof passed a normal `net-iterate.sh` run and a clean
+> ticks/preemption accounting, then the armed SLEEP client (TimerSleep). Executor
+> delay/deadline hooks panic; EXECUTOR CNTP slot never armed (IRQ calls no-op
+> `executor_on_timer_irq`). The live Pi proof passed a normal `net-iterate.sh`
+> run and a clean
 > 3-cycle live netboot repeat. Proof lines included `runtime v31: preemptive
 > scheduler substrate`, `bootcert ok=1 version=31 scheduler=1 certificate=1
 > agent=1 runtime=1 ... events_lost=0`, `certificate ok=1 version=31 substrate=1
@@ -583,12 +585,12 @@ when no USB device or keyboard is attached).
 > remain watchdog-reset aliases for the netboot iteration loop.
 
 > ## Runtime V2 ground truth (2026-06-05)
-> CNTP is now owned by a shared timer arbiter in `timersleep_hw.c`, with separate clients for
-> continuation sleeps and executor delayed jobs. `TimerSleep.swift` uses an 8-slot continuation
-> queue (`timerSleepMillis`/`timerSleepSeconds`), and `executor.c` implements
-> `swift_task_enqueueGlobalWithDelayImpl` plus `swift_task_enqueueGlobalWithDeadlineImpl` against
-> the same arbiter. The live hardware proof is a netbooted image printing independent
-> `rtv2 fast`, `rtv2 slow`, and `rtv2 long` cadences.
+> CNTP is now owned by a shared timer arbiter in `timersleep_hw.c`. `TimerSleep.swift` uses an
+> 8-slot continuation queue (`timerSleepMillis`/`timerSleepSeconds`) on the SLEEP client;
+> `executor.c` still exports `swift_task_enqueueGlobalWithDelayImpl`/`WithDeadlineImpl` but they
+> forward into Swift panic stubs (delay queue removed; timed wakeups live in TimerSleep only).
+> The live hardware proof is a netbooted image printing independent `rtv2 fast`, `rtv2 slow`,
+> and `rtv2 long` cadences.
 
 > ## Resolution: build on the Mach-O path, which ships `_Concurrency`
 > `_Concurrency` is NOT built for `aarch64-none-none-elf` (true in both 6.0 and 6.3.2), but IT IS
@@ -605,11 +607,14 @@ when no USB device or keyboard is attached).
 > `Task.sleep` continuations are freed); `Task.sleep(nanoseconds:)` → `enqueueGlobalWithDelay` (ns) →
 > `CNTP_CVAL_EL0`; `wfi` wakes on a pending IRQ even with `PSTATE.I` masked (race-free drain).
 >
+> **Historical (superseded by Runtime V2 ground truth, S5/S36):** executor `WithDelay`/`WithDeadline`
+> Impl now panic (no delayed queue; TimerSleep owns timed wakeups). Original research corrections
+> retained below for the Mach-O bring-up contract, not as live kernel behavior.
 > CORRECTIONS to fold in when implementing: prefer `Task.sleep(nanoseconds:)` for the demo (routes
 > through the delay hook we implement; the research's deadline-hook "enqueue immediately" fallback would
 > NOT actually delay a `ContinuousClock` sleep). Watch the executor's own allocations — the research used
 > Swift `Array` queues (which allocate); keep enqueue paths simple and the allocator reentrancy-safe
-> (enqueue runs in task context, the timer IRQ only matures the delay queue → wakes `wfi`).
+> (historical plan: enqueue runs in task context, the timer IRQ only matures the delay queue → wakes `wfi`).
 >
 > ## GROUND TRUTH (2026-06-04) — `nm` + `ExecutorImpl.h` from our actual 6.3.2 toolchain
 > Verified empirically against `usr/lib/swift/embedded/arm64-apple-none-macho/libswift_Concurrency.a`,
@@ -641,16 +646,19 @@ when no USB device or keyboard is attached).
 > SWIFT_CC(swift) void  swift_task_checkIsolatedImpl(SwiftExecutorRef e);                 // no-op
 > SWIFT_CC(swift) int8_t swift_task_isIsolatingCurrentContextImpl(SwiftExecutorRef e);    // return 1 (isolated)
 > SWIFT_RUNTIME_ATTRIBUTE_NORETURN SWIFT_CC(swift) void swift_task_asyncMainDrainQueueImpl(void); // THE PUMP
-> SWIFT_CC(swift) void swift_task_enqueueGlobalWithDeadlineImpl(long long s,long long ns,long long ts,long long tns,int clk,SwiftJob*); // route to delay queue or enqueue if due
+> SWIFT_CC(swift) void swift_task_enqueueGlobalWithDeadlineImpl(long long s,long long ns,long long ts,long long tns,int clk,SwiftJob*); // historical: route to delay queue or enqueue if due (superseded — Impl now panics; TimerSleep owns timed wakeups)
 > SWIFT_CC(swift) void swift_task_donateThreadToGlobalExecutorUntilImpl(bool(*cond)(void*),void*ctx);      // dummy/assert (optional)
 > // run a job: swift_job_run(job, swift_executor_generic());   // inline in the header → _swift_job_run_c
 > // SwiftJobDelay = unsigned long long (ns). Job priority via swift_job_getPriority(job) if we want priority ordering.
 > ```
+> **Historical pump recipe (superseded by Runtime V2 ground truth, S5/S36):** executor delay hooks panic;
+> no delayed queue; TimerSleep owns timed wakeups. Original contract quote retained:
 > The pump (`asyncMainDrainQueueImpl`): loop { pop a ready job → `swift_job_run(job, generic)`; when ready
 > ring empty → promote delay-queue jobs whose deadline ≤ now into ready (also done from the timer IRQ),
 > arm `CNTP` for the next deadline, `wfi` if nothing due }. Ready/delay queues are fixed C arrays guarded by
-> `irq_save()/irq_restore()` (IRQ matures the delay queue → wakes `wfi`). Still prefer `Task.sleep(nanoseconds:)`
-> for the demo so we hit `WithDelayImpl` (ns, no clock dependency) rather than the deadline/clock path.
+> `irq_save()/irq_restore()` (historical plan: IRQ matures the delay queue → wakes `wfi`). Still prefer
+> `Task.sleep(nanoseconds:)` for the demo so we hit `WithDelayImpl` (ns, no clock dependency) rather than
+> the deadline/clock path.
 
 ## 0. Goal
 Run real Swift `async/await` on the metal: a single-threaded **cooperative executor** whose time
@@ -668,7 +676,7 @@ func asyncMain() async {
 }
 ```
 Current Runtime V2 success on hardware = independent `rtv2 fast/slow/long` cadences with the CPU
-**idle in `wfi` between jobs**, woken when the timer IRQ matures continuation sleeps or executor delays.
+**idle in `wfi` between jobs**, woken when the timer IRQ matures continuation sleeps (executor delay hooks panic; no delayed queue).
 Structured concurrency, hardware-timer-backed.
 
 ## 1. Why this is more than the polled/IRQ heartbeat
@@ -705,6 +713,12 @@ only pushes job pointers — no alloc in IRQ), so no locking needed for the bump
 alloc/dealloc pattern + required symbol set + arena size]`
 
 ### 3b. Executor — `Sources/Application/Executor.swift` (NEW)
+
+**Historical (superseded by Runtime V2 ground truth, S5/S36/S40):** executor delay
+hooks panic; no delayed queue; TimerSleep owns timed wakeups; EXECUTOR CNTP slot
+never armed. Original Stage 3 plan retained below for the Mach-O bring-up contract,
+not as live kernel behavior.
+
 - **Run queue:** fixed ring buffer of job handles (e.g. 64), no alloc.
 - `@_cdecl("swift_task_enqueueGlobal")` (or hook): push job. **Called from both task and IRQ context →
   wrap push/pop in a DAIF critical section** (`irq_save()`/`irq_restore()` helpers, below).
@@ -714,6 +728,11 @@ alloc/dealloc pattern + required symbol set + arena size]`
   `CNTP_TVAL` for the nearest deadline.
 
 ### 3c. Timer IRQ becomes the scheduler tick — edit `IRQHandler.swift`
+
+**Historical (superseded by Runtime V2 ground truth, S5/S36/S40):** no executor timer
+queue; TimerSleep matures SLEEP continuations; executor_on_timer_irq is a no-op. Original
+Stage 3 IRQ plan retained below, not as live kernel behavior.
+
 On INTID 30: move every due `(deadline ≤ now)` job from the timer queue into the run queue
 (`enqueueGlobal`), then re-arm `CNTP` for the next-nearest deadline (or leave disabled if none).
 Re-arm BEFORE EOI (level-triggered, as established). This wakes the `wfi` in the drain loop.

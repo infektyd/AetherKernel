@@ -3,7 +3,7 @@
 A bare-metal kernel for the Raspberry Pi 4B (BCM2711, Cortex-A72) written in
 **Embedded Swift** — no OS, no SDK, no Node, boots straight from `kernel8.img`.
 
-**Status:** Runtime V66 (HID boot-protocol keyboard) — current cold-boot metal floor through `runtime v66: HID boot-protocol keyboard`; live UART shell reports `bootcert ok=1 version=66` and `certificate ok=1 version=63` (`sched12 ok=1 version=44` remains the concurrency-soak feature version). Boot-only markers `xhci_run ok=1 version=64`, `usb_enum ok=[01] version=65`, and `kbd ok=[01] version=66` are gated by `net-iterate.sh` (unattended netboot may report `usb_enum ok=0` / `kbd ok=0` when no downstream USB device or keyboard is attached — `ok=1` is not required for those two).
+**Status:** Runtime V66 (HID boot-protocol keyboard) — current cold-boot metal floor through `runtime v66: HID boot-protocol keyboard`; live UART shell reports `bootcert ok=1 version=66` and `certificate ok=1 version=63` (`sched12 ok=1 version=44` remains the concurrency-soak feature version). Boot-only markers `xhci_run ok=1 version=64 ports_connected=.*`, `usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw=`, and `kbd ok=[01] version=66 keycode=.* char=` are gated by `net-iterate.sh` (unattended netboot may report `usb_enum ok=0` / `kbd ok=0` when no downstream USB device or keyboard is attached — `ok=1` is not required for those two).
 
 ## What makes this unusual
 
@@ -240,7 +240,7 @@ The full table (one row per milestone, each with its serial proof) is collapsed:
 | GPIO14/15 → ALT0 in code (don't trust the overlay) | ✅ | disassembly `bfi w9,w8,#12,#6`; serial works on hardware |
 | Generic timer (CNTP), polled 1 s tick | ✅ | `CNTFRQ = 54 MHz`; tick measured 1.0005 s mean on hardware |
 | GIC-400 IRQ routing — CNTP (INTID 30) → EL1 vector → `wfi` idle | ✅ | **interrupt-driven `irq N` @ 1.0002 s mean on hardware; CPU idles in `wfi`** |
-| Embedded Swift Runtime V2 async scheduler | ✅ | hardware run printed independent `rtv2 fast/slow/long` cadences; shared CNTP arbiter drives continuation sleeps + executor delays |
+| Embedded Swift Runtime V2 async scheduler | ✅ | hardware run printed independent `rtv2 fast/slow/long` cadences; shared CNTP arbiter drives continuation sleeps (executor delay/deadline hooks panic; no delayed queue) |
 | Runtime V3 UART shell/control plane | ✅ | hardware run printed `shell ready`; `status`, `heap`, `queues`, and `tasks` returned machine-checkable `key=value` lines |
 | Runtime V4 IRQ-backed UART RX shell | ✅ | hardware run printed `runtime v4: irq-backed uart shell`; `status`, `heap`, `queues`, and `tasks` returned over PL011 RX interrupts; `serial-reset.sh` rebooted back into netboot |
 | Runtime V5 diagnostics shell | ✅ | hardware run printed `runtime v5: diagnostics shell`; `diag`, `irqs`, `timers`, `memcheck`, and `faults` returned machine-checkable lines; 3-cycle netboot loop passed |
@@ -286,7 +286,7 @@ The full table (one row per milestone, each with its serial proof) is collapsed:
 | Runtime V45 dynamic virtual memory (page tables + TLB) | shipped | boot emits `runtime v45: dynamic virtual memory (page tables + TLB)`; `net-iterate.sh` cold-boot gate greps require it |
 | Runtime V46 kernel/user address-space split | shipped | boot emits `runtime v46: kernel/user address-space split (isolated page tables)`; cold-boot gate greps require it |
 | Runtime V47 EL0 entry/exit and context save/restore | shipped | boot emits `runtime v47: EL0 entry/exit and context save/restore`; `el0 ok=1 version=47` |
-| Runtime V48 syscall ABI via SVC from EL0 | shipped | boot emits `runtime v48: syscall ABI via SVC from EL0`; `syscall ok=1 version=48` |
+| Runtime V48 syscall ABI via SVC from EL0 | shipped | boot emits `runtime v48: syscall ABI via SVC from EL0`; cold-boot gate greps `syscall ok=1 version=48 abi=48 table=1 dispatched=1 num=1 ret=0x00000000000482026` |
 | Runtime V49 fault-safe copy_from_user / copy_to_user | shipped | boot emits `runtime v49: fault-safe copy_from_user / copy_to_user`; `uaccess ok=1 version=49` |
 | Runtime V50 EPIC A capstone (EL0 syscall + user fault containment) | shipped | boot emits `runtime v50: EPIC A capstone — EL0 syscall + user fault containment`; `usermode ok=1 version=50` |
 | Runtime V51 process abstraction | shipped | boot emits `runtime v51: process abstraction (address space + lifecycle)`; `process ok=1 version=51` |
@@ -302,9 +302,9 @@ The full table (one row per milestone, each with its serial proof) is collapsed:
 | Runtime V61 BCM2711 PCIe RC bring-up | shipped | boot emits `runtime v61: BCM2711 PCIe RC bring-up`; `pcie ok=1 version=61` |
 | Runtime V62 VL805 USB 3.0 xHCI config-space probe | shipped | boot emits `runtime v62: VL805 USB 3.0 xHCI config-space probe`; `vl805 ok=1 version=62` |
 | Runtime V63 xHCI capability register probe | shipped | boot emits `runtime v63: xHCI capability register probe`; `xhci ok=1 version=63` |
-| Runtime V64 xHCI controller init | shipped | boot emits `runtime v64: xHCI controller init`; cold-boot gate greps require `xhci_run ok=1 version=64` (boot-only; no shell `xhci_run` command) |
-| Runtime V65 USB device enumeration | shipped | boot emits `runtime v65: USB device enumeration`; cold-boot gate greps `usb_enum ok=[01] version=65` — unattended netboot may report `ok=0` when no downstream USB device is attached |
-| Runtime V66 HID boot-protocol keyboard | shipped | boot emits `runtime v66: HID boot-protocol keyboard`; cold-boot gate greps `kbd ok=[01] version=66` — unattended netboot may report `ok=0` when no keyboard is attached (`ok=1` not required) |
+| Runtime V64 xHCI controller init | shipped | boot emits `runtime v64: xHCI controller init`; cold-boot gate greps require `xhci_run ok=1 version=64 ports_connected=.*` (boot-only; no shell `xhci_run` command) |
+| Runtime V65 USB device enumeration | shipped | boot emits `runtime v65: USB device enumeration`; cold-boot gate greps `usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw=` — unattended netboot may report `ok=0` when no downstream USB device is attached |
+| Runtime V66 HID boot-protocol keyboard | shipped | boot emits `runtime v66: HID boot-protocol keyboard`; cold-boot gate greps `kbd ok=[01] version=66 keycode=.* char=` — unattended netboot may report `ok=0` when no keyboard is attached (`ok=1` not required) |
 | EL1 exception vectors | ✅ | IRQ slot `0x280` → `irq_entry` exercised on hardware; sync `brk` path captured ESR/ELR/FAR and rebooted through the retained fault record |
 
 </details>
@@ -448,7 +448,7 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
      unavailable in Embedded Swift, so suspension is hand-rolled with `withUnsafeContinuation`
      (`TimerSleep.swift`), resumed by the CNTP timer IRQ; the CNTP register ops live in non-inline C
      (`timersleep_hw.c`). Runtime V2 replaces the single-sleeper path with an 8-slot continuation
-     sleep queue and routes executor delay/deadline hooks through the same timer arbiter. Hardware proof:
+     sleep queue; executor delay/deadline hooks panic if called (proven dead path — TimerSleep owns timed wakeups). Hardware proof:
      fresh netboot printed `rtv2 fast 0`, `rtv2 slow 0`, and `rtv2 long 0`; CPU idles in `wfi` between jobs.
      Bonus: `watchdog.c` (BCM2711 PM reset) — hardware-verified self-reboot.
      See `CONCURRENCY_DESIGN.md` (GROUND TRUTH block) for the verified symbol/ABI contract.
@@ -705,8 +705,10 @@ macho2bin.py / aether_tftp.py / config.txt / netboot-eeprom-config.txt / RUNBOOK
   - **Runtime V31 preemptive scheduler substrate.** ✅ hardware-verified.
     The C substrate now owns a fixed scheduler timer client and bounded core-0
     run queue surface above the cooperative executor. The IRQ handler records
-    CNTP-driven scheduler ticks and preemption accounting before servicing the
-    existing sleep/executor timer clients, and the UART shell exposes a one-line
+    CNTP-driven scheduler ticks and preemption accounting, then the armed SLEEP
+    client (TimerSleep). Executor delay/deadline hooks panic; EXECUTOR CNTP slot
+    never armed (IRQ path calls no-op executor_on_timer_irq). The UART shell
+    exposes a one-line
     `sched` proof command. Hardware proof: `net-iterate.sh` passed on real Pi 4,
     `bootcert` reported `bootcert ok=1 version=31 scheduler=1 certificate=1
     agent=1 runtime=1 ... events_lost=0`, the shell `certificate` command
