@@ -5,6 +5,12 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+from tests.commands_contract_helpers import (
+    assert_commands_era_in_netboot_sources,
+    assert_commands_era_prefix_of_live,
+)
+from tests.test_runtime_v45_contract import COMMANDS_V45
+
 
 COMMANDS_V11 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,"
@@ -35,9 +41,10 @@ def run_script(name: str, *args: str, env: dict[str, str] | None = None) -> subp
 
 def test_uart_shell_v11_bootcheck_and_soak_commands_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V11, label="V11")
+
 
     for marker in (
-        COMMANDS_V11,
         "bootcheck ok=",
         " memmap=",
         " heap=",
@@ -120,4 +127,4 @@ def test_runtime_v11_netboot_gates_exist() -> None:
 
     for source in (net_iterate, doctor):
         assert "runtime v11: boot and soak invariants" in source
-        assert COMMANDS_V11 in source
+        assert_commands_era_in_netboot_sources(COMMANDS_V11, COMMANDS_V45, source, label="V11")

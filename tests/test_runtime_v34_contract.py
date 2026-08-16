@@ -3,6 +3,12 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+from tests.commands_contract_helpers import (
+    assert_commands_era_in_netboot_sources,
+    assert_commands_era_prefix_of_live,
+)
+from tests.test_runtime_v45_contract import COMMANDS_V45
+
 
 COMMANDS_V34 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
@@ -70,9 +76,10 @@ def test_runtime_v34_application_boot_marker_and_selftest_exist() -> None:
 
 def test_runtime_v34_shell_sched2_and_certificate_surface_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V34, label="V34")
+
 
     for marker in (
-        COMMANDS_V34,
         "func printScheduler2()",
         "sched2 ok=",
         " version=34",
@@ -112,7 +119,7 @@ def test_runtime_v34_netboot_gates_and_sched2_probe_exist() -> None:
     doctor = read_repo("scripts/netboot/netboot-doctor.sh")
 
     for source in (net_iterate, doctor):
-        assert COMMANDS_V34 in source
+        assert_commands_era_in_netboot_sources(COMMANDS_V34, COMMANDS_V45, source, label="V34")
 
     assert "schedselftest ok=1 version=34" in net_iterate
     assert "runtime v34: timer-driven smp scheduler dispatch" in doctor

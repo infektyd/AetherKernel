@@ -5,6 +5,12 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+from tests.commands_contract_helpers import (
+    assert_commands_era_in_netboot_sources,
+    assert_commands_era_prefix_of_live,
+)
+from tests.test_runtime_v45_contract import COMMANDS_V45
+
 
 COMMANDS_V30 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
@@ -38,6 +44,8 @@ def run_script(script: str, *args: str, env: dict[str, str] | None = None) -> su
 def test_runtime_v30_application_shell_and_certificate_surface_exist() -> None:
     app = read_repo("Sources/Application/Application.swift")
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V30, label="V30")
+
 
     for marker in (
         "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 64, 0, 0)",
@@ -47,7 +55,6 @@ def test_runtime_v30_application_shell_and_certificate_surface_exist() -> None:
         assert marker in app
 
     for marker in (
-        COMMANDS_V30,
         "func printSubstrateCertificate()",
         "certificate ok=",
         " version=42",
@@ -80,6 +87,8 @@ def test_runtime_v30_application_shell_and_certificate_surface_exist() -> None:
 
 def test_runtime_v30_bootcert_reports_certificate_field() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V30, label="V30")
+
 
     for marker in (
         "let substrateCertificate = UInt32(1)",
@@ -140,7 +149,7 @@ def test_runtime_v30_netboot_gates_and_certificate_probe_exist() -> None:
 
     for source in (net_iterate, doctor):
         assert "runtime v30: swift-native kernel substrate certificate" in source
-        assert COMMANDS_V30 in source
+        assert_commands_era_in_netboot_sources(COMMANDS_V30, COMMANDS_V45, source, label="V30")
 
     for marker in (
         "probe shell: certificate",

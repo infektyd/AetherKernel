@@ -5,6 +5,12 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+from tests.commands_contract_helpers import (
+    assert_commands_era_in_netboot_sources,
+    assert_commands_era_prefix_of_live,
+)
+from tests.test_runtime_v45_contract import COMMANDS_V45
+
 
 COMMANDS_V27 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
@@ -73,6 +79,8 @@ def test_runtime_v27_retained_taxonomy_api_contract_exists() -> None:
 def test_runtime_v27_application_shell_and_bootcert_surface_exist() -> None:
     app = read_repo("Sources/Application/Application.swift")
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V27, label="V27")
+
     exceptions = read_repo("Sources/Application/Exceptions.swift")
 
     for marker in (
@@ -134,7 +142,7 @@ def test_runtime_v27_netboot_gates_exist() -> None:
 
     for source in (net_iterate, doctor):
         assert "runtime v27: panic taxonomy and symbolic retained records" in source
-        assert COMMANDS_V27 in source
+        assert_commands_era_in_netboot_sources(COMMANDS_V27, COMMANDS_V45, source, label="V27")
 
     for marker in (
         "^bootcert ok=1 version=44 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*runtime=1 .*events_lost=0",

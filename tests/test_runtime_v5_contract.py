@@ -3,6 +3,15 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+from tests.commands_contract_helpers import assert_commands_era_prefix_of_live
+
+
+COMMANDS_V5 = (
+    "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
+    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,"
+    "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"
+)
+
 
 def read_repo(path: str) -> str:
     return (ROOT / path).read_text()
@@ -35,8 +44,9 @@ def test_support_declares_runtime_v5_diagnostics_api() -> None:
 def test_uart_shell_v5_commands_and_response_prefixes_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
 
+    assert_commands_era_prefix_of_live(COMMANDS_V5, label="V5")
+
     for marker in (
-        "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot",
         "diag version=v5",
         "irqs total=",
         "timers now=",

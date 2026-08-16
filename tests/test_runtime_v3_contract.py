@@ -5,6 +5,16 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+from tests.commands_contract_helpers import assert_commands_era_in_netboot_sources
+from tests.test_runtime_v45_contract import COMMANDS_V45
+
+
+COMMANDS_V3 = (
+    "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
+    "mailboxes,sendtest,supervisor,health,handlecheck,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,"
+    "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot"
+)
+
 
 def read_repo(path: str) -> str:
     return (ROOT / path).read_text()
@@ -101,7 +111,7 @@ def test_application_starts_shell_and_exposes_cadence_counters() -> None:
 def test_net_iterate_requires_runtime_v3_shell_ready_after_hardware_proof() -> None:
     net_iterate = read_repo("scripts/netboot/net-iterate.sh")
 
-    assert "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,handlecheck,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot" in net_iterate
+    assert_commands_era_in_netboot_sources(COMMANDS_V3, COMMANDS_V45, net_iterate, label="V3")
 
 
 def test_serial_command_dry_run_appends_newline_and_targets_default_port() -> None:

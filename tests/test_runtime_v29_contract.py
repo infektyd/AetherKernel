@@ -5,6 +5,12 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+from tests.commands_contract_helpers import (
+    assert_commands_era_in_netboot_sources,
+    assert_commands_era_prefix_of_live,
+)
+from tests.test_runtime_v45_contract import COMMANDS_V45
+
 
 COMMANDS_V29 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
@@ -38,6 +44,8 @@ def run_script(script: str, *args: str, env: dict[str, str] | None = None) -> su
 def test_runtime_v29_application_shell_and_bootcert_surface_exist() -> None:
     app = read_repo("Sources/Application/Application.swift")
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V29, label="V29")
+
 
     for marker in (
         "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 64, 0, 0)",
@@ -47,7 +55,6 @@ def test_runtime_v29_application_shell_and_bootcert_surface_exist() -> None:
         assert marker in app
 
     for marker in (
-        COMMANDS_V29,
         "func printAgentSession()",
         "agent ok=",
         " version=29",
@@ -113,7 +120,7 @@ def test_runtime_v29_netboot_gates_and_agent_probe_exist() -> None:
 
     for source in (net_iterate, doctor):
         assert "runtime v29: agent-oriented control session" in source
-        assert COMMANDS_V29 in source
+        assert_commands_era_in_netboot_sources(COMMANDS_V29, COMMANDS_V45, source, label="V29")
 
     for marker in (
         "probe shell: agent",

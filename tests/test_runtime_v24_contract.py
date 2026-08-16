@@ -3,6 +3,12 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+from tests.commands_contract_helpers import (
+    assert_commands_era_in_netboot_sources,
+    assert_commands_era_prefix_of_live,
+)
+from tests.test_runtime_v45_contract import COMMANDS_V45
+
 COMMANDS_V24 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
     "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,"
@@ -76,6 +82,8 @@ def test_runtime_v24_watchdog_stats_api_exists() -> None:
 def test_runtime_v24_application_shell_and_bootcert_surface_exist() -> None:
     app = read_repo("Sources/Application/Application.swift")
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V24, label="V24")
+
 
     for marker in (
         "Runtime V24 adds a minimal fixed driver registry.",
@@ -88,8 +96,7 @@ def test_runtime_v24_application_shell_and_bootcert_surface_exist() -> None:
 
     for marker in (
         "V24 adds a fixed driver registry",
-        COMMANDS_V24,
-        "func printDrivers()",
+                "func printDrivers()",
         "func printDrivercheck()",
         "drivers count=",
         " driver index=",
@@ -119,7 +126,7 @@ def test_runtime_v24_netboot_gates_and_probes_exist() -> None:
 
     for source in (net_iterate, doctor):
         assert "runtime v24: fixed driver registry" in source
-        assert COMMANDS_V24 in source
+        assert_commands_era_in_netboot_sources(COMMANDS_V24, COMMANDS_V45, source, label="V24")
 
     for marker in (
         "probe shell: drivercheck",

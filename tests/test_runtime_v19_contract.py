@@ -3,6 +3,12 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+from tests.commands_contract_helpers import (
+    assert_commands_era_in_netboot_sources,
+    assert_commands_era_prefix_of_live,
+)
+from tests.test_runtime_v45_contract import COMMANDS_V45
+
 COMMANDS_V19 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,"
     "supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,"
@@ -71,9 +77,10 @@ def test_runtime_v19_boot_marker_and_task_event_are_wired() -> None:
 
 def test_uart_shell_v19_taskcheck_and_tasks2_metadata_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V19, label="V19")
+
 
     for marker in (
-        COMMANDS_V19,
         "func printTaskcheck()",
         "taskcheck ok=",
         " spawns=",
@@ -92,6 +99,7 @@ def test_uart_shell_v19_taskcheck_and_tasks2_metadata_exist() -> None:
 
 def test_runtime_v19_bootcert_includes_task_spawn_health() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V19, label="V19")
     net_iterate = read_repo("scripts/netboot/net-iterate.sh")
 
     assert " version=40" in shell
@@ -105,7 +113,7 @@ def test_runtime_v19_netboot_gates_and_shell_probe_exist() -> None:
 
     for source in (net_iterate, doctor):
         assert "runtime v19: structured aether task spawn" in source
-        assert COMMANDS_V19 in source
+        assert_commands_era_in_netboot_sources(COMMANDS_V19, COMMANDS_V45, source, label="V19")
 
     for marker in (
         "probe shell: taskcheck",

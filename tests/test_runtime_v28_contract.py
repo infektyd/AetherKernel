@@ -5,6 +5,12 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+from tests.commands_contract_helpers import (
+    assert_commands_era_in_netboot_sources,
+    assert_commands_era_prefix_of_live,
+)
+from tests.test_runtime_v45_contract import COMMANDS_V45
+
 
 COMMANDS_V28 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
@@ -78,6 +84,8 @@ def test_runtime_v28_support_declares_runtime_audit_surface() -> None:
 def test_runtime_v28_application_shell_and_bootcert_surface_exist() -> None:
     app = read_repo("Sources/Application/Application.swift")
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V28, label="V28")
+
 
     for marker in (
         "kernel_event_emit(KERNEL_EVENT_KIND_BOOT, 44, 0, 0)",
@@ -87,7 +95,6 @@ def test_runtime_v28_application_shell_and_bootcert_surface_exist() -> None:
         assert marker in app
 
     for marker in (
-        COMMANDS_V28,
         "func printRuntimeAudit()",
         "runtime ok=",
         " version=28",
@@ -146,7 +153,7 @@ def test_runtime_v28_netboot_gates_exist() -> None:
 
     for source in (net_iterate, doctor):
         assert "runtime v28: swift runtime dependency audit" in source
-        assert COMMANDS_V28 in source
+        assert_commands_era_in_netboot_sources(COMMANDS_V28, COMMANDS_V45, source, label="V28")
 
     for marker in (
         "probe shell: runtime",

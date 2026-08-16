@@ -3,6 +3,12 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+from tests.commands_contract_helpers import (
+    assert_commands_era_in_netboot_sources,
+    assert_commands_era_prefix_of_live,
+)
+from tests.test_runtime_v45_contract import COMMANDS_V45
+
 COMMANDS_V13 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,"
     "supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,"
@@ -84,9 +90,10 @@ def test_runtime_v13_demo_mailbox_tasks_exist() -> None:
 
 def test_uart_shell_v13_mailbox_commands_and_responses_exist() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V13, label="V13")
+
 
     for marker in (
-        COMMANDS_V13,
         "mailboxes count=",
         " queue_capacity=",
         " mailbox index=",
@@ -111,7 +118,7 @@ def test_runtime_v13_netboot_gates_and_shell_probes_exist() -> None:
 
     for source in (net_iterate, doctor):
         assert "runtime v13: bounded mailbox message queues" in source
-        assert COMMANDS_V13 in source
+        assert_commands_era_in_netboot_sources(COMMANDS_V13, COMMANDS_V45, source, label="V13")
 
     for marker in (
         "rtv13 mail tx 0x0000000000000000",

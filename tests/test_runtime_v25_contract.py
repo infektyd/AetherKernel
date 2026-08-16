@@ -5,6 +5,12 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+from tests.commands_contract_helpers import (
+    assert_commands_era_in_netboot_sources,
+    assert_commands_era_prefix_of_live,
+)
+from tests.test_runtime_v45_contract import COMMANDS_V45
+
 COMMANDS_V25 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
     "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,"
@@ -37,6 +43,8 @@ def run_script(script: str, *args: str, env: dict[str, str] | None = None) -> su
 def test_runtime_v25_application_marker_and_bootcert_protocol_field_exist() -> None:
     app = read_repo("Sources/Application/Application.swift")
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V25, label="V25")
+
 
     for marker in (
         "Runtime V25 adds a scriptable ASCII command protocol v2.",
@@ -57,11 +65,11 @@ def test_runtime_v25_application_marker_and_bootcert_protocol_field_exist() -> N
 
 def test_runtime_v25_shell_protocol_request_surface_exists() -> None:
     shell = read_repo("Sources/Application/UARTShell.swift")
+    assert_commands_era_prefix_of_live(COMMANDS_V25, label="V25")
 
     for marker in (
         "V25 adds a scriptable request/response envelope",
-        COMMANDS_V25,
-        "func printProtocol()",
+                "func printProtocol()",
         "protocol version=2 request=req id_field=id cmd_field=cmd begin_end=1 errors=1 max_line=80",
         "func shellBufferSliceEquals",
         "func shellBufferHasPrefix",
@@ -103,7 +111,7 @@ def test_runtime_v25_netboot_gates_and_probes_exist() -> None:
 
     for source in (net_iterate, doctor):
         assert "runtime v25: scriptable command protocol v2" in source
-        assert COMMANDS_V25 in source
+        assert_commands_era_in_netboot_sources(COMMANDS_V25, COMMANDS_V45, source, label="V25")
 
     for marker in (
         "probe shell: protocol",
