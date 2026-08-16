@@ -25,9 +25,38 @@ def read_repo(path: str) -> str:
     return (ROOT / path).read_text()
 
 
-# Locked to scripts/netboot/net-iterate.sh boot gate (lines ~249–276, ~284–291) and
-# matching Application.swift uartPuts boot emitters. Doctor uses grep -q with the
-# same quoted patterns (grep -qa → grep -q).
+# Success boot gate: scripts/netboot/net-iterate.sh lines 203–295 — the TFTP-verified
+# `if printf … "$dns_delta" … kernel8.img` && chain through schedselftest v31–v44,
+# runtime v45–v66 banner/ok greps, and the full shell-ready grep. Stale-SD classifier
+# blocks reuse many v46–v63 banner strings (~7× each) but are outside this slice.
+NET_ITERATE_SUCCESS_BOOT_GATE_START = (
+    'if printf \'%s\' "$dns_delta" | grep -qa "$PREFIX/.*kernel8.img"'
+)
+NET_ITERATE_SUCCESS_BOOT_GATE_SHELL_READY = (
+    'grep -qa "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,'
+    'kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,handlecheck,'
+    'capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,'
+    'sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,'
+    'diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,'
+    'poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,'
+    'bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,'
+    'heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,'
+    'usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,'
+    'console,pcie,vl805,xhci"; then'
+)
+
+
+def extract_net_iterate_success_boot_gate(net_iterate: str) -> str:
+    start = net_iterate.index(NET_ITERATE_SUCCESS_BOOT_GATE_START)
+    shell_ready_idx = net_iterate.index(
+        NET_ITERATE_SUCCESS_BOOT_GATE_SHELL_READY, start
+    )
+    end = shell_ready_idx + len(NET_ITERATE_SUCCESS_BOOT_GATE_SHELL_READY)
+    return net_iterate[start:end]
+
+
+# Locked to the success boot gate slice above and matching Application.swift uartPuts
+# boot emitters. Doctor uses grep -q with the same quoted patterns (grep -qa → grep -q).
 VERSION_BOOT_CONTRACTS: tuple[VersionBootContract, ...] = (
     VersionBootContract(
         46,
@@ -202,12 +231,13 @@ def test_runtime_v46_v63_application_boot_emitters(contract: VersionBootContract
 )
 def test_runtime_v46_v63_net_iterate_boot_greps(contract: VersionBootContract) -> None:
     net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    boot_gate = extract_net_iterate_success_boot_gate(net_iterate)
 
-    assert contract.runtime_banner_grep in net_iterate, (
-        f"v{contract.version} missing net-iterate runtime banner grep"
+    assert contract.runtime_banner_grep in boot_gate, (
+        f"v{contract.version} missing net-iterate runtime banner grep in success boot gate"
     )
-    assert contract.ok_grep in net_iterate, (
-        f"v{contract.version} missing net-iterate ok= boot grep"
+    assert contract.ok_grep in boot_gate, (
+        f"v{contract.version} missing net-iterate ok= boot grep in success boot gate"
     )
 
 
@@ -231,10 +261,47 @@ def test_runtime_v46_v63_doctor_boot_greps(contract: VersionBootContract) -> Non
 def test_runtime_v46_v63_net_iterate_banner_block_precedes_ok_greps() -> None:
     """Runtime v46–v63 banner greps must precede their ok= greps in the boot gate."""
     net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    boot_gate = extract_net_iterate_success_boot_gate(net_iterate)
 
     for contract in VERSION_BOOT_CONTRACTS:
-        banner_idx = net_iterate.index(contract.runtime_banner_grep)
-        ok_idx = net_iterate.index(contract.ok_grep)
+        banner_idx = boot_gate.index(contract.runtime_banner_grep)
+        ok_idx = boot_gate.index(contract.ok_grep)
         assert banner_idx < ok_idx, (
-            f"v{contract.version}: runtime banner grep must precede ok= grep in net-iterate"
+            f"v{contract.version}: runtime banner grep must precede ok= grep in boot gate"
         )
+
+
+def test_runtime_v46_v63_banner_greps_require_success_boot_gate_not_whole_file() -> None:
+    """Each v46–v63 banner grep appears ~7× in net-iterate (stale-SD classifiers).
+
+    Locks must target the TFTP-verified success boot gate only; a whole-file substring
+    check would still pass if only the primary boot-gate line (~249) were deleted.
+    """
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    boot_gate = extract_net_iterate_success_boot_gate(net_iterate)
+
+    for contract in VERSION_BOOT_CONTRACTS:
+        assert boot_gate.count(contract.runtime_banner_grep) == 1, (
+            f"v{contract.version}: expected exactly one banner grep in success boot gate"
+        )
+        assert net_iterate.count(contract.runtime_banner_grep) > 1, (
+            f"v{contract.version}: stale-SD duplicates must not satisfy the boot-gate lock"
+        )
+
+
+def test_runtime_v46_v63_deleting_primary_boot_gate_banner_fails_lock() -> None:
+    """Regression: removing only the boot-gate banner line must fail the contract."""
+    net_iterate = read_repo("scripts/netboot/net-iterate.sh")
+    boot_gate = extract_net_iterate_success_boot_gate(net_iterate)
+    contract = VERSION_BOOT_CONTRACTS[0]  # v46 — primary boot-gate line ~249
+
+    boot_gate_without_primary = boot_gate.replace(
+        contract.runtime_banner_grep + " \\",
+        "",
+        1,
+    )
+
+    assert contract.runtime_banner_grep in net_iterate
+    assert contract.runtime_banner_grep not in boot_gate_without_primary
+    with pytest.raises(AssertionError):
+        assert contract.runtime_banner_grep in boot_gate_without_primary
