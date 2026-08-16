@@ -132,6 +132,17 @@ def test_runtime_v44_netboot_gates_and_sched12_probe_exist() -> None:
         assert marker in soak_loop
 
 
+def test_runtime_v44_concurrency_soak_no_fabricated_drain_credit() -> None:
+    scheduler = read_repo("Sources/Support/kernel_scheduler.c")
+    soak_start = scheduler.index("int kernel_scheduler_concurrency_soak_selftest(void)")
+    soak_end = scheduler.index("int kernel_scheduler_smp_selftest(void)", soak_start)
+    soak_body = scheduler[soak_start:soak_end]
+
+    assert "drained = 1" not in soak_body
+    assert "if (drained[core_id] == 0)" in soak_body
+    assert soak_body.count("concurrency_soak_failures++") >= 2
+
+
 def test_runtime_v44_docs_are_updated_after_hardware_proof() -> None:
     readme = read_repo("README.md")
     runbook = read_repo("docs/RUNBOOK.md")

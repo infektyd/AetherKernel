@@ -2644,13 +2644,25 @@ int kernel_scheduler_concurrency_soak_selftest(void) {
             continue;
         }
 
+        unsigned long drained[KERNEL_SCHEDULER_CORE_CAPACITY];
+        int round_ok = 1;
+
         for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
-            unsigned long drained = kernel_scheduler_worker_drain_count(core_id) - drain_before[core_id];
-            if (drained == 0) {
-                drained = 1;
+            drained[core_id] = kernel_scheduler_worker_drain_count(core_id) - drain_before[core_id];
+            if (drained[core_id] == 0) {
+                round_ok = 0;
             }
-            concurrency_soak_core_completions[core_id] += drained;
-            round_dispatch += drained;
+        }
+
+        if (!round_ok) {
+            concurrency_soak_failures++;
+            ok = 0;
+            continue;
+        }
+
+        for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+            concurrency_soak_core_completions[core_id] += drained[core_id];
+            round_dispatch += drained[core_id];
         }
 
         concurrency_soak_rounds++;
