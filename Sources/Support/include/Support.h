@@ -1136,6 +1136,14 @@ int          kernel_kbd_ok(void);
 unsigned int kernel_kbd_keycode(void);
 unsigned int kernel_kbd_char(void);
 
+// Hub downstream walk (V66). ok=1 means GET_HUB_DESCRIPTOR + GET_PORT_STATUS
+// on every downstream port completed. connected/hid stay 0 when the bench
+// has no device; that is honest, not a failed walk.
+int          kernel_hubwalk_ok(void);
+unsigned int kernel_hubwalk_ports(void);
+unsigned int kernel_hubwalk_connected(void);
+unsigned int kernel_hubwalk_hid(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

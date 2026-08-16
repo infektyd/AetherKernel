@@ -894,6 +894,11 @@ static unsigned int kbd_keycode_val;
 static unsigned int kbd_char_val;
 static int kbd_probed;
 
+static int hubwalk_ok_val;
+static unsigned int hubwalk_ports_val;
+static unsigned int hubwalk_connected_val;
+static unsigned int hubwalk_hid_val;
+
 static unsigned int hid_keycode_to_char(unsigned int kc) {
     if (kc >= 0x04U && kc <= 0x1DU) return 'a' + (kc - 0x04U);
     if (kc >= 0x1EU && kc <= 0x27U) return '1' + (kc - 0x1EU);
@@ -1017,6 +1022,7 @@ int kernel_kbd_selftest(void) {
     // Find first connected port with a non-hub FS/LS device.
     unsigned int kbd_hub_port = 0;
     unsigned int kbd_speed    = 0;  // xHCI speed encoding (1=FS,2=LS,3=HS)
+    unsigned int connected    = 0;
     {
         void *pst_nc;
         unsigned long pst_pa = alloc_dma(&pst_nc);
@@ -1031,7 +1037,7 @@ int kernel_kbd_selftest(void) {
         }
         xhci_udelay(100000);  // 100ms power-on delay
 
-        for (unsigned int port = 1; port <= hub_ports && kbd_hub_port == 0; port++) {
+        for (unsigned int port = 1; port <= hub_ports; port++) {
             // Clear port status buffer
             volatile uint64_t *p64 = (volatile uint64_t *)pst_nc;
             p64[0] = 0ULL;
@@ -1049,6 +1055,8 @@ int kernel_kbd_selftest(void) {
 
             if (cc != 1U) continue;
             if (!(wPortStatus & 0x0001U)) continue;  // CCS=0: no device connected
+            connected++;
+            if (kbd_hub_port != 0) continue;  // already have a HID candidate
 
             // Device connected on this port — issue PORT_RESET
             uint32_t rslo = 0x23U | (0x03U << 8) | (4U << 16);  // SET_PORT_FEATURE(PORT_RESET=4)
@@ -1080,8 +1088,12 @@ int kernel_kbd_selftest(void) {
             kbd_speed    = xspd;
         }
     }
+    hubwalk_ports_val = hub_ports;
+    hubwalk_connected_val = connected;
+    hubwalk_ok_val = 1;
     xhci_d_puts("v66:kbd_port="); xhci_d_dec(kbd_hub_port);
-    xhci_d_puts(" spd="); xhci_d_dec(kbd_speed); xhci_d_puts("\n");
+    xhci_d_puts(" spd="); xhci_d_dec(kbd_speed);
+    xhci_d_puts(" connected="); xhci_d_dec(connected); xhci_d_puts("\n");
     if (kbd_hub_port == 0) return 0;
 
     // ── Phase 3: Enumerate keyboard ──────────────────────────────────────────
@@ -1273,6 +1285,7 @@ int kernel_kbd_selftest(void) {
                         xhci_d_puts("v66:ep_cand="); xhci_d_hex(addr);
                         xhci_d_puts(" score="); xhci_d_dec(score);
                         xhci_d_puts(" mps="); xhci_d_dec(int_ep_mps); xhci_d_puts("\n");
+                        if (score >= 2U) hubwalk_hid_val = 1;
                         if (score == 3U) break;  // boot keyboard — can't do better
                     }
                 }
@@ -1538,3 +1551,8 @@ int kernel_kbd_selftest(void) {
 int          kernel_kbd_ok(void)      { return kbd_ok_val;      }
 unsigned int kernel_kbd_keycode(void) { return kbd_keycode_val; }
 unsigned int kernel_kbd_char(void)    { return kbd_char_val;    }
+
+int          kernel_hubwalk_ok(void)        { return hubwalk_ok_val;        }
+unsigned int kernel_hubwalk_ports(void)     { return hubwalk_ports_val;     }
+unsigned int kernel_hubwalk_connected(void) { return hubwalk_connected_val; }
+unsigned int kernel_hubwalk_hid(void)       { return hubwalk_hid_val;       }

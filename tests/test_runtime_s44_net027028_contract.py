@@ -16,6 +16,7 @@ BOOT_GREPS_V64_V66 = (
     'grep -qa "usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw="',
     'grep -qa "runtime v66: HID boot-protocol keyboard"',
     'grep -qa "kbd ok=[01] version=66 keycode=.* char="',
+    'grep -qa "hubwalk ok=[01] version=66 ports=.* connected=.* hid="',
 )
 
 # Prior ceiling through v63 — must not regress when extending to v66.
