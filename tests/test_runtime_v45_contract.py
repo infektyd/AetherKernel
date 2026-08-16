@@ -71,7 +71,7 @@ def test_runtime_v45_netboot_vmm_boot_greps_and_shell_probes() -> None:
         'grep -qa "asplit ok=1 version=46"',
         'grep -qa "el0 ok=1 version=47"',
         "probe shell: vmm",
-        'probe_shell "vmm" "^vmm ok=1"',
+        'probe_shell "vmm" "^vmm ok=1 version=50 pt=.* selftest=.*"',
         "probe shell: asplit",
         'probe_shell "asplit" "^asplit ok=1 version=46"',
         "probe shell: el0",

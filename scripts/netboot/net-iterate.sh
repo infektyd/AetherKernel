@@ -396,8 +396,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "channeltest" "^channeltest ok=1 .*received=1"
         # probe shell: mmu
         probe_shell "mmu" "^mmu ok=1 .*regions=5 .*block_size=0x40000000"
-        # probe shell: vmm (printVMM; vmm ok=1 mirrors boot vmmcheck ok=1)
-        probe_shell "vmm" "^vmm ok=1"
+        # probe shell: vmm (printVMM schema: ok= version=50 pt= selftest=)
+        probe_shell "vmm" "^vmm ok=1 version=50 pt=.* selftest=.*"
         # probe shell: asplit
         probe_shell "asplit" "^asplit ok=1 version=46"
         # probe shell: el0
