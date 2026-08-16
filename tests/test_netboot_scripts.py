@@ -366,11 +366,14 @@ def test_net_iterate_accepts_dnsmasq_or_tftp_now_server() -> None:
     net_iterate = read_repo("scripts/netboot/net-iterate.sh")
 
     assert "tftp_server_running()" in net_iterate
+    assert "tftp_server_running || die" in net_iterate
     assert 'pgrep -f "dnsmasq.*${escaped_root}"' in net_iterate
     assert 'pgrep -f "tftp-now.*serve.*${escaped_root}"' in net_iterate
     assert 'pgrep -f "tftpd.*${escaped_root}"' in net_iterate
     assert 'pgrep -f "aether_tftp.py.*${escaped_root}"' in net_iterate
     assert "TFTP server does not appear to be serving" in net_iterate
+    assert "staged kernel missing:" in net_iterate
+    assert "tftp check bypassed" not in net_iterate
 
 
 def test_netboot_doctor_dry_run_shows_human_reset_gate() -> None:

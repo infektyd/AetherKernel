@@ -146,13 +146,12 @@ fi
 [ -f "$SERIAL_LOG" ] || die "serial log missing: $SERIAL_LOG"
 [ -f "$DNSMASQ_LOG" ] || die "TFTP log missing: $DNSMASQ_LOG"
 [ -d "$TFTP_ROOT/$PREFIX" ] || die "TFTP prefix missing: $TFTP_ROOT/$PREFIX"
-# Bypassed for v45-1 proof capture run (serve-netboot / direct aether_tftp.py manually started and confirmed serving kernel8.img in logs; pgrep argv match subtle in tool env).
-# tftp_server_running || die "TFTP server does not appear to be serving $TFTP_ROOT"
-if ! tftp_server_running; then echo "net-iterate: (tftp check bypassed for proof; serve confirmed up via manual launch + prior kernel8.img serve in dns log)"; fi
+tftp_server_running || die "TFTP server does not appear to be serving $TFTP_ROOT"
 
 STAGED_KERNEL="$TFTP_ROOT/$PREFIX/kernel8.img"
 netflash_output="$("$SCRIPT_DIR/netflash.sh" "$TFTP_ROOT")"
 printf '%s\n' "$netflash_output"
+[ -f "$STAGED_KERNEL" ] || die "staged kernel missing: $STAGED_KERNEL"
 KERNEL_SHA256="$(bind_staged_kernel_sha256 "$netflash_output" "$STAGED_KERNEL")"
 
 attempt=1
