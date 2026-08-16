@@ -11,9 +11,9 @@ BOOT_GREPS_V64_V66 = (
     'grep -qa "runtime v64: xHCI controller init"',
     'grep -qa "xhci_run ok=1 version=64"',
     'grep -qa "runtime v65: USB device enumeration"',
-    'grep -qa "usb_enum ok=[01] version=65"',
+    'grep -qa "usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw="',
     'grep -qa "runtime v66: HID boot-protocol keyboard"',
-    'grep -qa "kbd ok=[01] version=66"',
+    'grep -qa "kbd ok=[01] version=66 keycode=.* char="',
 )
 
 # Prior ceiling through v63 — must not regress when extending to v66.
@@ -89,5 +89,5 @@ def test_s44_net027_application_boot_markers() -> None:
 
 def test_s44_net029_kbd_not_required_ok1_in_boot_greps() -> None:
     net_iterate = read_repo("scripts/netboot/net-iterate.sh")
-    assert 'grep -qa "kbd ok=[01] version=66"' in net_iterate
+    assert 'grep -qa "kbd ok=[01] version=66 keycode=.* char="' in net_iterate
     assert 'grep -qa "kbd ok=1 version=66"' not in net_iterate
