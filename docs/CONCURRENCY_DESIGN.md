@@ -50,7 +50,7 @@ Current live UART shell strings on the shipped build: `bootcert ok=1 version=66 
 `certificate ok=1 version=63 ...`, and `sched12 ok=1 version=44 ...` (sched12 keeps
 the V44 concurrency-soak feature version). Current cold-boot serial floor (after
 `xhci ok=1 version=63`) adds boot-only markers: `runtime v64: xHCI controller init`,
-`xhci_run ok=1 version=64`, `runtime v65: USB device enumeration`,
+`xhci_run ok=1 version=64 ports_connected=.*`, `runtime v65: USB device enumeration`,
 `usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw=`, `runtime v66: HID boot-protocol keyboard`, and
 `kbd ok=[01] version=66 keycode=.* char=` (`usb_enum`/`kbd` may report `ok=0` on unattended netboot
 when no USB device or keyboard is attached).
