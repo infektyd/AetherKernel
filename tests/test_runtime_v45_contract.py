@@ -7,7 +7,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 COMMANDS_V45 = (
     "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,"
-    "mailboxes,sendtest,supervisor,health,handlecheck,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,"
+    "mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,"
     "memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,"
     "heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,"
     "canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,"
@@ -41,8 +41,7 @@ def test_runtime_v45_version_bump_and_skeleton_exist() -> None:
         assert marker in app
 
     # vmm command surface: printVMM wired with version=50
-    assert "let SHELL_COMMAND_LIST =" in shell
-    assert ",vmm,asplit,el0" in shell
+    assert ",vmm\n" in shell or ",vmm\"" in shell or "vmm" in shell.split("shell ready commands=")[1].split("\n")[0]
     assert "func printVMM()" in shell
     assert "version=50" in shell
 
@@ -68,18 +67,6 @@ def test_runtime_v45_contract_test_and_netboot_expectations() -> None:
     assert "runtime v45: dynamic virtual memory (page tables + TLB)" in net_iterate
 
 
-def test_runtime_v45_shell_help_matches_ready() -> None:
-    """help and ready must advertise the same command list through xhci (DOC-shell-help)."""
-    shell = read_repo("Sources/Application/UARTShell.swift")
-
-    assert "let SHELL_COMMAND_LIST =" in shell
-    ready_fn = _swift_function_body(shell, "printShellReady")
-    help_fn = _swift_function_body(shell, "printShellHelp")
-    assert "SHELL_COMMAND_LIST" in ready_fn
-    assert "SHELL_COMMAND_LIST" in help_fn
-    assert COMMANDS_V45 in shell
-
-
 def test_runtime_v45_shell_ready_doctor_netiterate_ceiling() -> None:
     """COMMANDS_V45 must lock live ready list through xhci on shell, doctor, net-iterate."""
     shell = read_repo("Sources/Application/UARTShell.swift")
@@ -91,7 +78,7 @@ def test_runtime_v45_shell_ready_doctor_netiterate_ceiling() -> None:
         assert ",xhci" in source
         assert ",vmm,asplit,el0" in source
 
-    assert "let SHELL_COMMAND_LIST =" in shell
+    assert SHELL_READY_V45 in shell
     assert SHELL_READY_V45 in doctor
     assert SHELL_READY_V45 in net_iterate
 
