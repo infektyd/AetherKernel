@@ -1,11 +1,14 @@
-"""S49 EX-17: probe_shell timers attests printTimers now= and sleep_deadline= atoms."""
+"""S49 EX-17: probe_shell timers attests printTimers schema atoms."""
 
 import pathlib
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
-TIMERS_PROBE_LINE = 'probe_shell "timers" "^timers now=.* sleep_deadline="'
+TIMERS_PROBE_LINE = (
+    'probe_shell "timers" '
+    '"^timers now=.* freq=.* active_count=.* active_mask=.* sleep_deadline="'
+)
 
 
 def read_repo(path: str) -> str:
@@ -48,5 +51,8 @@ def test_s49_ex17_print_timers_emits_required_atoms() -> None:
 
     assert "func printTimers()" in shell
     assert 'uartPuts("timers now=")' in shell
+    assert 'uartPuts(" freq=")' in shell
+    assert 'uartPuts(" active_count=")' in shell
+    assert 'uartPuts(" active_mask=")' in shell
     assert 'uartPuts(" sleep_deadline=")' in shell
     assert "executor_deadline=" not in shell

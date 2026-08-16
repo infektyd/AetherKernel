@@ -300,8 +300,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
         export AETHER_SERIAL_PROBE_TIMEOUT="$PROBE_TIMEOUT_S"
         # probe shell: status
         probe_shell "status" "^status uptime_ms=.*timer_mask="
-        # probe shell: timers (printTimers schema: now= sleep_deadline=; no executor_deadline=)
-        probe_shell "timers" "^timers now=.* sleep_deadline="
+        # probe shell: timers (printTimers schema: now= freq= active_count= active_mask= sleep_deadline=; no executor_deadline=)
+        probe_shell "timers" "^timers now=.* freq=.* active_count=.* active_mask=.* sleep_deadline="
         # probe shell: protocol
         probe_shell "protocol" "^protocol version=2 .*begin_end=1 .*errors=1"
         # probe shell: runtime
