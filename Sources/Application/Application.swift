@@ -292,6 +292,8 @@ struct Application {
     uartPuts("runtime v58: VideoCore mailbox property interface (firmware revision)\n")
     uartPuts("runtime v59: VideoCore framebuffer allocation (width/height/pitch/addr)\n")
     uartPuts("runtime v60: text console (8x8 font blit + readback proof)\n")
+    // SELFTEST id 18: boot-only Runtime V18 cancel selftest snapshot (arg1=0).
+    // Shell canceltest reruns emit KERNEL_EVENT_KIND_SHELL id 18 — not this slot.
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 18, UInt(kernel_cancel_selftest()), 0)
     kernel_event_emit(KERNEL_EVENT_KIND_TASK, 19, UInt(aetherTaskSpawnSelftest()), UInt(kernel_task_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 20, UInt(aetherChannelSelftest()), UInt(kernel_mailbox_count()))
