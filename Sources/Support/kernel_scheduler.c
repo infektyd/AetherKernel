@@ -2731,19 +2731,16 @@ int kernel_scheduler_secondary_worker_selftest(void) {
     set_timer_worker_feed_enabled(0);
     wait_for_secondary_queues_empty();
 
+    unsigned long drain_before[KERNEL_SCHEDULER_CORE_CAPACITY];
     for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
-        if (kernel_scheduler_runqueue_count(core_id) == 0) {
-            (void)enqueue_worker_probe_for_core(core_id);
-        }
+        drain_before[core_id] = kernel_scheduler_worker_drain_count(core_id);
+        (void)enqueue_worker_probe_for_core(core_id);
     }
 
-    unsigned long drain1_before = kernel_scheduler_worker_drain_count(1);
-    unsigned long drain2_before = kernel_scheduler_worker_drain_count(2);
-    unsigned long drain3_before = kernel_scheduler_worker_drain_count(3);
     for (unsigned int spin = 0; spin < 200000U; spin++) {
-        if (kernel_scheduler_worker_drain_count(1) > drain1_before &&
-            kernel_scheduler_worker_drain_count(2) > drain2_before &&
-            kernel_scheduler_worker_drain_count(3) > drain3_before) {
+        if (kernel_scheduler_worker_drain_count(1) > drain_before[1] &&
+            kernel_scheduler_worker_drain_count(2) > drain_before[2] &&
+            kernel_scheduler_worker_drain_count(3) > drain_before[3]) {
             break;
         }
         if ((spin & 0x3ffU) == 0U) {
@@ -2758,6 +2755,9 @@ int kernel_scheduler_secondary_worker_selftest(void) {
     int ok = min > 0 &&
         max >= min &&
         kernel_scheduler_secondary_worker_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY &&
+        kernel_scheduler_worker_drain_count(1) > drain_before[1] &&
+        kernel_scheduler_worker_drain_count(2) > drain_before[2] &&
+        kernel_scheduler_worker_drain_count(3) > drain_before[3] &&
         kernel_scheduler_secondary_worker_total() >= 3UL &&
         kernel_scheduler_runqueue_count(1) == 0 &&
         kernel_scheduler_runqueue_count(2) == 0 &&
@@ -2785,19 +2785,21 @@ int kernel_scheduler_timer_worker_feed_selftest(void) {
         return 0;
     }
 
+    unsigned long feed_before[KERNEL_SCHEDULER_CORE_CAPACITY];
+    unsigned long drain_before[KERNEL_SCHEDULER_CORE_CAPACITY];
     for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
-        if (kernel_scheduler_worker_feed_count(core_id) == 0) {
-            (void)route_worker_feed_for_core(core_id);
-        }
+        feed_before[core_id] = kernel_scheduler_worker_feed_count(core_id);
+        drain_before[core_id] = kernel_scheduler_worker_drain_count(core_id);
+        (void)route_worker_feed_for_core(core_id);
     }
 
     for (unsigned int spin = 0; spin < 200000U; spin++) {
-        if (kernel_scheduler_worker_feed_count(1) > 0 &&
-            kernel_scheduler_worker_feed_count(2) > 0 &&
-            kernel_scheduler_worker_feed_count(3) > 0 &&
-            kernel_scheduler_worker_drain_count(1) > 0 &&
-            kernel_scheduler_worker_drain_count(2) > 0 &&
-            kernel_scheduler_worker_drain_count(3) > 0) {
+        if (kernel_scheduler_worker_feed_count(1) > feed_before[1] &&
+            kernel_scheduler_worker_feed_count(2) > feed_before[2] &&
+            kernel_scheduler_worker_feed_count(3) > feed_before[3] &&
+            kernel_scheduler_worker_drain_count(1) > drain_before[1] &&
+            kernel_scheduler_worker_drain_count(2) > drain_before[2] &&
+            kernel_scheduler_worker_drain_count(3) > drain_before[3]) {
             break;
         }
         if ((spin & 0xffU) == 0U) {
@@ -2816,6 +2818,12 @@ int kernel_scheduler_timer_worker_feed_selftest(void) {
         drain_max >= drain_min &&
         kernel_scheduler_worker_feed_count(0) == 0 &&
         kernel_scheduler_worker_drain_count(0) == 0 &&
+        kernel_scheduler_worker_feed_count(1) > feed_before[1] &&
+        kernel_scheduler_worker_feed_count(2) > feed_before[2] &&
+        kernel_scheduler_worker_feed_count(3) > feed_before[3] &&
+        kernel_scheduler_worker_drain_count(1) > drain_before[1] &&
+        kernel_scheduler_worker_drain_count(2) > drain_before[2] &&
+        kernel_scheduler_worker_drain_count(3) > drain_before[3] &&
         kernel_scheduler_secondary_worker_feed_total() >= 3UL &&
         kernel_scheduler_secondary_worker_total() >= 3UL &&
         kernel_scheduler_secondary_worker_feed_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY &&
@@ -2840,19 +2848,21 @@ int kernel_scheduler_secondary_job_selftest(void) {
         return 0;
     }
 
+    unsigned long exec_before[KERNEL_SCHEDULER_CORE_CAPACITY];
+    unsigned long compl_before[KERNEL_SCHEDULER_CORE_CAPACITY];
     for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
-        if (kernel_scheduler_secondary_job_execution_count(core_id) == 0) {
-            (void)route_worker_feed_for_core(core_id);
-        }
+        exec_before[core_id] = kernel_scheduler_secondary_job_execution_count(core_id);
+        compl_before[core_id] = kernel_scheduler_secondary_job_completion_count(core_id);
+        (void)route_worker_feed_for_core(core_id);
     }
 
     for (unsigned int spin = 0; spin < 200000U; spin++) {
-        if (kernel_scheduler_secondary_job_execution_count(1) > 0 &&
-            kernel_scheduler_secondary_job_execution_count(2) > 0 &&
-            kernel_scheduler_secondary_job_execution_count(3) > 0 &&
-            kernel_scheduler_secondary_job_completion_count(1) > 0 &&
-            kernel_scheduler_secondary_job_completion_count(2) > 0 &&
-            kernel_scheduler_secondary_job_completion_count(3) > 0) {
+        if (kernel_scheduler_secondary_job_execution_count(1) > exec_before[1] &&
+            kernel_scheduler_secondary_job_execution_count(2) > exec_before[2] &&
+            kernel_scheduler_secondary_job_execution_count(3) > exec_before[3] &&
+            kernel_scheduler_secondary_job_completion_count(1) > compl_before[1] &&
+            kernel_scheduler_secondary_job_completion_count(2) > compl_before[2] &&
+            kernel_scheduler_secondary_job_completion_count(3) > compl_before[3]) {
             break;
         }
         if ((spin & 0xffU) == 0U) {
@@ -2883,6 +2893,12 @@ int kernel_scheduler_secondary_job_selftest(void) {
         max >= min &&
         kernel_scheduler_secondary_job_execution_count(0) == 0 &&
         kernel_scheduler_secondary_job_completion_count(0) == 0 &&
+        kernel_scheduler_secondary_job_execution_count(1) > exec_before[1] &&
+        kernel_scheduler_secondary_job_execution_count(2) > exec_before[2] &&
+        kernel_scheduler_secondary_job_execution_count(3) > exec_before[3] &&
+        kernel_scheduler_secondary_job_completion_count(1) > compl_before[1] &&
+        kernel_scheduler_secondary_job_completion_count(2) > compl_before[2] &&
+        kernel_scheduler_secondary_job_completion_count(3) > compl_before[3] &&
         kernel_scheduler_secondary_job_total() >= 3UL &&
         kernel_scheduler_secondary_job_completion_total() >= 3UL &&
         kernel_scheduler_secondary_job_checksum_total() > 0 &&
@@ -2908,24 +2924,28 @@ int kernel_scheduler_secondary_wake_selftest(void) {
         return 0;
     }
 
+    unsigned long signal_before = kernel_scheduler_secondary_wake_signal_total();
+    unsigned long wait_before[KERNEL_SCHEDULER_CORE_CAPACITY];
+    unsigned long ack_before[KERNEL_SCHEDULER_CORE_CAPACITY];
+    unsigned long exec_before[KERNEL_SCHEDULER_CORE_CAPACITY];
     for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
-        if (kernel_scheduler_secondary_wake_ack_count(core_id) == 0 ||
-            kernel_scheduler_secondary_job_execution_count(core_id) == 0) {
-            (void)route_worker_feed_for_core(core_id);
-        }
+        wait_before[core_id] = kernel_scheduler_secondary_wake_wait_count(core_id);
+        ack_before[core_id] = kernel_scheduler_secondary_wake_ack_count(core_id);
+        exec_before[core_id] = kernel_scheduler_secondary_job_execution_count(core_id);
+        (void)route_worker_feed_for_core(core_id);
     }
 
     for (unsigned int spin = 0; spin < 200000U; spin++) {
-        if (kernel_scheduler_secondary_wake_signal_total() > 0 &&
-            kernel_scheduler_secondary_wake_wait_count(1) > 0 &&
-            kernel_scheduler_secondary_wake_wait_count(2) > 0 &&
-            kernel_scheduler_secondary_wake_wait_count(3) > 0 &&
-            kernel_scheduler_secondary_wake_ack_count(1) > 0 &&
-            kernel_scheduler_secondary_wake_ack_count(2) > 0 &&
-            kernel_scheduler_secondary_wake_ack_count(3) > 0 &&
-            kernel_scheduler_secondary_job_execution_count(1) > 0 &&
-            kernel_scheduler_secondary_job_execution_count(2) > 0 &&
-            kernel_scheduler_secondary_job_execution_count(3) > 0) {
+        if (kernel_scheduler_secondary_wake_signal_total() > signal_before &&
+            kernel_scheduler_secondary_wake_wait_count(1) > wait_before[1] &&
+            kernel_scheduler_secondary_wake_wait_count(2) > wait_before[2] &&
+            kernel_scheduler_secondary_wake_wait_count(3) > wait_before[3] &&
+            kernel_scheduler_secondary_wake_ack_count(1) > ack_before[1] &&
+            kernel_scheduler_secondary_wake_ack_count(2) > ack_before[2] &&
+            kernel_scheduler_secondary_wake_ack_count(3) > ack_before[3] &&
+            kernel_scheduler_secondary_job_execution_count(1) > exec_before[1] &&
+            kernel_scheduler_secondary_job_execution_count(2) > exec_before[2] &&
+            kernel_scheduler_secondary_job_execution_count(3) > exec_before[3]) {
             break;
         }
         if ((spin & 0xffU) == 0U) {
@@ -2938,11 +2958,17 @@ int kernel_scheduler_secondary_wake_selftest(void) {
     // pulses, so wake imbalance is telemetry, not a gate.
     return kernel_smp_scheduler_wake_selftest() != 0 &&
         kernel_scheduler_secondary_job_selftest() != 0 &&
-        kernel_scheduler_secondary_wake_signal_total() > 0 &&
+        kernel_scheduler_secondary_wake_signal_total() > signal_before &&
         kernel_scheduler_secondary_wake_signal_mask() == KERNEL_SMP_SECONDARY_MASK &&
         kernel_scheduler_secondary_wake_target_total() >= 3UL &&
         kernel_scheduler_secondary_wake_wait_count(0) == 0 &&
         kernel_scheduler_secondary_wake_ack_count(0) == 0 &&
+        kernel_scheduler_secondary_wake_wait_count(1) > wait_before[1] &&
+        kernel_scheduler_secondary_wake_wait_count(2) > wait_before[2] &&
+        kernel_scheduler_secondary_wake_wait_count(3) > wait_before[3] &&
+        kernel_scheduler_secondary_wake_ack_count(1) > ack_before[1] &&
+        kernel_scheduler_secondary_wake_ack_count(2) > ack_before[2] &&
+        kernel_scheduler_secondary_wake_ack_count(3) > ack_before[3] &&
         kernel_scheduler_secondary_wake_wait_total() >= 3UL &&
         kernel_scheduler_secondary_wake_ack_total() >= 3UL &&
         kernel_scheduler_secondary_wake_gap() <= KERNEL_SCHEDULER_CORE_CAPACITY ? 1 : 0;
@@ -2967,20 +2993,21 @@ int kernel_scheduler_secondary_handoff_selftest(void) {
         return 0;
     }
 
+    unsigned long issue_before[KERNEL_SCHEDULER_CORE_CAPACITY];
+    unsigned long completion_before[KERNEL_SCHEDULER_CORE_CAPACITY];
     for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
-        if (kernel_scheduler_secondary_handoff_issue_count(core_id) == 0 ||
-            kernel_scheduler_secondary_handoff_completion_count(core_id) == 0) {
-            (void)route_worker_feed_for_core(core_id);
-        }
+        issue_before[core_id] = kernel_scheduler_secondary_handoff_issue_count(core_id);
+        completion_before[core_id] = kernel_scheduler_secondary_handoff_completion_count(core_id);
+        (void)route_worker_feed_for_core(core_id);
     }
 
     for (unsigned int spin = 0; spin < 200000U; spin++) {
-        if (kernel_scheduler_secondary_handoff_issue_count(1) > 0 &&
-            kernel_scheduler_secondary_handoff_issue_count(2) > 0 &&
-            kernel_scheduler_secondary_handoff_issue_count(3) > 0 &&
-            kernel_scheduler_secondary_handoff_completion_count(1) > 0 &&
-            kernel_scheduler_secondary_handoff_completion_count(2) > 0 &&
-            kernel_scheduler_secondary_handoff_completion_count(3) > 0) {
+        if (kernel_scheduler_secondary_handoff_issue_count(1) > issue_before[1] &&
+            kernel_scheduler_secondary_handoff_issue_count(2) > issue_before[2] &&
+            kernel_scheduler_secondary_handoff_issue_count(3) > issue_before[3] &&
+            kernel_scheduler_secondary_handoff_completion_count(1) > completion_before[1] &&
+            kernel_scheduler_secondary_handoff_completion_count(2) > completion_before[2] &&
+            kernel_scheduler_secondary_handoff_completion_count(3) > completion_before[3]) {
             break;
         }
         if ((spin & 0xffU) == 0U) {
@@ -2993,6 +3020,12 @@ int kernel_scheduler_secondary_handoff_selftest(void) {
         kernel_scheduler_secondary_job_selftest() != 0 &&
         kernel_scheduler_secondary_handoff_issue_count(0) == 0 &&
         kernel_scheduler_secondary_handoff_completion_count(0) == 0 &&
+        kernel_scheduler_secondary_handoff_issue_count(1) > issue_before[1] &&
+        kernel_scheduler_secondary_handoff_issue_count(2) > issue_before[2] &&
+        kernel_scheduler_secondary_handoff_issue_count(3) > issue_before[3] &&
+        kernel_scheduler_secondary_handoff_completion_count(1) > completion_before[1] &&
+        kernel_scheduler_secondary_handoff_completion_count(2) > completion_before[2] &&
+        kernel_scheduler_secondary_handoff_completion_count(3) > completion_before[3] &&
         kernel_scheduler_secondary_handoff_issue_total() >= 3UL &&
         kernel_scheduler_secondary_handoff_completion_total() >= 3UL &&
         kernel_scheduler_secondary_handoff_gap() <= KERNEL_SCHEDULER_CORE_CAPACITY &&

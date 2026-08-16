@@ -143,6 +143,61 @@ def test_runtime_v44_concurrency_soak_no_fabricated_drain_credit() -> None:
     assert soak_body.count("concurrency_soak_failures++") >= 2
 
 
+def test_runtime_v44_secondary_worker_and_seed_selftests_require_live_delta() -> None:
+    scheduler = read_repo("Sources/Support/kernel_scheduler.c")
+
+    sw_start = scheduler.index("int kernel_scheduler_secondary_worker_selftest(void)")
+    sw_end = scheduler.index("int kernel_scheduler_timer_worker_feed_selftest(void)", sw_start)
+    sw_body = scheduler[sw_start:sw_end]
+    enqueue_pos = sw_body.index("enqueue_worker_probe_for_core")
+    drain_before_pos = sw_body.index("drain_before[core_id] = kernel_scheduler_worker_drain_count")
+    assert drain_before_pos < enqueue_pos
+    assert "kernel_scheduler_worker_drain_count(1) > drain_before[1]" in sw_body
+    assert "worker_feed_count(core_id) == 0" not in sw_body
+
+    feed_start = scheduler.index("int kernel_scheduler_timer_worker_feed_selftest(void)")
+    feed_end = scheduler.index("int kernel_scheduler_secondary_job_selftest(void)", feed_start)
+    feed_body = scheduler[feed_start:feed_end]
+    route_pos = feed_body.index("route_worker_feed_for_core(core_id)")
+    feed_before_pos = feed_body.index("feed_before[core_id] = kernel_scheduler_worker_feed_count")
+    assert feed_before_pos < route_pos
+    assert "kernel_scheduler_worker_feed_count(1) > feed_before[1]" in feed_body
+    assert "kernel_scheduler_worker_drain_count(1) > drain_before[1]" in feed_body
+
+    job_start = scheduler.index("int kernel_scheduler_secondary_job_selftest(void)")
+    job_end = scheduler.index("int kernel_scheduler_secondary_wake_selftest(void)", job_start)
+    job_body = scheduler[job_start:job_end]
+    job_route_pos = job_body.index("route_worker_feed_for_core(core_id)")
+    exec_before_pos = job_body.index(
+        "exec_before[core_id] = kernel_scheduler_secondary_job_execution_count"
+    )
+    assert exec_before_pos < job_route_pos
+    assert "kernel_scheduler_secondary_job_execution_count(1) > exec_before[1]" in job_body
+    assert "kernel_scheduler_secondary_job_completion_count(1) > compl_before[1]" in job_body
+
+    wake_start = scheduler.index("int kernel_scheduler_secondary_wake_selftest(void)")
+    wake_end = scheduler.index("int kernel_scheduler_secondary_handoff_selftest(void)", wake_start)
+    wake_body = scheduler[wake_start:wake_end]
+    wake_route_pos = wake_body.index("route_worker_feed_for_core(core_id)")
+    signal_before_pos = wake_body.index("signal_before = kernel_scheduler_secondary_wake_signal_total()")
+    assert signal_before_pos < wake_route_pos
+    assert "kernel_scheduler_secondary_wake_signal_total() > signal_before" in wake_body
+    assert "kernel_scheduler_secondary_wake_ack_count(1) > ack_before[1]" in wake_body
+
+    handoff_start = scheduler.index("int kernel_scheduler_secondary_handoff_selftest(void)")
+    handoff_body = scheduler[handoff_start:]
+    handoff_route_pos = handoff_body.index("route_worker_feed_for_core(core_id)")
+    issue_before_pos = handoff_body.index(
+        "issue_before[core_id] = kernel_scheduler_secondary_handoff_issue_count"
+    )
+    assert issue_before_pos < handoff_route_pos
+    assert "kernel_scheduler_secondary_handoff_issue_count(1) > issue_before[1]" in handoff_body
+    assert (
+        "kernel_scheduler_secondary_handoff_completion_count(1) > completion_before[1]"
+        in handoff_body
+    )
+
+
 def test_runtime_v44_docs_are_updated_after_hardware_proof() -> None:
     readme = read_repo("README.md")
     runbook = read_repo("docs/RUNBOOK.md")
