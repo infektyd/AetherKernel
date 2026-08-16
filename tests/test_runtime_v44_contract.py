@@ -127,7 +127,7 @@ def test_runtime_v44_netboot_gates_and_sched12_probe_exist() -> None:
 
     for marker in (
         "cmd=sched12",
-        "^sched12 ok=1 version=44 .*concurrency=1 .*rounds=3 .*completions=3 .*failures=0",
+        "^sched12 ok=1 version=44 .*concurrency=1 .*rounds=3 .*completions=3 .*failures=0 .*dispatches=[1-9][0-9]* .*total=0 .*capacity=8 .*soak_core1=[1-9][0-9]* .*soak_core2=[1-9][0-9]* .*soak_core3=[1-9][0-9]* .*selftest=1",
     ):
         assert marker in soak_loop
 

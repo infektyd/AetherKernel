@@ -11,6 +11,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TFTP_ROOT="${1:-${AETHER_TFTP_ROOT:-$HOME/aether-tftp}}"
+PREFIX="${AETHER_TFTP_PREFIX:-aether}"
+PREFIX="${PREFIX#/}"
+PREFIX="${PREFIX%/}"
 SERIAL_PORT="${AETHER_SERIAL_PORT:-/dev/cu.usbserial-B0044J1V}"
 SERIAL_LOG="${AETHER_SERIAL_LOG:-/tmp/aether-serial.log}"
 SOAK_LOG="${AETHER_SOAK_LOG:-/tmp/aether-soak.log}"
@@ -29,6 +32,37 @@ usage() {
 die() {
   echo "soak-loop: $*" >&2
   exit 1
+}
+
+sha256_file() {
+  shasum -a 256 "$1" | awk '{print $1}'
+}
+
+parse_netiterate_kernel_sha256() {
+  local output="$1"
+  local hash
+  hash="$(printf '%s\n' "$output" | sed -n 's/^verified kernel8\.img sha256 \([0-9a-f]\{64\}\)$/\1/p' | tail -n 1)"
+  if [ -z "$hash" ]; then
+    die "net-iterate did not report verified kernel8.img sha256"
+  fi
+  printf '%s' "$hash"
+}
+
+bind_staged_kernel_sha256() {
+  local netiterate_output="$1"
+  local staged_kernel="$2"
+  local netiterate_hash
+  local staged_hash
+
+  netiterate_hash="$(parse_netiterate_kernel_sha256 "$netiterate_output")"
+  staged_hash="$(sha256_file "$staged_kernel")"
+  if [ "$netiterate_hash" != "$staged_hash" ]; then
+    echo "soak-loop: staged kernel8.img sha256 mismatch" >&2
+    echo "  net-iterate: $netiterate_hash" >&2
+    echo "  staged:      $staged_hash" >&2
+    exit 1
+  fi
+  printf '%s' "$netiterate_hash"
 }
 
 is_non_negative_int() {
@@ -107,7 +141,7 @@ run_cycle_probes() {
   id=$((base + 1))
   probe_request "$cycle" "$id" "status" "^status uptime_ms=.*timer_mask="
   id=$((base + 2))
-  probe_request "$cycle" "$id" "sched12" "^sched12 ok=1 version=44 .*concurrency=1 .*rounds=3 .*completions=3 .*failures=0"
+  probe_request "$cycle" "$id" "sched12" "^sched12 ok=1 version=44 .*concurrency=1 .*rounds=3 .*completions=3 .*failures=0 .*dispatches=[1-9][0-9]* .*total=0 .*capacity=8 .*soak_core1=[1-9][0-9]* .*soak_core2=[1-9][0-9]* .*soak_core3=[1-9][0-9]* .*selftest=1"
   id=$((base + 3))
   probe_request "$cycle" "$id" "bootcert" "^bootcert ok=1 version=44 .*concurrency=1 .*priority=1 .*fairness=1 .*stealing=1 .*backpressure=1 .*handoff=1 .*wake=1 .*job_exec=1 .*worker_feed=1 .*secondary_workers=1 .*preemptive=1 .*smp_scheduler=1 .*atomics=1 .*locks=1 .*queues=1 .*smp=1 .*scheduler=1 .*certificate=1 .*agent=1 .*events_lost=0"
   id=$((base + 4))
@@ -152,6 +186,7 @@ fi
 mkdir -p "$(dirname "$SOAK_LOG")"
 
 completed=0
+LAST_KERNEL_SHA256=""
 finalized=0
 on_exit() {
   local status="$?"
@@ -169,8 +204,13 @@ while [ "$cycle" -le "$CYCLES" ]; do
   start_seconds="$SECONDS"
   log_line "soak cycle=$cycle state=begin timestamp=$started_at"
 
-  AETHER_NETITERATE_SKIP_SHELL_PROBES="$NETITERATE_SKIP_SHELL_PROBES" \
-    "$SCRIPT_DIR/netboot/net-iterate.sh" "$TFTP_ROOT" 2>&1 | tee -a "$SOAK_LOG"
+  netiterate_output="$(AETHER_NETITERATE_SKIP_SHELL_PROBES="$NETITERATE_SKIP_SHELL_PROBES" \
+    "$SCRIPT_DIR/netboot/net-iterate.sh" "$TFTP_ROOT" 2>&1 | tee -a "$SOAK_LOG")"
+
+  STAGED_KERNEL="$TFTP_ROOT/$PREFIX/kernel8.img"
+  KERNEL_SHA256="$(bind_staged_kernel_sha256 "$netiterate_output" "$STAGED_KERNEL")"
+  LAST_KERNEL_SHA256="$KERNEL_SHA256"
+  log_line "soak cycle=$cycle kernel8.img sha256=$KERNEL_SHA256"
 
   log_line "soak cycle=$cycle state=settle seconds=$PROBE_SETTLE"
   sleep "$PROBE_SETTLE"
@@ -178,9 +218,9 @@ while [ "$cycle" -le "$CYCLES" ]; do
 
   duration=$((SECONDS - start_seconds))
   completed="$cycle"
-  log_line "soak cycle=$cycle ok=1 duration_s=$duration"
+  log_line "soak cycle=$cycle ok=1 duration_s=$duration kernel8.img sha256=$KERNEL_SHA256"
   cycle=$((cycle + 1))
 done
 
 finalized=1
-log_line "soak result ok=1 cycles=$CYCLES completed=$completed log=$SOAK_LOG"
+log_line "soak result ok=1 cycles=$CYCLES completed=$completed kernel8.img sha256=$LAST_KERNEL_SHA256 log=$SOAK_LOG"

@@ -90,6 +90,9 @@ def test_runtime_v29_host_agent_session_harness_contract_exists() -> None:
         "cmd=stress",
         "cmd=soak",
         "agent-session ok=",
+        "resolve_kernel_sha256",
+        "kernel8.img sha256=",
+        "^runtime ok=1 version=28 .*swift=6.3.2 .*source_hooks=10 .*linked_hooks=2 .*heap_shims=5 .*linked_heap_shims=3 .*required_symbols=5",
         "health=green",
         "bootcert=1",
         "runtime=1",
@@ -133,3 +136,4 @@ def test_runtime_v29_docs_are_updated_after_hardware_proof() -> None:
         assert "bootcert ok=1 version=29" in source
         assert "agent ok=1 version=29 health=green" in source
         assert "agent-session ok=1 version=29 health=green" in source
+        assert "delayed=" not in source or "ready=... sleepers=" in source

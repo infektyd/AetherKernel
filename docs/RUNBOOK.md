@@ -422,8 +422,8 @@ health classification:
 
 ```text
 bootcert ok=1 version=29 agent=1 runtime=1 taxonomy=1 protocol=1 memmap=1 heap=1 frames=1 drivers=1 pressure=1 pools=1 mmu=1 channels=1 taskspawns=1 cancellations=1 retained_valid=0 kobjects=1 tasks=1 mailboxes=1 supervisor=1 events=1 events_lost=0 heap_free=... frame_free=14336 uptime_ms=...
-agent ok=1 version=29 health=green bootcert=1 runtime=1 protocol=2 agent=1 events_lost=0 heap_free=... ready=... delayed=... sleepers=...
-agent-session ok=1 version=29 health=green bootcert=1 runtime=1 stress=1 soak=1 events_lost=0 log=/tmp/aether-agent-session.log
+agent ok=1 version=29 health=green bootcert=1 runtime=1 protocol=2 agent=1 events_lost=0 heap_free=... ready=... sleepers=...
+agent-session ok=1 version=29 health=green bootcert=1 runtime=1 stress=1 soak=1 events_lost=0 kernel8.img sha256=... log=/tmp/aether-agent-session.log
 ```
 
 Runtime V30 Swift-native kernel substrate certificate keeps the V25 request
