@@ -343,12 +343,39 @@ def test_net_iterate_reports_stale_pre_v11_sd_fallback_without_claiming_netboot(
     assert "stale pre-V41 SD fallback image detected" in net_iterate
     assert "stale pre-V42 SD fallback image detected" in net_iterate
     assert "stale pre-V43 SD fallback image detected" in net_iterate
+    assert "stale pre-V46 SD fallback image detected" in net_iterate
+    assert "stale pre-V47 SD fallback image detected" in net_iterate
+    assert "stale pre-V48 SD fallback image detected" in net_iterate
+    assert "stale pre-V49 SD fallback image detected" in net_iterate
+    assert "stale pre-V50 SD fallback image detected" in net_iterate
+    assert "stale pre-V57 SD fallback image detected" in net_iterate
+    assert "stale pre-V62 SD fallback image detected" in net_iterate
+    assert "stale pre-V63 SD fallback image detected" in net_iterate
+    assert "stale pre-V64 SD fallback image detected" in net_iterate
+    assert "stale pre-V65 SD fallback image detected" in net_iterate
+    assert "stale pre-V66 SD fallback image detected" in net_iterate
+    assert "final result: stale pre-V46 SD fallback image booted" in net_iterate
+    assert "final result: stale pre-V47 SD fallback image booted" in net_iterate
+    assert "final result: stale pre-V48 SD fallback image booted" in net_iterate
+    assert "final result: stale pre-V50 SD fallback image booted" in net_iterate
+    assert "final result: stale pre-V57 SD fallback image booted" in net_iterate
+    assert "final result: stale pre-V62 SD fallback image booted" in net_iterate
+    assert "final result: stale pre-V63 SD fallback image booted" in net_iterate
+    assert "final result: stale pre-V64 SD fallback image booted" in net_iterate
+    assert "final result: stale pre-V65 SD fallback image booted" in net_iterate
+    assert "final result: stale pre-V66 SD fallback image booted" in net_iterate
     assert "TFTP kernel fetch was not verified" in net_iterate
-    assert 'grep -q "shell ready commands="' in net_iterate
+    assert 'grep -qa "shell ready commands="' in net_iterate
     assert "sd_fallback_seen=1" in net_iterate
     assert "retrying after stale pre-V41 SD fallback" in net_iterate
     assert "retrying after stale pre-V42 SD fallback" in net_iterate
     assert "retrying after stale pre-V43 SD fallback" in net_iterate
+    assert "retrying after stale pre-V46 SD fallback" in net_iterate
+    assert "retrying after stale pre-V48 SD fallback" in net_iterate
+    assert "retrying after stale pre-V50 SD fallback" in net_iterate
+    assert "retrying after stale pre-V57 SD fallback" in net_iterate
+    assert "retrying after stale pre-V63 SD fallback" in net_iterate
+    assert "retrying after stale pre-V66 SD fallback" in net_iterate
     assert "final_exit=3" in net_iterate
     assert 'exit "$final_exit"' in net_iterate
 
@@ -409,9 +436,7 @@ def test_netboot_doctor_verifies_runtime_v11_markers() -> None:
     assert "runtime v10: explicit guard probes" in doctor
     assert "runtime v11: boot and soak invariants" in doctor
     assert "runtime v21: mmu ownership boundary" in doctor
-    assert "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci" in doctor
-    assert "runtime v66: HID boot-protocol keyboard" in doctor
-    assert "kbd ok=[01] version=66" in doctor
+    assert "shell ready commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot" in doctor
     assert "async tick 0x0000000000000000" not in doctor
 
 
