@@ -113,7 +113,7 @@ def test_runtime_v31_netboot_gates_and_scheduler_probe_exist() -> None:
         assert_commands_era_in_netboot_sources(COMMANDS_V31, COMMANDS_V45, source, label="V31")
 
     assert "schedselftest ok=1 version=31" in net_iterate
-    assert "runtime v31: preemptive scheduler substrate" in doctor
+    assert "schedselftest ok=1 version=31" in doctor
 
     for marker in (
         "probe shell: sched",
