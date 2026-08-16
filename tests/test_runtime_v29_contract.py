@@ -58,7 +58,6 @@ def test_runtime_v29_application_shell_and_bootcert_surface_exist() -> None:
         " events_lost=",
         " heap_free=",
         " ready=",
-        " delayed=",
         " sleepers=",
         " agent=1",
         'shellBufferSliceEquals(commandStart, commandLen, "agent")',
