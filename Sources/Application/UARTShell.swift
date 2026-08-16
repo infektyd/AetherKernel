@@ -1390,9 +1390,9 @@ func printEventKind(_ kind: UInt32) {
 func printEvents() {
   let countBefore = kernel_event_count()
   kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 22, UInt(countBefore), 0)
-  let selftest = kernel_event_log_selftest()
   let count = kernel_event_count()
   let lost = kernel_event_lost_count()
+  let selftest = kernel_event_log_selftest()
 
   uartPuts("events count=")
   uartPutDec(UInt64(count))
@@ -2469,6 +2469,8 @@ func printBootcert() {
   kernel_supervisor_check()
   let countBefore = kernel_event_count()
   kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 44, UInt(countBefore), 0)
+  let eventsLost = kernel_event_lost_count()
+  let eventCount = kernel_event_count()
 
   let atomics = kernel_atomic_selftest()
   let locks = kernel_spinlock_selftest()
@@ -2493,8 +2495,6 @@ func printBootcert() {
   let channels = aetherChannelSelftest()
   let supervisor = kernel_supervisor_selftest()
   let eventsSelftest = kernel_event_log_selftest()
-  let eventsLost = kernel_event_lost_count()
-  let eventCount = kernel_event_count()
 
   let workerFeed = kernel_scheduler_timer_worker_feed_proven()
   let secondaryWorkers = kernel_scheduler_secondary_worker_proven()

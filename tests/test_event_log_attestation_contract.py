@@ -20,13 +20,20 @@ def test_event_log_bootcert_snapshots_lost_after_shell_emit() -> None:
     emit_idx = bootcert.index("kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 44")
     lost_idx = bootcert.index("let eventsLost = kernel_event_lost_count()")
     count_idx = bootcert.index("let eventCount = kernel_event_count()")
+    selftest_idx = bootcert.index("let eventsSelftest = kernel_event_log_selftest()")
     assert emit_idx < lost_idx
     assert emit_idx < count_idx
+    assert lost_idx < selftest_idx
+    assert count_idx < selftest_idx
 
     pre_emit = bootcert[:emit_idx]
     assert "kernel_event_lost_count()" not in pre_emit
     assert "let eventCount = kernel_event_count()" not in pre_emit
     assert "let countBefore = kernel_event_count()" in pre_emit
+
+    post_selftest = bootcert[selftest_idx:]
+    assert "kernel_event_lost_count()" not in post_selftest
+    assert "kernel_event_count()" not in post_selftest
 
 
 def test_event_log_print_events_snapshots_lost_after_shell_emit() -> None:
@@ -36,13 +43,22 @@ def test_event_log_print_events_snapshots_lost_after_shell_emit() -> None:
 
     emit_idx = events_fn.index("kernel_event_emit(KERNEL_EVENT_KIND_SHELL, 22")
     lost_idx = events_fn.index("let lost = kernel_event_lost_count()")
+    count_idx = events_fn.index("let count = kernel_event_count()")
+    selftest_idx = events_fn.index("let selftest = kernel_event_log_selftest()")
     assert emit_idx < lost_idx
+    assert emit_idx < count_idx
+    assert lost_idx < selftest_idx
+    assert count_idx < selftest_idx
 
     pre_emit = events_fn[:emit_idx]
     assert "kernel_event_lost_count()" not in pre_emit
     lost_print = events_fn.split('uartPuts(" lost=")')[1].split("uartPuts")[0]
     assert "uartPutDec(UInt64(lost))" in lost_print
     assert "kernel_event_lost_count())" not in lost_print
+
+    post_selftest = events_fn[selftest_idx:]
+    assert "kernel_event_lost_count()" not in post_selftest
+    assert "kernel_event_count()" not in post_selftest
 
 
 def test_event_log_certificate_and_bootcert_print_live_event_count() -> None:
