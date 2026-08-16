@@ -54,6 +54,9 @@ struct Application {
       uartPuts("\n")
       kernel_task_mark_state(TASK_FAST_ID, KERNEL_TASK_STATE_WAITING)
       await timerSleepMillis(250)
+      uartPuts("rtv2 fast woke ")
+      uartPutHex(n)
+      uartPuts("\n")
       n &+= 1
     }
   }
@@ -73,6 +76,9 @@ struct Application {
       uartPuts("\n")
       kernel_task_mark_state(TASK_SLOW_ID, KERNEL_TASK_STATE_WAITING)
       await timerSleepSeconds(1)
+      uartPuts("rtv2 slow woke ")
+      uartPutHex(n)
+      uartPuts("\n")
       n &+= 1
     }
   }
@@ -92,6 +98,9 @@ struct Application {
       uartPuts("\n")
       kernel_task_mark_state(TASK_LONG_ID, KERNEL_TASK_STATE_WAITING)
       await timerSleepSeconds(2)
+      uartPuts("rtv2 long woke ")
+      uartPutHex(n)
+      uartPuts("\n")
       n &+= 1
     }
   }
