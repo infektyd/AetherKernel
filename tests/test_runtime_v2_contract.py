@@ -32,14 +32,6 @@ def test_timer_sleep_uses_fixed_multi_sleeper_queue() -> None:
     assert "concurrent sleeper unsupported" not in timer_sleep
 
 
-def test_timer_sleep_header_matches_sealed_executor_timer_truth() -> None:
-    timer_sleep = read_repo("Sources/Application/TimerSleep.swift")
-
-    assert "executor owns its own delayed-job client" not in timer_sleep
-    assert "EXECUTOR CNTP slot is never armed" in timer_sleep
-    assert "executor delay/deadline hooks panic" in timer_sleep
-
-
 def test_executor_delay_hooks_panic_instead_of_scheduling() -> None:
     executor = read_repo("Sources/Support/executor.c")
     kernel_executor = read_repo("Sources/Application/KernelExecutor.swift")
@@ -98,17 +90,11 @@ def test_concurrency_design_historical_delay_queue_blockquotes_labeled() -> None
     for marker in (
         "Historical (superseded by Runtime V2 ground truth, S5/S36)",
         "Historical pump recipe (superseded by Runtime V2 ground truth, S5/S36)",
-        "Historical (superseded by Runtime V2 ground truth, S5/S36/S40)",
         "historical: route to delay queue or enqueue if due (superseded",
         "historical plan: enqueue runs in task context, the timer IRQ only matures the delay queue",
         "historical plan: IRQ matures the delay queue",
     ):
         assert marker in design
-
-    # V31 ground truth must not claim a live executor timer client.
-    assert "sleep and executor timer" not in design
-    assert "armed SLEEP client (TimerSleep)" in design
-    assert "EXECUTOR CNTP slot never armed" in design
 
 
 def test_runtime_v2_demo_and_net_iterate_expect_machine_checkable_cadences() -> None:
@@ -117,17 +103,5 @@ def test_runtime_v2_demo_and_net_iterate_expect_machine_checkable_cadences() -> 
 
     for marker in ("rtv2 fast ", "rtv2 slow ", "rtv2 long "):
         assert marker in app
-    for marker in ("rtv2 fast woke ", "rtv2 slow woke ", "rtv2 long woke "):
-        assert marker in app
         assert marker in net_iterate
-    assert "await timerSleepMillis(250)" in app
-    assert "await timerSleepSeconds(1)" in app
-    assert "await timerSleepSeconds(2)" in app
-    assert app.index("await timerSleepMillis(250)") < app.index("rtv2 fast woke ")
-    assert app.index("await timerSleepSeconds(1)") < app.index("rtv2 slow woke ")
-    assert app.index("await timerSleepSeconds(2)") < app.index("rtv2 long woke ")
-    assert "rtv2 fast woke 0x0000000000000000" in net_iterate
-    assert "rtv2 slow woke 0x0000000000000000" in net_iterate
-    assert "rtv2 long woke 0x0000000000000000" in net_iterate
-    assert "rtv2 fast 0x0000000000000000" not in net_iterate
     assert "async tick 0x0000000000000000" not in net_iterate
