@@ -284,7 +284,7 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
-      && printf '%s' "$serial_delta" | grep -qa "syscall ok=1 version=48" \
+      && printf '%s' "$serial_delta" | grep -qa "syscall ok=1 version=48 abi=48 table=1 dispatched=1 num=1 ret=0x00000000000482026" \
       && printf '%s' "$serial_delta" | grep -qa "uaccess ok=1 version=49" \
       && printf '%s' "$serial_delta" | grep -qa "usermode ok=1 version=50 fault_contained=1" \
       && printf '%s' "$serial_delta" | grep -qa "process ok=1 version=51" \
