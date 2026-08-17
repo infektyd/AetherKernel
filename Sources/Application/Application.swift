@@ -810,6 +810,28 @@ struct Application {
     }
     uartPuts("\n")
 
+    // Runtime V77: bounded multi-reply poll. UART token only. No long boot wait.
+    uartPuts("runtime v77: GENET bounded multi-reply poll\n")
+    let genet10_ok_boot = kernel_genet10_selftest()
+    uartPuts("genet10 ok=")
+    uartPutDec(UInt64(genet10_ok_boot))
+    uartPuts(" version=77 rx=")
+    uartPutDec(UInt64(kernel_genet10_rx()))
+    uartPuts(" tx=")
+    uartPutDec(UInt64(kernel_genet10_tx()))
+    uartPuts(" replies=")
+    uartPutDec(UInt64(kernel_genet10_replies()))
+    uartPuts(" kind=")
+    let genet10_kind_boot = kernel_genet10_kind()
+    if genet10_kind_boot == 1 {
+        uartPuts("arp")
+    } else if genet10_kind_boot == 2 {
+        uartPuts("icmp")
+    } else {
+        uartPuts("none")
+    }
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

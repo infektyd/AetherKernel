@@ -1230,6 +1230,15 @@ unsigned int  kernel_genet9_rx(void);
 unsigned int  kernel_genet9_tx(void);
 unsigned int  kernel_genet9_kind(void);
 
+// V77: bounded multi-BD poll. Park after. replies= latched TX replies this window.
+int           kernel_genet10_selftest(void);
+int           kernel_genet10_poll(void);
+int           kernel_genet10_ok(void);
+unsigned int  kernel_genet10_rx(void);
+unsigned int  kernel_genet10_tx(void);
+unsigned int  kernel_genet10_replies(void);
+unsigned int  kernel_genet10_kind(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

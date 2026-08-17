@@ -20,7 +20,7 @@ def test_genet9_parses_rx_and_replies() -> None:
     dma = read_repo("Sources/Support/kernel_dma.c")
 
     genet8 = genet.split("kernel_genet9_selftest")[0]
-    genet9 = genet.split("kernel_genet9_selftest", 1)[1]
+    genet9 = genet.split("kernel_genet9_selftest", 1)[1].split("kernel_genet10_selftest")[0]
 
     assert "int           kernel_genet9_selftest(void);" in support
     assert "int           kernel_dma_nc_from_pa(unsigned long pa, void **nc_out);" in support

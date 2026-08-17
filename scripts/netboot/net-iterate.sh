@@ -306,6 +306,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "genet8 ok=1 version=75 prod=.* cons=.* tx=.* frames=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v76: GENET ARP or ICMP reply" \
       && printf '%s' "$serial_delta" | grep -qa "genet9 ok=1 version=76 rx=.* tx=.* kind=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v77: GENET bounded multi-reply poll" \
+      && printf '%s' "$serial_delta" | grep -qa "genet10 ok=1 version=77 rx=.* tx=.* replies=.* kind=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -441,6 +443,17 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "genet8" "^genet8 ok=1 version=75 prod=.* cons=.* tx=.* frames="
         # GENET9: ARP or ICMP reply. kind=none if no request arrived. Do not require ping.
         probe_shell "genet9" "^genet9 ok=1 version=76 rx=.* tx=.* kind="
+        # GENET10: bounded unpark/poll/park. Host ping must overlap this window.
+        ping_out="${AETHER_PING_LOG:-/tmp/aether-ping-genet10.txt}"
+        : > "$ping_out"
+        # Delay ping until UART has delivered genet10 and the 4s poll is unparked.
+        ( sleep 0.5; ping -c 2 -W 2 10.42.0.2 > "$ping_out" 2>&1 ) &
+        ping_pid=$!
+        AETHER_SERIAL_PROBE_TIMEOUT=15 probe_shell "genet10" "^genet10 ok=1 version=77 rx=.* tx=.* replies=.* kind="
+        wait "$ping_pid" || true
+        echo "==== host ping 10.42.0.2 ===="
+        cat "$ping_out" || true
+        echo "==== end host ping ===="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
