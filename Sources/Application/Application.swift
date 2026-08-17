@@ -1527,6 +1527,18 @@ struct Application {
     uartPutDec(UInt64(kernel_genet26_restore()))
     uartPuts("\n")
 
+    // Runtime V131: MDIO write+readback. UART token only. No boot event.
+    // Writes the BMCR value we just read. No DMA / unpark. No EL0.
+    uartPuts("runtime v131: GENET MDIO write\n")
+    let genet27_ok_boot = kernel_genet27_selftest()
+    uartPuts("genet27 ok=")
+    uartPutDec(UInt64(genet27_ok_boot))
+    uartPuts(" version=131 wr=")
+    uartPutDec(UInt64(kernel_genet27_wr()))
+    uartPuts(" match=")
+    uartPutDec(UInt64(kernel_genet27_match()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

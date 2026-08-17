@@ -475,6 +475,8 @@ PY
       && printf '%s' "$serial_delta" | grep -qa "genet25 ok=1 version=129 phy=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v130: GENET UMAC max frame" \
       && printf '%s' "$serial_delta" | grep -qa "genet26 ok=1 version=130 len=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v131: GENET MDIO write" \
+      && printf '%s' "$serial_delta" | grep -qa "genet27 ok=1 version=131 wr=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -778,6 +780,8 @@ PY
         probe_shell "genet25" "^genet25 ok=1 version=129 phy="
         # V130: UMAC_MAX_FRAME_LEN write+readback. No DMA. No EL0.
         probe_shell "genet26" "^genet26 ok=1 version=130 len="
+        # V131: MDIO write+readback of BMCR (same value). No DMA. No EL0.
+        probe_shell "genet27" "^genet27 ok=1 version=131 wr="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

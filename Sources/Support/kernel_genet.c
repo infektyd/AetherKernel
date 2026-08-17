@@ -30,11 +30,13 @@
 #define UMAC_MDIO_CMD (UMAC_OFF + 0x614U)
 #define MDIO_START_BUSY (1U << 29)
 #define MDIO_READ_FAIL (1U << 28)
+#define MDIO_WR (1U << 26)
 #define MDIO_RD (2U << 26)
 #define MDIO_PMD_SHIFT 21
 #define MDIO_REG_SHIFT 16
 
 #define PHY_ADDR 1U
+#define MII_BMCR 0U
 #define MII_BMSR 1U
 #define MII_PHYSID1 2U
 #define MII_PHYSID2 3U
@@ -77,6 +79,21 @@ static int genet_mdio_read(unsigned int phy, unsigned int reg, unsigned int *out
             return 1;
         }
         genet_udelay(10);  // 2ms cap
+    }
+    return 0;
+}
+
+// Bounded MDIO write. Returns 1 when START_BUSY clears; 0 on timeout.
+static int genet_mdio_write(unsigned int phy, unsigned int reg, unsigned int val) {
+    uint32_t cmd = MDIO_WR | ((phy & 0x1FU) << MDIO_PMD_SHIFT) |
+                   ((reg & 0x1FU) << MDIO_REG_SHIFT) | (val & 0xFFFFU) |
+                   MDIO_START_BUSY;
+    G32(UMAC_MDIO_CMD) = cmd;
+    __asm__ volatile("dsb sy" ::: "memory");
+    for (int i = 0; i < 200; i++) {
+        uint32_t v = G32(UMAC_MDIO_CMD);
+        if ((v & MDIO_START_BUSY) == 0U) return 1;
+        genet_udelay(10);
     }
     return 0;
 }
@@ -4662,3 +4679,40 @@ int kernel_genet26_selftest(void) {
 int          kernel_genet26_ok(void)      { return genet26_ok_val;      }
 unsigned int kernel_genet26_len(void)     { return genet26_len_val;     }
 unsigned int kernel_genet26_restore(void) { return genet26_restore_val; }
+
+// V131: MDIO write+readback of BMCR. Write the same value we read so
+// the link is not changed. Fail-closed if BMCR is 0/0xFFFF, the write
+// times out, or the second read mismatches. Not a BMSR/link clone.
+// No DMA. No EL0. UART token only.
+int kernel_genet27_selftest(void);
+
+static int genet27_probed;
+static int genet27_ok_val;
+static unsigned int genet27_wr_val;
+static unsigned int genet27_match_val;
+
+int kernel_genet27_selftest(void) {
+    unsigned int bmcr = 0;
+    unsigned int back = 0;
+
+    if (genet27_probed) return genet27_ok_val;
+    genet27_probed = 1;
+    genet27_ok_val = 0;
+    genet27_wr_val = 0;
+    genet27_match_val = 0;
+
+    if (!kernel_genet_selftest()) return 0;
+    if (!genet_mdio_read(PHY_ADDR, MII_BMCR, &bmcr)) return 0;
+    if (bmcr == 0U || bmcr == 0xFFFFU) return 0;
+    if (!genet_mdio_write(PHY_ADDR, MII_BMCR, bmcr)) return 0;
+    genet27_wr_val = 1;
+    if (!genet_mdio_read(PHY_ADDR, MII_BMCR, &back)) return 0;
+    if (back != bmcr) return 0;
+    genet27_match_val = 1;
+    genet27_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet27_ok(void)    { return genet27_ok_val;    }
+unsigned int kernel_genet27_wr(void)    { return genet27_wr_val;    }
+unsigned int kernel_genet27_match(void) { return genet27_match_val; }
