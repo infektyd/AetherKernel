@@ -289,6 +289,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "genet3 ok=1 version=69 mac=.* mbox=.* umac=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v70: GENET mailbox board serial" \
       && printf '%s' "$serial_delta" | grep -qa "genet4 ok=1 version=70 serial=.* mbox=.* mac=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v71: GPIO register probe" \
+      && printf '%s' "$serial_delta" | grep -qa "gpio ok=1 version=71 fsel=.* pup=.* uart=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v72: GENET leftover-RX stop and NC RX ring" \
+      && printf '%s' "$serial_delta" | grep -qa "genet5 ok=1 version=72 stop=.* ring=.* rx=.* frames=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -412,6 +416,10 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "genet3" "^genet3 ok=1 version=69 mac=.* mbox=1 umac="
         # GENET4: ok=1 is a non-zero firmware serial. Prefer mailbox over MDIO.
         probe_shell "genet4" "^genet4 ok=1 version=70 serial=.* mbox=1 mac="
+        # GPIO: ok=1 is live 2711 GPFSEL + PUP_PDN. uart=1 is GPIO14/15 ALT0.
+        probe_shell "gpio" "^gpio ok=1 version=71 fsel=.* pup=.* uart=1"
+        # GENET5: leftover RX stopped, our NC ring programmed, RX re-enabled.
+        probe_shell "genet5" "^genet5 ok=1 version=72 stop=1 ring=1 rx=1 frames="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

@@ -100,7 +100,7 @@ func uartPutShellBufferSlice(_ start: UInt32, _ len: UInt32) {
 }
 
 let SHELL_COMMAND_LIST =
-  "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,handlecheck,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci,genet,genet2,genet3,genet4"
+  "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,handlecheck,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci,genet,genet2,genet3,genet4,gpio,genet5"
 
 func printShellReady() {
   uartPuts("shell ready \(SHELL_COMMAND_LIST)\n")
@@ -2234,6 +2234,32 @@ func printGenet4() {
   uartPuts("\n")
 }
 
+func printGpio() {
+  uartPuts("gpio ok=")
+  uartPutDec(UInt64(kernel_gpio_ok()))
+  uartPuts(" version=71 fsel=")
+  uartPutHexCompact(UInt64(kernel_gpio_fsel()))
+  uartPuts(" pup=")
+  uartPutHexCompact(UInt64(kernel_gpio_pup()))
+  uartPuts(" uart=")
+  uartPutDec(UInt64(kernel_gpio_uart()))
+  uartPuts("\n")
+}
+
+func printGenet5() {
+  uartPuts("genet5 ok=")
+  uartPutDec(UInt64(kernel_genet5_ok()))
+  uartPuts(" version=72 stop=")
+  uartPutDec(UInt64(kernel_genet5_stop()))
+  uartPuts(" ring=")
+  uartPutDec(UInt64(kernel_genet5_ring()))
+  uartPuts(" rx=")
+  uartPutDec(UInt64(kernel_genet5_rx()))
+  uartPuts(" frames=")
+  uartPutDec(UInt64(kernel_genet5_frames()))
+  uartPuts("\n")
+}
+
 func printPoolName(_ pool: UInt32) {
   var i: UInt32 = 0
   let n = kernel_pool_name_len(pool)
@@ -3114,6 +3140,10 @@ func dispatchShellCommand(_ commandStart: UInt32, _ commandLen: UInt32, _ reques
     printGenet3()
   } else if shellBufferSliceEquals(commandStart, commandLen, "genet4") {
     printGenet4()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "gpio") {
+    printGpio()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "genet5") {
+    printGenet5()
   } else if shellBufferSliceEquals(commandStart, commandLen, "pools") {
     printPools()
   } else if shellBufferSliceEquals(commandStart, commandLen, "poolcheck") {

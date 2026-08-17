@@ -1180,6 +1180,24 @@ unsigned long kernel_genet4_serial(void);
 unsigned int  kernel_genet4_mbox(void);
 unsigned long kernel_genet4_mac(void);
 
+// V71: BCM2711 GPIO register probe. Read-only. No PUP/GPFSEL write.
+int           kernel_gpio_selftest(void);
+int           kernel_gpio_ok(void);
+unsigned int  kernel_gpio_fsel(void);
+unsigned int  kernel_gpio_pup(void);
+unsigned int  kernel_gpio_uart(void);
+
+// System DMA NC page. Returns ARM PA (not PCIe phys+0x400000000).
+int           kernel_dma_alloc_nc(unsigned long *pa_out, void **nc_out);
+
+// V72: leftover-RX stop + own NC RX ring. UART token only.
+int           kernel_genet5_selftest(void);
+int           kernel_genet5_ok(void);
+unsigned int  kernel_genet5_stop(void);
+unsigned int  kernel_genet5_ring(void);
+unsigned int  kernel_genet5_rx(void);
+unsigned int  kernel_genet5_frames(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

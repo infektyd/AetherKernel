@@ -23,7 +23,8 @@ def test_genet2_is_read_only_mac_mib() -> None:
     assert "UMAC_MIB_RX_POK" in genet
     assert "UMAC_MIB_RX_BYTES" in genet
     assert "CMD_RX_EN" in genet
-    assert "G32(UMAC_CMD) =" not in genet
+    genet2 = genet.split("kernel_genet5_selftest")[0]
+    assert "G32(UMAC_CMD) =" not in genet2
     assert "CMD_RX_EN)" in genet  # read leftover bit
     assert "int           kernel_genet2_selftest(void);" in support
     assert 'uartPuts("runtime v68: GENET UMAC MAC and RX MIB\\n")' in app

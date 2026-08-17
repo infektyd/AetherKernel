@@ -24,9 +24,10 @@ def test_genet3_is_read_only_mailbox_mac() -> None:
     assert "int           kernel_vc_mbox_board_mac(unsigned long *out);" in support
     assert "int           kernel_genet3_selftest(void);" in support
     assert "kernel_vc_mbox_board_mac" in genet
-    assert "G32(UMAC_MAC0) =" not in genet
-    assert "G32(UMAC_MAC1) =" not in genet
-    assert "G32(UMAC_CMD) =" not in genet
+    genet3 = genet.split("kernel_genet5_selftest")[0]
+    assert "G32(UMAC_MAC0) =" not in genet3
+    assert "G32(UMAC_MAC1) =" not in genet3
+    assert "G32(UMAC_CMD) =" not in genet3
     assert 'uartPuts("runtime v69: GENET mailbox station MAC\\n")' in app
     assert 'uartPuts("genet3 ok=")' in app
     assert "func printGenet3()" in shell

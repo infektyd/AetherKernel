@@ -24,9 +24,10 @@ def test_genet4_is_read_only_mailbox_serial() -> None:
     assert "int           kernel_vc_mbox_board_serial(unsigned long *out);" in support
     assert "int           kernel_genet4_selftest(void);" in support
     assert "kernel_vc_mbox_board_serial" in genet
-    assert "G32(UMAC_MAC0) =" not in genet
-    assert "G32(UMAC_MAC1) =" not in genet
-    assert "G32(UMAC_CMD) =" not in genet
+    genet4 = genet.split("kernel_genet5_selftest")[0]
+    assert "G32(UMAC_MAC0) =" not in genet4
+    assert "G32(UMAC_MAC1) =" not in genet4
+    assert "G32(UMAC_CMD) =" not in genet4
     assert 'uartPuts("runtime v70: GENET mailbox board serial\\n")' in app
     assert 'uartPuts("genet4 ok=")' in app
     assert "func printGenet4()" in shell
