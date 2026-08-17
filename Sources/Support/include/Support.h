@@ -1189,6 +1189,7 @@ unsigned int  kernel_gpio_uart(void);
 
 // System DMA NC page. Returns ARM PA (not PCIe phys+0x400000000).
 int           kernel_dma_alloc_nc(unsigned long *pa_out, void **nc_out);
+int           kernel_dma_nc_from_pa(unsigned long pa, void **nc_out);
 
 // V72: leftover-RX stop + own NC RX ring. UART token only.
 int           kernel_genet5_selftest(void);
@@ -1221,6 +1222,13 @@ unsigned int  kernel_genet8_prod(void);
 unsigned int  kernel_genet8_cons(void);
 unsigned int  kernel_genet8_tx(void);
 unsigned int  kernel_genet8_frames(void);
+
+// V76: parse one RX ARP/ICMP request and reply. kind 0=none 1=arp 2=icmp.
+int           kernel_genet9_selftest(void);
+int           kernel_genet9_ok(void);
+unsigned int  kernel_genet9_rx(void);
+unsigned int  kernel_genet9_tx(void);
+unsigned int  kernel_genet9_kind(void);
 
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);

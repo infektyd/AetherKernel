@@ -20,7 +20,7 @@ def test_genet6_writes_umac_mac_and_owns_tx() -> None:
     xhci = read_repo("Sources/Support/kernel_xhci.c")
 
     genet5 = genet.split("kernel_genet6_selftest")[0]
-    genet6 = genet.split("kernel_genet6_selftest", 1)[1]
+    genet6 = genet.split("kernel_genet6_selftest", 1)[1].split("kernel_genet7_selftest")[0]
 
     assert "int           kernel_genet6_selftest(void);" in support
     assert "G32(UMAC_MAC0) =" not in genet5

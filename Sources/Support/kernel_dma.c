@@ -10,8 +10,27 @@
 #include <stdint.h>
 
 #define DMA_NC_VBASE 0x200800000UL
+#define DMA_NC_MAX 256U
 
 static unsigned int dma_nc_slot;
+static unsigned long dma_nc_pa[DMA_NC_MAX];
+static void *dma_nc_va[DMA_NC_MAX];
+
+int kernel_dma_nc_from_pa(unsigned long pa, void **nc_out) {
+    unsigned long page = pa & ~0xfffUL;
+    unsigned long off = pa & 0xfffUL;
+    unsigned int n = dma_nc_slot;
+    unsigned int i;
+    if (n > DMA_NC_MAX) n = DMA_NC_MAX;
+    for (i = 0; i < n; i++) {
+        if (dma_nc_pa[i] == page) {
+            if (nc_out) *nc_out = (void *)((unsigned long)dma_nc_va[i] + off);
+            return 1;
+        }
+    }
+    if (nc_out) *nc_out = 0;
+    return 0;
+}
 
 int kernel_dma_alloc_nc(unsigned long *pa_out, void **nc_out) {
     unsigned long pa = kernel_frame_alloc();
@@ -27,13 +46,18 @@ int kernel_dma_alloc_nc(unsigned long *pa_out, void **nc_out) {
     }
     __asm__ volatile("dsb sy" ::: "memory");
 
-    unsigned long nc_va = DMA_NC_VBASE + (unsigned long)dma_nc_slot * 4096UL;
+    unsigned int slot = dma_nc_slot;
+    unsigned long nc_va = DMA_NC_VBASE + (unsigned long)slot * 4096UL;
     dma_nc_slot++;
     if (!kernel_vmm_map_4k_nc(nc_va, pa)) {
         kernel_frame_free(pa);
         if (pa_out) *pa_out = 0;
         if (nc_out) *nc_out = 0;
         return 0;
+    }
+    if (slot < DMA_NC_MAX) {
+        dma_nc_pa[slot] = pa;
+        dma_nc_va[slot] = (void *)nc_va;
     }
 
     volatile uint64_t *p = (volatile uint64_t *)nc_va;

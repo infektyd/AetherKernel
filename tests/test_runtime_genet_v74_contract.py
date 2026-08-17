@@ -19,7 +19,7 @@ def test_genet7_matches_linux_ring16_and_reports_cons() -> None:
     scheduler = read_repo("Sources/Support/kernel_scheduler.c")
 
     genet6 = genet.split("kernel_genet7_selftest")[0]
-    genet7 = genet.split("kernel_genet7_selftest", 1)[1]
+    genet7 = genet.split("kernel_genet7_selftest", 1)[1].split("kernel_genet8_selftest")[0]
 
     assert "int           kernel_genet7_selftest(void);" in support
     assert "RX_Q16_N = 256" in genet7

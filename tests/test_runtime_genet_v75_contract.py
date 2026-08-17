@@ -19,7 +19,7 @@ def test_genet8_uses_v4_tdma_prod_offset() -> None:
     scheduler = read_repo("Sources/Support/kernel_scheduler.c")
 
     genet7 = genet.split("kernel_genet8_selftest")[0]
-    genet8 = genet.split("kernel_genet8_selftest", 1)[1]
+    genet8 = genet.split("kernel_genet8_selftest", 1)[1].split("kernel_genet9_selftest")[0]
 
     assert "int           kernel_genet8_selftest(void);" in support
     assert "V4_TDMA_PROD = 0x0C" in genet8

@@ -175,6 +175,11 @@ while [ "$attempt" -le "$RETRIES" ]; do
     "$SCRIPTS_ROOT/serial/serial-capture.sh" "$SERIAL_PORT" >/dev/null
   fi
 
+  # Host pings during the genet9 boot window. Start before power-cycle so
+  # packets can arrive while the kernel is still in the bounded RX wait.
+  # Kernel must boot if none arrive.
+  ( ping -c 80 -W 1 10.42.0.2 >/dev/null 2>&1 || true ) &
+
   if [ -n "${AETHER_POWER_BACKEND:-}" ] && [ "${AETHER_POWER_BACKEND}" != "none" ]; then
     # Cold power-cycle via external switch — REQUIRED for the Pi bootloader to
     # re-enter netboot/TFTP mode (a warm serial reset does not re-arm it). This is
@@ -299,6 +304,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "genet7 ok=1 version=74 ring=.* tx=.* cons=.* prod=.* frames=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v75: GENET v4 TDMA PROD doorbell" \
       && printf '%s' "$serial_delta" | grep -qa "genet8 ok=1 version=75 prod=.* cons=.* tx=.* frames=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v76: GENET ARP or ICMP reply" \
+      && printf '%s' "$serial_delta" | grep -qa "genet9 ok=1 version=76 rx=.* tx=.* kind=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -432,6 +439,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "genet7" "^genet7 ok=1 version=74 ring=1 tx=.* cons=.* prod=.* frames="
         # GENET8: v4 TDMA PROD at 0x0C. tx=1 only if CONS moved or PROD latched.
         probe_shell "genet8" "^genet8 ok=1 version=75 prod=.* cons=.* tx=.* frames="
+        # GENET9: ARP or ICMP reply. kind=none if no request arrived. Do not require ping.
+        probe_shell "genet9" "^genet9 ok=1 version=76 rx=.* tx=.* kind="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

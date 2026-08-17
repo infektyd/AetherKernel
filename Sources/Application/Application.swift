@@ -790,6 +790,26 @@ struct Application {
     uartPutDec(UInt64(kernel_genet8_frames()))
     uartPuts("\n")
 
+    // Runtime V76: parse one RX ARP/ICMP request and reply. UART token only.
+    uartPuts("runtime v76: GENET ARP or ICMP reply\n")
+    let genet9_ok_boot = kernel_genet9_selftest()
+    uartPuts("genet9 ok=")
+    uartPutDec(UInt64(genet9_ok_boot))
+    uartPuts(" version=76 rx=")
+    uartPutDec(UInt64(kernel_genet9_rx()))
+    uartPuts(" tx=")
+    uartPutDec(UInt64(kernel_genet9_tx()))
+    uartPuts(" kind=")
+    let genet9_kind_boot = kernel_genet9_kind()
+    if genet9_kind_boot == 1 {
+        uartPuts("arp")
+    } else if genet9_kind_boot == 2 {
+        uartPuts("icmp")
+    } else {
+        uartPuts("none")
+    }
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

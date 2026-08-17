@@ -225,6 +225,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "genet7 ok=1 version=74 ring=.* tx=.* cons=.* prod=.* frames=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v75: GENET v4 TDMA PROD doorbell" \
       && printf '%s' "$serial_delta" | grep -q "genet8 ok=1 version=75 prod=.* cons=.* tx=.* frames=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v76: GENET ARP or ICMP reply" \
+      && printf '%s' "$serial_delta" | grep -q "genet9 ok=1 version=76 rx=.* tx=.* kind=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \
