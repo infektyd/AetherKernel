@@ -1297,6 +1297,18 @@ struct Application {
     uartPutDec(UInt64(kernel_sdmw_clus()))
     uartPuts("\n")
 
+    // Runtime V112: SDHCI CMD23 set block count. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts.
+    uartPuts("runtime v112: SDHCI set block count\n")
+    let sdbc_ok_boot = kernel_sdbc_selftest()
+    uartPuts("sdbc ok=")
+    uartPutDec(UInt64(sdbc_ok_boot))
+    uartPuts(" version=112 count=")
+    uartPutDec(UInt64(kernel_sdbc_count()))
+    uartPuts(" mbr=")
+    uartPutDec(UInt64(kernel_sdbc_mbr()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
