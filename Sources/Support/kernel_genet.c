@@ -414,6 +414,8 @@ unsigned int kernel_genet5_frames(void) { return genet5_frames_val; }
 #define RBUF_OFF 0x0300U
 #define RBUF_CTRL 0x00U
 #define RBUF_64B_EN (1U << 0)
+#define RBUF_CHK_CTRL 0x14U
+#define RBUF_RXCHK_EN (1U << 0)
 #define UMAC_MAX_FRAME_LEN (UMAC_OFF + 0x014U)
 #define DMA_SOP 0x2000U
 #define DMA_EOP 0x4000U
@@ -4784,3 +4786,49 @@ int kernel_genet28_selftest(void) {
 int          kernel_genet28_ok(void)      { return genet28_ok_val;      }
 unsigned int kernel_genet28_mdf(void)     { return genet28_mdf_val;     }
 unsigned int kernel_genet28_restore(void) { return genet28_restore_val; }
+
+// V133: RBUF RXCHK enable. Program RBUF_CHK_CTRL bit 0 (Linux
+// RBUF_RXCHK_EN), require clear then set, then restore leftover.
+// Unused hardware — not a UMAC poke and not TX csum / 64B status
+// blocks. No DMA. No EL0. UART token only.
+int kernel_genet29_selftest(void);
+
+static int genet29_probed;
+static int genet29_ok_val;
+static unsigned int genet29_rxchk_val;
+static unsigned int genet29_restore_val;
+
+int kernel_genet29_selftest(void) {
+    uint32_t saved;
+    uint32_t got;
+
+    if (genet29_probed) return genet29_ok_val;
+    genet29_probed = 1;
+    genet29_ok_val = 0;
+    genet29_rxchk_val = 0;
+    genet29_restore_val = 0;
+
+    if (!kernel_genet_selftest()) return 0;
+
+    saved = G32(RBUF_OFF + RBUF_CHK_CTRL);
+    if (saved == 0xDEADDEADU || saved == 0xFFFFFFFFU) return 0;
+
+    genet_wr32(RBUF_OFF + RBUF_CHK_CTRL, saved & ~RBUF_RXCHK_EN);
+    got = G32(RBUF_OFF + RBUF_CHK_CTRL);
+    if ((got & RBUF_RXCHK_EN) != 0U) return 0;
+
+    genet_wr32(RBUF_OFF + RBUF_CHK_CTRL, saved | RBUF_RXCHK_EN);
+    got = G32(RBUF_OFF + RBUF_CHK_CTRL);
+    if ((got & RBUF_RXCHK_EN) == 0U) return 0;
+    genet29_rxchk_val = 1;
+
+    genet_wr32(RBUF_OFF + RBUF_CHK_CTRL, saved);
+    if (G32(RBUF_OFF + RBUF_CHK_CTRL) != saved) return 0;
+    genet29_restore_val = 1;
+    genet29_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet29_ok(void)      { return genet29_ok_val;      }
+unsigned int kernel_genet29_rxchk(void)   { return genet29_rxchk_val;   }
+unsigned int kernel_genet29_restore(void) { return genet29_restore_val; }

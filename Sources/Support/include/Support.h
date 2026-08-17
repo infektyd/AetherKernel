@@ -1549,6 +1549,12 @@ int           kernel_genet28_ok(void);
 unsigned int  kernel_genet28_mdf(void);
 unsigned int  kernel_genet28_restore(void);
 
+// V133: RBUF RXCHK program+readback. No DMA. No EL0.
+int           kernel_genet29_selftest(void);
+int           kernel_genet29_ok(void);
+unsigned int  kernel_genet29_rxchk(void);
+unsigned int  kernel_genet29_restore(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);
