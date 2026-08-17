@@ -1264,6 +1264,13 @@ unsigned int  kernel_i2c_bsc(void);
 unsigned int  kernel_i2c_div(void);
 unsigned int  kernel_i2c_spi(void);
 
+// V81: PWM0 + PWM1 register probe. Read-only. No boot event emit.
+int           kernel_pwm_selftest(void);
+int           kernel_pwm_ok(void);
+unsigned int  kernel_pwm_ctl(void);
+unsigned int  kernel_pwm_sta(void);
+unsigned int  kernel_pwm_pwm1(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

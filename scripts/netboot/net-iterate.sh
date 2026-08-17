@@ -314,6 +314,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "genet12 ok=1 version=79 rx=.* tx=.* replies=.* kind=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v80: I2C and SPI register probe" \
       && printf '%s' "$serial_delta" | grep -qa "i2c ok=1 version=80 bsc=.* div=.* spi=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v81: PWM register probe" \
+      && printf '%s' "$serial_delta" | grep -qa "pwm ok=1 version=81 ctl=.* sta=.* pwm1=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -517,6 +519,8 @@ PY
         echo "==== end host tcp ===="
         # V80: BSC1 + SPI0 register probe. Read-only. No extra hardware.
         probe_shell "i2c" "^i2c ok=1 version=80 bsc=1 div=.* spi=1"
+        # V81: PWM0+PWM1 register probe. Read-only. No extra hardware.
+        probe_shell "pwm" "^pwm ok=1 version=81 ctl=.* sta=.* pwm1=1"
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
