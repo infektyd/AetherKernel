@@ -358,6 +358,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "dma2 ok=1 version=101 chan=4 match=1 bytes=32" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v102: SD free-cluster write" \
       && printf '%s' "$serial_delta" | grep -qa "sdwr ok=1 version=102 match=1 bytes=512 clus=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v103: FAT32 scratch create" \
+      && printf '%s' "$serial_delta" | grep -qa "sdmk ok=1 version=103 match=1 created=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -605,6 +607,8 @@ PY
         probe_shell "dma2" "^dma2 ok=1 version=101 chan=4 match=1 bytes=32"
         # V102: SDHCI CMD24 free-cluster write after GENET. FAT/dir unchanged. No EL0.
         probe_shell "sdwr" "^sdwr ok=1 version=102 match=1 bytes=512 clus="
+        # V103: FAT32 create/link AETHER.TMP after GENET. Fail-closed if foreign. No EL0.
+        probe_shell "sdmk" "^sdmk ok=1 version=103 match=1 created="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

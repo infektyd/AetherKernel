@@ -973,6 +973,9 @@ int           kernel_sdhci_fat32_read_issue(unsigned int *name_out,
                                             unsigned int *sum_out);
 int           kernel_sdhci_fat32_write_free(unsigned int *clus_out,
                                             unsigned int *match_out);
+int           kernel_sdhci_fat32_create_scratch(unsigned int *name_out,
+                                                unsigned int *created_out,
+                                                unsigned int *match_out);
 
 // Runtime V58: VideoCore ARM->GPU property mailbox probe (firmware revision).
 int kernel_vc_mbox_probe(void);
@@ -1053,6 +1056,13 @@ int           kernel_sdwr_ok(void);
 int           kernel_sdwr_match(void);
 unsigned int  kernel_sdwr_clus(void);
 unsigned int  kernel_sdwr_bytes(void);
+
+// V103: FAT32 create/link of AETHER.TMP after GENET. Fail-closed if name is foreign. No EL0.
+int           kernel_sdmk_selftest(void);
+int           kernel_sdmk_ok(void);
+int           kernel_sdmk_match(void);
+int           kernel_sdmk_created(void);
+unsigned int  kernel_sdmk_name(void);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.

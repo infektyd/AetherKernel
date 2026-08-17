@@ -1179,6 +1179,20 @@ struct Application {
     uartPutDec(UInt64(kernel_sdwr_clus()))
     uartPuts("\n")
 
+    // Runtime V103: FAT32 scratch create. UART token only. No boot event emit.
+    // AETHER.TMP only. No EL0 enter: after GENET DMA that I-aborts.
+    uartPuts("runtime v103: FAT32 scratch create\n")
+    let sdmk_ok_boot = kernel_sdmk_selftest()
+    uartPuts("sdmk ok=")
+    uartPutDec(UInt64(sdmk_ok_boot))
+    uartPuts(" version=103 match=")
+    uartPutDec(UInt64(kernel_sdmk_match()))
+    uartPuts(" created=")
+    uartPutDec(UInt64(kernel_sdmk_created()))
+    uartPuts(" name=")
+    uartPutDec(UInt64(kernel_sdmk_name()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

@@ -434,6 +434,7 @@ static unsigned int fat32_data_lba     = 0;
 static unsigned int fat32_root_clus    = 0;
 static unsigned int fat32_fat_lba      = 0; // first FAT table start LBA
 static unsigned int fat32_fat_sz32     = 0; // FAT size in sectors (one table)
+static unsigned int fat32_num_fats     = 0;
 
 // Helpers: read byte/u16/u32 from a 512-byte block buffer (little-endian).
 static unsigned int fat32_byte(const unsigned int *buf, unsigned int off) {
@@ -526,6 +527,7 @@ int kernel_sdhci_fat32_read(void) {
     fat32_fat_lba            = part_lba + rsvd;
     fat32_data_lba           = fat32_fat_lba + num_fats * fat_sz32;
     fat32_fat_sz32           = fat_sz32;
+    fat32_num_fats           = num_fats;
     if (fat32_sec_per_clus == 0u) return 0;
     fat32_last_step = 9;
 
@@ -1101,5 +1103,206 @@ static int sdhci_write_block_pio(unsigned int lba, const unsigned int buf[128]) 
     mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, SDHCI_INT_DATA_DONE);
     if (!sdhci_wait_bits(SDHCI_STATUS, SDHCI_STATUS_DATA_INHIBIT, 0, 200000))
         return 0;
+    return 1;
+}
+
+// V103: create/link dedicated scratch name only. Fail-closed if that
+// name exists as a different file. Does not execute bytes.
+static void fat32_set_byte(unsigned int *buf, unsigned int off, unsigned int val);
+static void fat32_set_u16(unsigned int *buf, unsigned int off, unsigned int val);
+static void fat32_set_u32(unsigned int *buf, unsigned int off, unsigned int val);
+static int  fat32_set_entry(unsigned int clus, unsigned int val28);
+static int  fat32_find_free_clus(unsigned int *clus_out);
+static int  fat32_scratch_data_match(unsigned int clus);
+
+int kernel_sdhci_fat32_create_scratch(unsigned int *name_out,
+                                      unsigned int *created_out,
+                                      unsigned int *match_out) {
+    unsigned int exist_clus = 0u;
+    unsigned int exist_size = 0u;
+    unsigned int free_lba = 0u;
+    unsigned int free_off = 0xFFFFFFFFu;
+    unsigned int e5_lba = 0u;
+    unsigned int e5_off = 0xFFFFFFFFu;
+    unsigned int dir_clus;
+    unsigned int dir_done = 0u;
+    unsigned int slot_lba;
+    unsigned int slot_off;
+    unsigned int clus;
+    unsigned int i;
+    const char *nm = "AETHER  TMP";
+
+    if (name_out) *name_out = 0u;
+    if (created_out) *created_out = 0u;
+    if (match_out) *match_out = 0u;
+
+    if (fat32_sec_per_clus == 0u) {
+        if (!kernel_sdhci_fat32_read()) return 0;
+    }
+    if (fat32_fat_sz32 == 0u || fat32_fat_lba == 0u || fat32_data_lba == 0u)
+        return 0;
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+
+    dir_clus = fat32_root_clus;
+    for (unsigned int max_clus = 256u; !dir_done && max_clus > 0u; max_clus--) {
+        unsigned int dir_lba = fat32_clus_lba(dir_clus);
+        for (unsigned int s = 0u; s < fat32_sec_per_clus; s++) {
+            if (!sdhci_read_block_pio(dir_lba + s, sdhci_fat32_buf)) return 0;
+            for (unsigned int e = 0u; e < 16u; e++) {
+                unsigned int base = e * 32u;
+                unsigned int b0 = fat32_byte(sdhci_fat32_buf, base);
+                if (b0 == 0x00u) {
+                    if (free_off == 0xFFFFFFFFu) {
+                        free_lba = dir_lba + s;
+                        free_off = base;
+                    }
+                    dir_done = 1u;
+                    break;
+                }
+                if (b0 == 0xE5u) {
+                    if (e5_off == 0xFFFFFFFFu) {
+                        e5_lba = dir_lba + s;
+                        e5_off = base;
+                    }
+                    continue;
+                }
+                if (fat32_name_eq(base, nm)) {
+                    unsigned int hi = fat32_u16(sdhci_fat32_buf, base + 20u);
+                    unsigned int lo = fat32_u16(sdhci_fat32_buf, base + 26u);
+                    exist_clus = (hi << 16) | lo;
+                    exist_size = fat32_u32(sdhci_fat32_buf, base + 28u);
+                    dir_done = 1u;
+                    break;
+                }
+            }
+            if (dir_done) break;
+        }
+        if (!dir_done) {
+            unsigned int next = fat32_next_clus(dir_clus);
+            if (next >= 0x0FFFFFF8u) break;
+            dir_clus = next;
+        }
+    }
+
+    if (exist_clus != 0u) {
+        if (exist_size != 512u || exist_clus < 2u) return 0;
+        if (!fat32_scratch_data_match(exist_clus)) return 0;
+        if (name_out) *name_out = 0x41455448u;
+        if (created_out) *created_out = 0u;
+        if (match_out) *match_out = 1u;
+        return 1;
+    }
+
+    if (e5_off != 0xFFFFFFFFu) {
+        slot_lba = e5_lba;
+        slot_off = e5_off;
+    } else if (free_off != 0xFFFFFFFFu) {
+        slot_lba = free_lba;
+        slot_off = free_off;
+    } else {
+        return 0;
+    }
+
+    if (!fat32_find_free_clus(&clus)) return 0;
+    if (!fat32_set_entry(clus, 0x0FFFFFF8u)) return 0;
+
+    for (i = 0u; i < 128u; i++) {
+        sdhci_fat32_buf[i] = 0xA1030000u + i;
+    }
+    if (!sdhci_write_block_pio(fat32_clus_lba(clus), sdhci_fat32_buf)) return 0;
+    if (!fat32_scratch_data_match(clus)) return 0;
+
+    if (!sdhci_read_block_pio(slot_lba, sdhci_fat32_buf)) return 0;
+    {
+        unsigned int b0 = fat32_byte(sdhci_fat32_buf, slot_off);
+        if (b0 != 0x00u && b0 != 0xE5u) return 0;
+    }
+    for (i = 0u; i < 11u; i++) {
+        fat32_set_byte(sdhci_fat32_buf, slot_off + i, (unsigned int)(unsigned char)nm[i]);
+    }
+    fat32_set_byte(sdhci_fat32_buf, slot_off + 11u, 0x20u);
+    for (i = 12u; i < 20u; i++) {
+        fat32_set_byte(sdhci_fat32_buf, slot_off + i, 0u);
+    }
+    fat32_set_u16(sdhci_fat32_buf, slot_off + 20u, (clus >> 16) & 0xFFFFu);
+    fat32_set_u16(sdhci_fat32_buf, slot_off + 22u, 0u);
+    fat32_set_u16(sdhci_fat32_buf, slot_off + 24u, 0u);
+    fat32_set_u16(sdhci_fat32_buf, slot_off + 26u, clus & 0xFFFFu);
+    fat32_set_u32(sdhci_fat32_buf, slot_off + 28u, 512u);
+    if (!fat32_name_eq(slot_off, nm)) return 0;
+    if (!sdhci_write_block_pio(slot_lba, sdhci_fat32_buf)) return 0;
+
+    if (!sdhci_read_block_pio(slot_lba, sdhci_fat32_buf)) return 0;
+    if (!fat32_name_eq(slot_off, nm)) return 0;
+    if (fat32_u32(sdhci_fat32_buf, slot_off + 28u) != 512u) return 0;
+    if (!fat32_scratch_data_match(clus)) return 0;
+
+    if (name_out) *name_out = 0x41455448u;
+    if (created_out) *created_out = 1u;
+    if (match_out) *match_out = 1u;
+    return 1;
+}
+
+static void fat32_set_byte(unsigned int *buf, unsigned int off, unsigned int val) {
+    unsigned int shift = (off & 3u) << 3;
+    unsigned int mask = 0xFFu << shift;
+    buf[off >> 2] = (buf[off >> 2] & ~mask) | ((val & 0xFFu) << shift);
+}
+
+static void fat32_set_u16(unsigned int *buf, unsigned int off, unsigned int val) {
+    fat32_set_byte(buf, off, val & 0xFFu);
+    fat32_set_byte(buf, off + 1u, (val >> 8) & 0xFFu);
+}
+
+static void fat32_set_u32(unsigned int *buf, unsigned int off, unsigned int val) {
+    fat32_set_u16(buf, off, val & 0xFFFFu);
+    fat32_set_u16(buf, off + 2u, (val >> 16) & 0xFFFFu);
+}
+
+static int fat32_set_entry(unsigned int clus, unsigned int val28) {
+    unsigned int off = clus * 4u;
+    unsigned int sec = off / 512u;
+    unsigned int idx = (off % 512u) / 4u;
+    unsigned int old;
+    if (clus < 2u || sec >= fat32_fat_sz32) return 0;
+    if (!sdhci_read_block_pio(fat32_fat_lba + sec, sdhci_fat32_buf)) return 0;
+    old = sdhci_fat32_buf[idx];
+    if ((old & 0x0FFFFFFFu) != 0u) return 0;
+    sdhci_fat32_buf[idx] = (old & 0xF0000000u) | (val28 & 0x0FFFFFFFu);
+    if (!sdhci_write_block_pio(fat32_fat_lba + sec, sdhci_fat32_buf)) return 0;
+    if (fat32_num_fats >= 2u) {
+        if (!sdhci_write_block_pio(fat32_fat_lba + fat32_fat_sz32 + sec, sdhci_fat32_buf))
+            return 0;
+    }
+    return 1;
+}
+
+static int fat32_find_free_clus(unsigned int *clus_out) {
+    unsigned int sec;
+    unsigned int i;
+    if (clus_out) *clus_out = 0u;
+    for (sec = 0u; sec < fat32_fat_sz32 && sec < 1024u; sec++) {
+        if (!sdhci_read_block_pio(fat32_fat_lba + sec, sdhci_fat32_buf)) return 0;
+        for (i = 0u; i < 128u; i++) {
+            unsigned int clus = sec * 128u + i;
+            unsigned int ent = sdhci_fat32_buf[i] & 0x0FFFFFFFu;
+            if (clus < 2u) continue;
+            if (ent == 0u) {
+                if (fat32_clus_lba(clus) < fat32_data_lba) return 0;
+                if (clus_out) *clus_out = clus;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+static int fat32_scratch_data_match(unsigned int clus) {
+    unsigned int i;
+    if (clus < 2u) return 0;
+    if (!sdhci_read_block_pio(fat32_clus_lba(clus), sdhci_fat32_buf)) return 0;
+    for (i = 0u; i < 128u; i++) {
+        if (sdhci_fat32_buf[i] != (0xA1030000u + i)) return 0;
+    }
     return 1;
 }
