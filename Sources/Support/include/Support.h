@@ -965,6 +965,9 @@ int           kernel_sdhci_fat32_read_second(unsigned int *name_out,
                                              unsigned int *sum_out);
 int           kernel_sdhci_fat32_list_overlays(unsigned int *files_out,
                                                unsigned int *name_out);
+int           kernel_sdhci_fat32_read_overlay(unsigned int *name_out,
+                                              unsigned int *bytes_out,
+                                              unsigned int *sum_out);
 
 // Runtime V58: VideoCore ARM->GPU property mailbox probe (firmware revision).
 int kernel_vc_mbox_probe(void);
@@ -1325,6 +1328,13 @@ int           kernel_sdovl_selftest(void);
 int           kernel_sdovl_ok(void);
 unsigned int  kernel_sdovl_files(void);
 unsigned int  kernel_sdovl_name(void);
+
+// V89: load one overlays/ file after GENET. Size cap 65536. No EL0. No boot emit.
+int           kernel_sdovf_selftest(void);
+int           kernel_sdovf_ok(void);
+unsigned int  kernel_sdovf_name(void);
+unsigned int  kernel_sdovf_bytes(void);
+unsigned int  kernel_sdovf_sum(void);
 
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
