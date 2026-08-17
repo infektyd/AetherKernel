@@ -190,6 +190,13 @@ while [ "$attempt" -le "$RETRIES" ]; do
     python3 "$SCRIPT_DIR/aether-tcp-echo-v119.py" >/tmp/aether-tcp-echo-v119.log 2>&1 &
   fi
 
+  # V120: known TFTP payload so boot-time RRQ can fail-close. New file only.
+  python3 - "$TFTP_ROOT/$PREFIX/v120.bin" <<'PY'
+from pathlib import Path
+import sys
+Path(sys.argv[1]).write_bytes(bytes.fromhex("A1200001A1200002A1200003A1200004"))
+PY
+
   if [ -n "${AETHER_POWER_BACKEND:-}" ] && [ "${AETHER_POWER_BACKEND}" != "none" ]; then
     # Cold power-cycle via external switch — REQUIRED for the Pi bootloader to
     # re-enter netboot/TFTP mode (a warm serial reset does not re-arm it). This is
@@ -402,6 +409,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "genet14 ok=1 version=118 udp=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v119: GENET originate TCP" \
       && printf '%s' "$serial_delta" | grep -qa "genet15 ok=1 version=119 tcp=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v120: GENET originate TFTP" \
+      && printf '%s' "$serial_delta" | grep -qa "genet16 ok=1 version=120 tftp=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -683,6 +692,8 @@ PY
         probe_shell "genet14" "^genet14 ok=1 version=118 udp="
         # V119: originate TCP echo to the TFTP host:41241. No EL0.
         probe_shell "genet15" "^genet15 ok=1 version=119 tcp="
+        # V120: originate TFTP RRQ of aether/v120.bin. No EL0.
+        probe_shell "genet16" "^genet16 ok=1 version=120 tftp="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

@@ -1471,6 +1471,12 @@ int           kernel_genet15_ok(void);
 unsigned int  kernel_genet15_tcp(void);
 unsigned int  kernel_genet15_echo(void);
 
+// V120: originate TFTP RRQ to 10.42.0.1:69 for aether/v120.bin. Bounded park. No EL0.
+int           kernel_genet16_selftest(void);
+int           kernel_genet16_ok(void);
+unsigned int  kernel_genet16_tftp(void);
+unsigned int  kernel_genet16_match(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);

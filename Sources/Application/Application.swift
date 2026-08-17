@@ -1395,6 +1395,18 @@ struct Application {
     uartPutDec(UInt64(kernel_genet15_echo()))
     uartPuts("\n")
 
+    // Runtime V120: originate TFTP RRQ. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts. Parks the ring before return.
+    uartPuts("runtime v120: GENET originate TFTP\n")
+    let genet16_ok_boot = kernel_genet16_selftest()
+    uartPuts("genet16 ok=")
+    uartPutDec(UInt64(genet16_ok_boot))
+    uartPuts(" version=120 tftp=")
+    uartPutDec(UInt64(kernel_genet16_tftp()))
+    uartPuts(" match=")
+    uartPutDec(UInt64(kernel_genet16_match()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
