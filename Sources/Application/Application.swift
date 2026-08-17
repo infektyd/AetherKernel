@@ -1271,6 +1271,18 @@ struct Application {
     uartPutDec(UInt64(kernel_sdmb_mbr()))
     uartPuts("\n")
 
+    // Runtime V110: SDHCI CMD6 SWITCH_FUNC check. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts.
+    uartPuts("runtime v110: SDHCI switch check\n")
+    let sdsw_ok_boot = kernel_sdsw_selftest()
+    uartPuts("sdsw ok=")
+    uartPutDec(UInt64(sdsw_ok_boot))
+    uartPuts(" version=110 mode=")
+    uartPutDec(UInt64(kernel_sdsw_mode()))
+    uartPuts(" grp1=")
+    uartPutDec(UInt64(kernel_sdsw_grp1()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

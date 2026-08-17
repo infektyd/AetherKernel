@@ -293,6 +293,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "sdbus ok=1 version=108 bits=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v109: SDHCI multi-block" \
       && printf '%s' "$serial_delta" | grep -q "sdmb ok=1 version=109 blocks=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v110: SDHCI switch check" \
+      && printf '%s' "$serial_delta" | grep -q "sdsw ok=1 version=110 grp1=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

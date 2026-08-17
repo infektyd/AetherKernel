@@ -1692,3 +1692,73 @@ int kernel_sdhci_card_multiblock(unsigned int *blocks_out,
     if (got != 2u || mbr != 1u) return 0;
     return 1;
 }
+
+// V110: CMD6 SWITCH_FUNC check (mode 0) after GENET. 64-byte ADTC.
+// Not ACMD6 (no CMD55). Fail-closed unless group-1 default access
+// mode is advertised. Restore 512-byte blocks. Shared 512 B scratch
+// — not the 4 KiB core0 stack. No FAT write. No bus-width change.
+int kernel_sdhci_card_switch(unsigned int *mode_out, unsigned int *grp1_out) {
+    unsigned int resp[4];
+    unsigned int cmd6;
+    unsigned int irpt;
+    unsigned int i;
+    unsigned int w3;
+    unsigned int grp1;
+
+    if (mode_out) *mode_out = 0u;
+    if (grp1_out) *grp1_out = 0u;
+
+    if (sdhci_card_rca == 0u) return 0;
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+
+    mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 64u);
+    cmd6 = (6u << 24) | CMD_RESP_48 | CMD_CRC_CHK | CMD_IXCHK_EN |
+           CMD_IS_DATA | TM_DAT_DIR_RD;
+    if (!sdhci_send_cmd(cmd6, 0x00FFFFFFu, resp)) {
+        mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 512u);
+        return 0;
+    }
+
+    irpt = 0u;
+    for (i = 0u; i < 200000u; i++) {
+        irpt = mmio_read32(EMMC2_BASE + SDHCI_INTERRUPT);
+        if (irpt & (SDHCI_INT_READ_RDY | SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))
+            break;
+        sdhci_delay_us(1);
+    }
+    if (!(irpt & SDHCI_INT_READ_RDY) || (irpt & (SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))) {
+        mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, 0xFFFFFFFFu);
+        mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 512u);
+        return 0;
+    }
+    mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, SDHCI_INT_READ_RDY);
+    for (i = 0u; i < 16u; i++) {
+        sdhci_fat32_buf[i] = mmio_read32(EMMC2_BASE + SDHCI_DATA);
+    }
+
+    irpt = 0u;
+    for (i = 0u; i < 200000u; i++) {
+        irpt = mmio_read32(EMMC2_BASE + SDHCI_INTERRUPT);
+        if (irpt & (SDHCI_INT_DATA_DONE | SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))
+            break;
+        sdhci_delay_us(1);
+    }
+    mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 512u);
+    if (!(irpt & SDHCI_INT_DATA_DONE) || (irpt & (SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))) {
+        mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, 0xFFFFFFFFu);
+        return 0;
+    }
+    mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, SDHCI_INT_DATA_DONE);
+
+    w3 = sdhci_fat32_buf[3];
+    grp1 = (w3 >> 16) & 0xFFFFu;
+    if (grp1 == 0u) {
+        w3 = ((w3 & 0xFFu) << 24) | ((w3 & 0xFF00u) << 8) |
+             ((w3 >> 8) & 0xFF00u) | (w3 >> 24);
+        grp1 = (w3 >> 16) & 0xFFFFu;
+    }
+    if (mode_out) *mode_out = 0u;
+    if (grp1_out) *grp1_out = grp1;
+    if ((grp1 & 1u) == 0u) return 0;
+    return 1;
+}

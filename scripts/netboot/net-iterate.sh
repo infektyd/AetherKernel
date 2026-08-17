@@ -372,6 +372,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "sdbus ok=1 version=108 bits=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v109: SDHCI multi-block" \
       && printf '%s' "$serial_delta" | grep -qa "sdmb ok=1 version=109 blocks=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v110: SDHCI switch check" \
+      && printf '%s' "$serial_delta" | grep -qa "sdsw ok=1 version=110 grp1=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -633,6 +635,8 @@ PY
         probe_shell "sdbus" "^sdbus ok=1 version=108 bits="
         # V109: SDHCI CMD18 multi-block read after GENET. 2 blocks + MBR. No EL0.
         probe_shell "sdmb" "^sdmb ok=1 version=109 blocks="
+        # V110: SDHCI CMD6 SWITCH_FUNC check after GENET. Group-1 default. No EL0.
+        probe_shell "sdsw" "^sdsw ok=1 version=110 grp1="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
