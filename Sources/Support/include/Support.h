@@ -1465,6 +1465,12 @@ int           kernel_genet14_ok(void);
 unsigned int  kernel_genet14_udp(void);
 unsigned int  kernel_genet14_echo(void);
 
+// V119: originate TCP echo to 10.42.0.1:41241. Bounded park. No EL0.
+int           kernel_genet15_selftest(void);
+int           kernel_genet15_ok(void);
+unsigned int  kernel_genet15_tcp(void);
+unsigned int  kernel_genet15_echo(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);

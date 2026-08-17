@@ -185,6 +185,11 @@ while [ "$attempt" -le "$RETRIES" ]; do
     python3 "$SCRIPT_DIR/aether-udp-echo-v118.py" >/tmp/aether-udp-echo-v118.log 2>&1 &
   fi
 
+  # V119: host TCP echo on 10.42.0.1:41241 so boot-time originate can fail-close.
+  if ! pgrep -f 'aether-tcp-echo-v119' >/dev/null 2>&1; then
+    python3 "$SCRIPT_DIR/aether-tcp-echo-v119.py" >/tmp/aether-tcp-echo-v119.log 2>&1 &
+  fi
+
   if [ -n "${AETHER_POWER_BACKEND:-}" ] && [ "${AETHER_POWER_BACKEND}" != "none" ]; then
     # Cold power-cycle via external switch — REQUIRED for the Pi bootloader to
     # re-enter netboot/TFTP mode (a warm serial reset does not re-arm it). This is
@@ -395,6 +400,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "genet13 ok=1 version=117 arp=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v118: GENET originate UDP" \
       && printf '%s' "$serial_delta" | grep -qa "genet14 ok=1 version=118 udp=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v119: GENET originate TCP" \
+      && printf '%s' "$serial_delta" | grep -qa "genet15 ok=1 version=119 tcp=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -674,6 +681,8 @@ PY
         probe_shell "genet13" "^genet13 ok=1 version=117 arp="
         # V118: originate UDP echo to the TFTP host:41240. No EL0.
         probe_shell "genet14" "^genet14 ok=1 version=118 udp="
+        # V119: originate TCP echo to the TFTP host:41241. No EL0.
+        probe_shell "genet15" "^genet15 ok=1 version=119 tcp="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

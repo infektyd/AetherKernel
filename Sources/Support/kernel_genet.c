@@ -2208,3 +2208,306 @@ int kernel_genet14_selftest(void) {
 int          kernel_genet14_ok(void)   { return genet14_ok_val;   }
 unsigned int kernel_genet14_udp(void)  { return genet14_udp_val;  }
 unsigned int kernel_genet14_echo(void) { return genet14_echo_val; }
+
+// V119: originate TCP echo to 10.42.0.1:41241 (0xA119). Host listener
+// completes the handshake and echoes the payload. Bounded
+// unpark/poll/park. TX on a DMA NC page — not the 4 KiB core0 stack.
+// No EL0. No boot event emit.
+int kernel_genet15_selftest(void);
+
+static int genet15_probed;
+static int genet15_ok_val;
+static unsigned int genet15_tcp_val;
+static unsigned int genet15_echo_val;
+static unsigned long genet15_tx_pa;
+static void *genet15_tx_nc;
+
+static int genet15_tx_frame(unsigned int tx_len, unsigned int tx_prod) {
+    enum {
+        V4_TDMA_CONS = 0x08U,
+        V4_TDMA_PROD = 0x0C,
+        TX_Q16_START = 128U,
+        TX_Q16_N = 128U
+    };
+    uint64_t freq, t0, tnow, twait;
+    unsigned int tcons;
+    unsigned int tx_bd;
+    uint32_t len_stat;
+
+    if (tx_len < 60U || !genet15_tx_nc) return 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    tx_bd = TDMA_OFF + (TX_Q16_START + (tx_prod % TX_Q16_N)) * DESC_BYTES;
+    len_stat = ((uint32_t)tx_len << 16) |
+               (DMA_QTAG_MASK << DMA_TX_QTAG_SHIFT) |
+               DMA_TX_APPEND_CRC | DMA_SOP | DMA_EOP;
+    G32(tx_bd + 0U) = len_stat;
+    G32(tx_bd + 4U) = (uint32_t)genet15_tx_pa;
+    G32(tx_bd + 8U) = 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    tdma_ring16_wr(V4_TDMA_PROD, tx_prod + 1U);
+
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(t0));
+    twait = 20ULL * freq / 1000ULL;
+    do {
+        tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+        if (tcons == (tx_prod + 1U)) return 1;
+        genet_udelay(100);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(tnow));
+    } while (tnow - t0 < twait);
+    tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+    return (tcons != 0U) ? 1 : 0;
+}
+
+static unsigned int genet15_build_tcp(volatile uint8_t *tx,
+                                      unsigned long mac,
+                                      unsigned long peer_mac,
+                                      uint32_t seq,
+                                      uint32_t ack,
+                                      uint8_t flags,
+                                      unsigned int plen) {
+    enum {
+        OUR_IP = 0x0a2a0002U,
+        HOST_IP = 0x0a2a0001U,
+        TCP_PORT = 0xA119U
+    };
+    unsigned int i;
+    unsigned int tcp_len = 20U + plen;
+    unsigned int wire = 34U + tcp_len;
+    uint32_t s;
+    uint16_t csum;
+
+    for (i = 0; i < 6U; i++) {
+        tx[i] = (uint8_t)((peer_mac >> (40U - 8U * i)) & 0xFFUL);
+        tx[6U + i] = (uint8_t)((mac >> (40U - 8U * i)) & 0xFFUL);
+    }
+    genet9_put16(tx + 12, 0x0800U);
+    tx[14] = 0x45;
+    tx[15] = 0;
+    genet9_put16(tx + 16, (uint16_t)(20U + tcp_len));
+    genet9_put16(tx + 18, TCP_PORT);
+    genet9_put16(tx + 20, 0);
+    tx[22] = 64;
+    tx[23] = 6U;
+    tx[24] = 0;
+    tx[25] = 0;
+    genet9_put32(tx + 26, OUR_IP);
+    genet9_put32(tx + 30, HOST_IP);
+    genet9_put16(tx + 24, genet9_csum(tx + 14, 20U));
+    genet9_put16(tx + 34, TCP_PORT);
+    genet9_put16(tx + 36, TCP_PORT);
+    genet9_put32(tx + 38, seq);
+    genet9_put32(tx + 42, ack);
+    tx[46] = 0x50;
+    tx[47] = flags;
+    genet9_put16(tx + 48, 1024);
+    tx[50] = 0;
+    tx[51] = 0;
+    tx[52] = 0;
+    tx[53] = 0;
+    if (plen >= 8U) {
+        genet9_put32(tx + 54, 0xA1190001U);
+        genet9_put32(tx + 58, 0xA1190002U);
+    }
+    s = 0;
+    s += (OUR_IP >> 16) & 0xFFFFU;
+    s += OUR_IP & 0xFFFFU;
+    s += (HOST_IP >> 16) & 0xFFFFU;
+    s += HOST_IP & 0xFFFFU;
+    s += 6U;
+    s += tcp_len;
+    for (i = 0; i + 1U < tcp_len; i += 2U) s += genet9_be16(tx + 34U + i);
+    if (tcp_len & 1U) s += (uint32_t)tx[34U + tcp_len - 1U] << 8;
+    while (s >> 16) s = (s & 0xFFFFU) + (s >> 16);
+    csum = (uint16_t)~s;
+    if (csum == 0U) csum = 0xFFFFU;
+    genet9_put16(tx + 50, csum);
+    for (i = wire; i < 60U; i++) tx[i] = 0;
+    return wire < 60U ? 60U : wire;
+}
+
+static int genet15_synack(const volatile uint8_t *rx,
+                          unsigned int rx_len,
+                          uint32_t *peer_seq) {
+    enum {
+        OUR_IP = 0x0a2a0002U,
+        HOST_IP = 0x0a2a0001U,
+        TCP_PORT = 0xA119U,
+        ISN = 0xA1190000U
+    };
+    unsigned int ihl;
+    unsigned int ip_len;
+    unsigned int tcp_off;
+    unsigned int doff;
+    uint8_t flags;
+    if (rx_len < 54U) return 0;
+    if (genet9_be16(rx + 12) != 0x0800U) return 0;
+    if ((rx[14] >> 4) != 4U) return 0;
+    ihl = (unsigned int)(rx[14] & 0x0FU) * 4U;
+    if (ihl < 20U) return 0;
+    if (rx[14 + 9] != 6U) return 0;
+    if (genet9_be32(rx + 26) != HOST_IP) return 0;
+    if (genet9_be32(rx + 30) != OUR_IP) return 0;
+    ip_len = genet9_be16(rx + 16);
+    if (ip_len < ihl + 20U) return 0;
+    tcp_off = 14U + ihl;
+    if (rx_len < tcp_off + 20U) return 0;
+    if (genet9_be16(rx + tcp_off) != TCP_PORT) return 0;
+    if (genet9_be16(rx + tcp_off + 2) != TCP_PORT) return 0;
+    doff = ((unsigned int)(rx[tcp_off + 12] >> 4) & 0x0FU) * 4U;
+    if (doff < 20U || tcp_off + doff > rx_len) return 0;
+    flags = rx[tcp_off + 13];
+    if ((flags & 0x12U) != 0x12U) return 0;
+    if ((flags & 0x04U) != 0U) return 0;
+    if (genet9_be32(rx + tcp_off + 8) != (ISN + 1U)) return 0;
+    if (peer_seq) *peer_seq = genet9_be32(rx + tcp_off + 4);
+    return 1;
+}
+
+static int genet15_tcp_echo(const volatile uint8_t *rx, unsigned int rx_len) {
+    enum {
+        OUR_IP = 0x0a2a0002U,
+        HOST_IP = 0x0a2a0001U,
+        TCP_PORT = 0xA119U
+    };
+    unsigned int ihl;
+    unsigned int ip_len;
+    unsigned int tcp_off;
+    unsigned int doff;
+    unsigned int plen;
+    if (rx_len < 54U) return 0;
+    if (genet9_be16(rx + 12) != 0x0800U) return 0;
+    if ((rx[14] >> 4) != 4U) return 0;
+    ihl = (unsigned int)(rx[14] & 0x0FU) * 4U;
+    if (ihl < 20U) return 0;
+    if (rx[14 + 9] != 6U) return 0;
+    if (genet9_be32(rx + 26) != HOST_IP) return 0;
+    if (genet9_be32(rx + 30) != OUR_IP) return 0;
+    ip_len = genet9_be16(rx + 16);
+    if (ip_len < ihl + 28U) return 0;
+    tcp_off = 14U + ihl;
+    if (rx_len < tcp_off + 28U) return 0;
+    if (genet9_be16(rx + tcp_off) != TCP_PORT) return 0;
+    if (genet9_be16(rx + tcp_off + 2) != TCP_PORT) return 0;
+    doff = ((unsigned int)(rx[tcp_off + 12] >> 4) & 0x0FU) * 4U;
+    if (doff < 20U || tcp_off + doff + 8U > rx_len) return 0;
+    if (ip_len < ihl + doff + 8U) return 0;
+    plen = ip_len - ihl - doff;
+    if (plen < 8U) return 0;
+    if (genet9_be32(rx + tcp_off + doff) != 0xA1190001U) return 0;
+    if (genet9_be32(rx + tcp_off + doff + 4) != 0xA1190002U) return 0;
+    return 1;
+}
+
+int kernel_genet15_selftest(void) {
+    enum {
+        V4_RDMA_PROD = 0x08U,
+        V4_RDMA_CONS = 0x0C,
+        RX_Q16_N = 256U,
+        ISN = 0xA1190000U
+    };
+    unsigned long mac;
+    unsigned long peer_mac;
+    unsigned int cons;
+    unsigned int tx_prod = 0;
+    unsigned int syn_len;
+    unsigned int data_len;
+    uint32_t peer_seq = 0;
+    uint64_t freq, start, now, ticks;
+
+    if (genet15_probed) return genet15_ok_val;
+    genet15_probed = 1;
+    genet15_ok_val = 0;
+    genet15_tcp_val = 0;
+    genet15_echo_val = 0;
+
+    if (!kernel_genet14_selftest()) return 0;
+    mac = kernel_genet3_mac();
+    peer_mac = kernel_genet13_peer_mac();
+    if (!mac || !peer_mac) return 0;
+    if (!kernel_dma_alloc_nc(&genet15_tx_pa, &genet15_tx_nc)) return 0;
+    if (!genet15_tx_nc) return 0;
+    if (!genet10_unpark()) return 0;
+
+    cons = rdma_ring16(V4_RDMA_PROD) & 0xFFFFU;
+    rdma_ring16_wr(V4_RDMA_CONS, cons);
+
+    syn_len = genet15_build_tcp((volatile uint8_t *)genet15_tx_nc,
+                                mac, peer_mac, ISN, 0, 0x02U, 0);
+    if (!genet15_tx_frame(syn_len, tx_prod)) {
+        genet10_park();
+        return 0;
+    }
+    tx_prod++;
+
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(start));
+    ticks = 3000ULL * freq / 1000ULL;
+    do {
+        unsigned int prod = rdma_ring16(V4_RDMA_PROD) & 0xFFFFU;
+        while (cons != prod) {
+            unsigned int idx = cons & (RX_Q16_N - 1U);
+            unsigned int bd = RDMA_OFF + idx * DESC_BYTES;
+            unsigned int rx_len = (G32(bd) >> 16) & 0x0FFFU;
+            unsigned long buf_pa = (unsigned long)G32(bd + 4U);
+            void *rx_nc = 0;
+            if (rx_len >= 54U && kernel_dma_nc_from_pa(buf_pa, &rx_nc) && rx_nc) {
+                if (genet15_synack((const volatile uint8_t *)rx_nc, rx_len,
+                                   &peer_seq)) {
+                    genet15_tcp_val = 1;
+                }
+            }
+            cons = (cons + 1U) & 0xFFFFU;
+            rdma_ring16_wr(V4_RDMA_CONS, cons);
+            if (genet15_tcp_val) break;
+        }
+        if (genet15_tcp_val) break;
+        genet_udelay(1000);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(now));
+    } while (now - start < ticks);
+
+    if (genet15_tcp_val) {
+        data_len = genet15_build_tcp((volatile uint8_t *)genet15_tx_nc,
+                                     mac, peer_mac, ISN + 1U, peer_seq + 1U,
+                                     0x18U, 8U);
+        if (genet15_tx_frame(data_len, tx_prod)) {
+            tx_prod++;
+            __asm__ volatile("mrs %0, cntpct_el0" : "=r"(start));
+            ticks = 3000ULL * freq / 1000ULL;
+            do {
+                unsigned int prod = rdma_ring16(V4_RDMA_PROD) & 0xFFFFU;
+                while (cons != prod) {
+                    unsigned int idx = cons & (RX_Q16_N - 1U);
+                    unsigned int bd = RDMA_OFF + idx * DESC_BYTES;
+                    unsigned int rx_len = (G32(bd) >> 16) & 0x0FFFU;
+                    unsigned long buf_pa = (unsigned long)G32(bd + 4U);
+                    void *rx_nc = 0;
+                    if (rx_len >= 54U &&
+                        kernel_dma_nc_from_pa(buf_pa, &rx_nc) && rx_nc) {
+                        if (genet15_tcp_echo((const volatile uint8_t *)rx_nc,
+                                             rx_len)) {
+                            genet15_echo_val = 1;
+                        }
+                    }
+                    cons = (cons + 1U) & 0xFFFFU;
+                    rdma_ring16_wr(V4_RDMA_CONS, cons);
+                    if (genet15_echo_val) break;
+                }
+                if (genet15_echo_val) break;
+                genet_udelay(1000);
+                __asm__ volatile("mrs %0, cntpct_el0" : "=r"(now));
+            } while (now - start < ticks);
+        }
+    }
+
+    genet10_park();
+    if (genet15_tcp_val == 1U && genet15_echo_val == 1U) {
+        genet15_ok_val = 1;
+        return 1;
+    }
+    return 0;
+}
+
+int          kernel_genet15_ok(void)   { return genet15_ok_val;   }
+unsigned int kernel_genet15_tcp(void)  { return genet15_tcp_val;  }
+unsigned int kernel_genet15_echo(void) { return genet15_echo_val; }
