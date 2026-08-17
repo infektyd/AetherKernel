@@ -3371,3 +3371,218 @@ int kernel_genet18_selftest(void) {
 int          kernel_genet18_ok(void)   { return genet18_ok_val;   }
 unsigned int kernel_genet18_http(void) { return genet18_http_val; }
 unsigned int kernel_genet18_body(void) { return genet18_body_val; }
+
+// V123: originate SNTP client (LI=0 VN=4 Mode=3) to 10.42.0.1:41251 (0xA123).
+// Host helper replies Mode=4 with originate=our TX and a magic transmit stamp.
+// Bounded unpark/poll/park. TX on a DMA NC page — not the 4 KiB core0 stack.
+// No EL0. No boot event emit.
+int kernel_genet19_selftest(void);
+
+static int genet19_probed;
+static int genet19_ok_val;
+static unsigned int genet19_sntp_val;
+static unsigned int genet19_sync_val;
+static unsigned long genet19_tx_pa;
+static void *genet19_tx_nc;
+
+static int genet19_tx_frame(unsigned int tx_len, unsigned int tx_prod) {
+    enum {
+        V4_TDMA_CONS = 0x08U,
+        V4_TDMA_PROD = 0x0C,
+        TX_Q16_START = 128U,
+        TX_Q16_N = 128U
+    };
+    uint64_t freq, t0, tnow, twait;
+    unsigned int tcons;
+    unsigned int tx_bd;
+    uint32_t len_stat;
+
+    if (tx_len < 60U || !genet19_tx_nc) return 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    tx_bd = TDMA_OFF + (TX_Q16_START + (tx_prod % TX_Q16_N)) * DESC_BYTES;
+    len_stat = ((uint32_t)tx_len << 16) |
+               (DMA_QTAG_MASK << DMA_TX_QTAG_SHIFT) |
+               DMA_TX_APPEND_CRC | DMA_SOP | DMA_EOP;
+    G32(tx_bd + 0U) = len_stat;
+    G32(tx_bd + 4U) = (uint32_t)genet19_tx_pa;
+    G32(tx_bd + 8U) = 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    tdma_ring16_wr(V4_TDMA_PROD, tx_prod + 1U);
+
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(t0));
+    twait = 20ULL * freq / 1000ULL;
+    do {
+        tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+        if (tcons == (tx_prod + 1U)) return 1;
+        genet_udelay(100);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(tnow));
+    } while (tnow - t0 < twait);
+    tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+    return (tcons != 0U) ? 1 : 0;
+}
+
+static unsigned int genet19_build_sntp(volatile uint8_t *tx,
+                                       unsigned long mac,
+                                       unsigned long peer_mac) {
+    enum {
+        OUR_IP = 0x0a2a0002U,
+        HOST_IP = 0x0a2a0001U,
+        UDP_PORT = 0xA123U,
+        NTP_LEN = 48U,
+        UDP_LEN = 56U,
+        IP_LEN = 76U,
+        WIRE = 90U
+    };
+    unsigned int i;
+    uint32_t s;
+    uint16_t ucsum;
+
+    for (i = 0; i < 6U; i++) {
+        tx[i] = (uint8_t)((peer_mac >> (40U - 8U * i)) & 0xFFUL);
+        tx[6U + i] = (uint8_t)((mac >> (40U - 8U * i)) & 0xFFUL);
+    }
+    genet9_put16(tx + 12, 0x0800U);
+    tx[14] = 0x45;
+    tx[15] = 0;
+    genet9_put16(tx + 16, IP_LEN);
+    genet9_put16(tx + 18, UDP_PORT);
+    genet9_put16(tx + 20, 0);
+    tx[22] = 64;
+    tx[23] = 0x11U;
+    tx[24] = 0;
+    tx[25] = 0;
+    genet9_put32(tx + 26, OUR_IP);
+    genet9_put32(tx + 30, HOST_IP);
+    genet9_put16(tx + 24, genet9_csum(tx + 14, 20U));
+    genet9_put16(tx + 34, UDP_PORT);
+    genet9_put16(tx + 36, UDP_PORT);
+    genet9_put16(tx + 38, UDP_LEN);
+    tx[40] = 0;
+    tx[41] = 0;
+    for (i = 0; i < NTP_LEN; i++) tx[42U + i] = 0;
+    tx[42] = 0x23;
+    genet9_put32(tx + 82, 0xA1230001U);
+    genet9_put32(tx + 86, 0xA1230002U);
+    s = 0;
+    s += (OUR_IP >> 16) & 0xFFFFU;
+    s += OUR_IP & 0xFFFFU;
+    s += (HOST_IP >> 16) & 0xFFFFU;
+    s += HOST_IP & 0xFFFFU;
+    s += 0x11U;
+    s += UDP_LEN;
+    for (i = 0; i + 1U < UDP_LEN; i += 2U) s += genet9_be16(tx + 34U + i);
+    while (s >> 16) s = (s & 0xFFFFU) + (s >> 16);
+    ucsum = (uint16_t)~s;
+    if (ucsum == 0U) ucsum = 0xFFFFU;
+    genet9_put16(tx + 40, ucsum);
+    return WIRE;
+}
+
+static int genet19_sntp_reply(const volatile uint8_t *rx, unsigned int rx_len) {
+    enum {
+        OUR_IP = 0x0a2a0002U,
+        HOST_IP = 0x0a2a0001U,
+        UDP_PORT = 0xA123U
+    };
+    unsigned int ihl;
+    unsigned int udp_off;
+    unsigned int ntp_off;
+    unsigned int udp_len;
+    if (rx_len < 90U) return 0;
+    if (genet9_be16(rx + 12) != 0x0800U) return 0;
+    if ((rx[14] >> 4) != 4U) return 0;
+    ihl = (unsigned int)(rx[14] & 0x0FU) * 4U;
+    if (ihl < 20U) return 0;
+    if (rx[14 + 9] != 0x11U) return 0;
+    if (genet9_be32(rx + 26) != HOST_IP) return 0;
+    if (genet9_be32(rx + 30) != OUR_IP) return 0;
+    udp_off = 14U + ihl;
+    if (rx_len < udp_off + 56U) return 0;
+    if (genet9_be16(rx + udp_off) != UDP_PORT) return 0;
+    if (genet9_be16(rx + udp_off + 2) != UDP_PORT) return 0;
+    udp_len = genet9_be16(rx + udp_off + 4);
+    if (udp_len < 56U) return 0;
+    ntp_off = udp_off + 8U;
+    if ((rx[ntp_off] & 0x07U) != 4U) return 0;
+    if (genet9_be32(rx + ntp_off + 24U) != 0xA1230001U) return 0;
+    if (genet9_be32(rx + ntp_off + 28U) != 0xA1230002U) return 0;
+    if (genet9_be32(rx + ntp_off + 40U) != 0xA1230003U) return 0;
+    if (genet9_be32(rx + ntp_off + 44U) != 0xA1230004U) return 0;
+    return 1;
+}
+
+int kernel_genet19_selftest(void) {
+    enum {
+        V4_RDMA_PROD = 0x08U,
+        V4_RDMA_CONS = 0x0C,
+        RX_Q16_N = 256U
+    };
+    unsigned long mac;
+    unsigned long peer_mac;
+    unsigned int cons;
+    unsigned int tx_prod = 0;
+    unsigned int tx_len;
+    uint64_t freq, start, now, ticks;
+
+    if (genet19_probed) return genet19_ok_val;
+    genet19_probed = 1;
+    genet19_ok_val = 0;
+    genet19_sntp_val = 0;
+    genet19_sync_val = 0;
+
+    if (!kernel_genet18_selftest()) return 0;
+    mac = kernel_genet3_mac();
+    peer_mac = kernel_genet13_peer_mac();
+    if (!mac || !peer_mac) return 0;
+    if (!kernel_dma_alloc_nc(&genet19_tx_pa, &genet19_tx_nc)) return 0;
+    if (!genet19_tx_nc) return 0;
+    if (!genet10_unpark()) return 0;
+
+    cons = rdma_ring16(V4_RDMA_PROD) & 0xFFFFU;
+    rdma_ring16_wr(V4_RDMA_CONS, cons);
+
+    tx_len = genet19_build_sntp((volatile uint8_t *)genet19_tx_nc, mac, peer_mac);
+    if (!genet19_tx_frame(tx_len, tx_prod)) {
+        genet10_park();
+        return 0;
+    }
+    genet19_sntp_val = 1;
+    tx_prod++;
+
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(start));
+    ticks = 3000ULL * freq / 1000ULL;
+    do {
+        unsigned int prod = rdma_ring16(V4_RDMA_PROD) & 0xFFFFU;
+        while (cons != prod) {
+            unsigned int idx = cons & (RX_Q16_N - 1U);
+            unsigned int bd = RDMA_OFF + idx * DESC_BYTES;
+            unsigned int rx_len = (G32(bd) >> 16) & 0x0FFFU;
+            unsigned long buf_pa = (unsigned long)G32(bd + 4U);
+            void *rx_nc = 0;
+            if (rx_len >= 90U && kernel_dma_nc_from_pa(buf_pa, &rx_nc) && rx_nc) {
+                if (genet19_sntp_reply((const volatile uint8_t *)rx_nc, rx_len)) {
+                    genet19_sync_val = 1;
+                }
+            }
+            cons = (cons + 1U) & 0xFFFFU;
+            rdma_ring16_wr(V4_RDMA_CONS, cons);
+            if (genet19_sync_val) break;
+        }
+        if (genet19_sync_val) break;
+        genet_udelay(1000);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(now));
+    } while (now - start < ticks);
+
+    genet10_park();
+    if (genet19_sntp_val == 1U && genet19_sync_val == 1U) {
+        genet19_ok_val = 1;
+        return 1;
+    }
+    return 0;
+}
+
+int          kernel_genet19_ok(void)   { return genet19_ok_val;   }
+unsigned int kernel_genet19_sntp(void) { return genet19_sntp_val; }
+unsigned int kernel_genet19_sync(void) { return genet19_sync_val; }

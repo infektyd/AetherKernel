@@ -1489,6 +1489,12 @@ int           kernel_genet18_ok(void);
 unsigned int  kernel_genet18_http(void);
 unsigned int  kernel_genet18_body(void);
 
+// V123: originate SNTP client to 10.42.0.1:41251. Bounded park. No EL0.
+int           kernel_genet19_selftest(void);
+int           kernel_genet19_ok(void);
+unsigned int  kernel_genet19_sntp(void);
+unsigned int  kernel_genet19_sync(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);
