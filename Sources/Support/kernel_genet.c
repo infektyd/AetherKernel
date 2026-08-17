@@ -4626,3 +4626,39 @@ int kernel_genet25_selftest(void) {
 int          kernel_genet25_ok(void)  { return genet25_ok_val;  }
 unsigned int kernel_genet25_phy(void) { return genet25_phy_val; }
 unsigned int kernel_genet25_id(void)  { return genet25_id_val;  }
+
+// V130: UMAC_MAX_FRAME_LEN write+readback. Write 1518, require
+// readback, restore 1536, require readback. Earlier bring-up writes
+// 1536 without checking. No DMA. No MDIO. No EL0. UART token only.
+int kernel_genet26_selftest(void);
+
+static int genet26_probed;
+static int genet26_ok_val;
+static unsigned int genet26_len_val;
+static unsigned int genet26_restore_val;
+
+int kernel_genet26_selftest(void) {
+    uint32_t got;
+
+    if (genet26_probed) return genet26_ok_val;
+    genet26_probed = 1;
+    genet26_ok_val = 0;
+    genet26_len_val = 0;
+    genet26_restore_val = 0;
+
+    if (!kernel_genet_selftest()) return 0;
+    genet_wr32(UMAC_MAX_FRAME_LEN, 1518U);
+    got = G32(UMAC_MAX_FRAME_LEN) & 0xFFFFU;
+    if (got != 1518U) return 0;
+    genet26_len_val = 1;
+    genet_wr32(UMAC_MAX_FRAME_LEN, 1536U);
+    got = G32(UMAC_MAX_FRAME_LEN) & 0xFFFFU;
+    if (got != 1536U) return 0;
+    genet26_restore_val = 1;
+    genet26_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet26_ok(void)      { return genet26_ok_val;      }
+unsigned int kernel_genet26_len(void)     { return genet26_len_val;     }
+unsigned int kernel_genet26_restore(void) { return genet26_restore_val; }

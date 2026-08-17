@@ -1515,6 +1515,18 @@ struct Application {
     uartPutDec(UInt64(kernel_genet25_id()))
     uartPuts("\n")
 
+    // Runtime V130: UMAC max frame write+readback. UART token only.
+    // No boot event emit. No DMA / unpark. No EL0 enter after GENET.
+    uartPuts("runtime v130: GENET UMAC max frame\n")
+    let genet26_ok_boot = kernel_genet26_selftest()
+    uartPuts("genet26 ok=")
+    uartPutDec(UInt64(genet26_ok_boot))
+    uartPuts(" version=130 len=")
+    uartPutDec(UInt64(kernel_genet26_len()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_genet26_restore()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
