@@ -1507,6 +1507,12 @@ int           kernel_genet21_ok(void);
 unsigned int  kernel_genet21_mib(void);
 unsigned int  kernel_genet21_delta(void);
 
+// V126: TCP helper liveness on existing :41241. Bounded park. No EL0.
+int           kernel_genet22_selftest(void);
+int           kernel_genet22_ok(void);
+unsigned int  kernel_genet22_live(void);
+unsigned int  kernel_genet22_indep(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);

@@ -37,6 +37,27 @@ sha256_file() {
   shasum -a 256 "$1" | awk '{print $1}'
 }
 
+# V126: pgrep-alive is not accept-ready. A hung recv still matches
+# aether-tcp-echo-v119 and later tokens inherit genet15=0. Stall
+# (connect, no payload) then require an echo probe; restart if dead.
+ensure_tcp_echo_v119() {
+  local helper="$SCRIPT_DIR/aether-tcp-echo-v119.py"
+  local ready="$SCRIPT_DIR/aether-tcp-ready-v126.py"
+  if ! pgrep -f 'aether-tcp-echo-v119' >/dev/null 2>&1; then
+    python3 "$helper" >/tmp/aether-tcp-echo-v119.log 2>&1 &
+    disown $! || true
+    sleep 0.3
+  fi
+  python3 "$ready" stall >/tmp/aether-tcp-ready-v126.log 2>&1 || true
+  if ! python3 "$ready" probe >>/tmp/aether-tcp-ready-v126.log 2>&1; then
+    pkill -f 'aether-tcp-echo-v119' >/dev/null 2>&1 || true
+    python3 "$helper" >/tmp/aether-tcp-echo-v119.log 2>&1 &
+    disown $! || true
+    sleep 0.3
+    python3 "$ready" probe >>/tmp/aether-tcp-ready-v126.log 2>&1 || true
+  fi
+}
+
 parse_netflash_kernel_sha256() {
   local output="$1"
   local hash
@@ -186,11 +207,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
     disown $! || true
   fi
 
-  # V119: host TCP echo on 10.42.0.1:41241 so boot-time originate can fail-close.
-  if ! pgrep -f 'aether-tcp-echo-v119' >/dev/null 2>&1; then
-    python3 "$SCRIPT_DIR/aether-tcp-echo-v119.py" >/tmp/aether-tcp-echo-v119.log 2>&1 &
-    disown $! || true
-  fi
+  # V119/V126: host TCP echo on 10.42.0.1:41241 must be accept-ready.
+  ensure_tcp_echo_v119
 
   # V120: known TFTP payload so boot-time RRQ can fail-close. New file only.
   python3 - "$TFTP_ROOT/$PREFIX/v120.bin" <<'PY'
@@ -447,6 +465,8 @@ PY
       && printf '%s' "$serial_delta" | grep -qa "genet20 ok=1 version=124 ssdp=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v125: GENET TX MIB" \
       && printf '%s' "$serial_delta" | grep -qa "genet21 ok=1 version=125 mib=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v126: GENET TCP helper liveness" \
+      && printf '%s' "$serial_delta" | grep -qa "genet22 ok=1 version=126 live=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -740,6 +760,8 @@ PY
         probe_shell "genet20" "^genet20 ok=1 version=124 ssdp="
         # V125: UMAC TX MIB after one local-exp frame. No EL0.
         probe_shell "genet21" "^genet21 ok=1 version=125 mib="
+        # V126: TCP helper liveness on existing :41241. No EL0.
+        probe_shell "genet22" "^genet22 ok=1 version=126 live="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

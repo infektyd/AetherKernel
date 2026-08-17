@@ -100,7 +100,7 @@ func uartPutShellBufferSlice(_ start: UInt32, _ len: UInt32) {
 }
 
 let SHELL_COMMAND_LIST =
-  "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,handlecheck,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci,genet,genet2,genet3,genet4,gpio,genet5,genet6,genet7,genet8,genet9,genet10,genet11,genet12,i2c,pwm,i2c2,spi2,stimer,sdload,sdls,sdfile,sdovl,sdovf,sdiss,gpio2,stimer2,pwm2,gpio3,stimer3,mboxt,mboxc,wdog2,mboxv,rng,dma2,sdwr,sdmk,sdrd,sdst,sdscr,sdss,sdbus,sdmb,sdsw,sdmw,sdbc,sdfi,sdfb,sdfm,sdrm,genet13,genet14,genet15,genet16,genet17,genet18,genet19,genet20,genet21"
+  "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,handlecheck,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci,genet,genet2,genet3,genet4,gpio,genet5,genet6,genet7,genet8,genet9,genet10,genet11,genet12,i2c,pwm,i2c2,spi2,stimer,sdload,sdls,sdfile,sdovl,sdovf,sdiss,gpio2,stimer2,pwm2,gpio3,stimer3,mboxt,mboxc,wdog2,mboxv,rng,dma2,sdwr,sdmk,sdrd,sdst,sdscr,sdss,sdbus,sdmb,sdsw,sdmw,sdbc,sdfi,sdfb,sdfm,sdrm,genet13,genet14,genet15,genet16,genet17,genet18,genet19,genet20,genet21,genet22"
 
 func printShellReady() {
   uartPuts("shell ready \(SHELL_COMMAND_LIST)\n")
@@ -2932,6 +2932,17 @@ func printGenet21() {
   uartPuts("\n")
 }
 
+func printGenet22() {
+  _ = kernel_genet22_selftest()
+  uartPuts("genet22 ok=")
+  uartPutDec(UInt64(kernel_genet22_ok()))
+  uartPuts(" version=126 live=")
+  uartPutDec(UInt64(kernel_genet22_live()))
+  uartPuts(" indep=")
+  uartPutDec(UInt64(kernel_genet22_indep()))
+  uartPuts("\n")
+}
+
 func printPoolName(_ pool: UInt32) {
   var i: UInt32 = 0
   let n = kernel_pool_name_len(pool)
@@ -3922,6 +3933,8 @@ func dispatchShellCommand(_ commandStart: UInt32, _ commandLen: UInt32, _ reques
     printGenet20()
   } else if shellBufferSliceEquals(commandStart, commandLen, "genet21") {
     printGenet21()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "genet22") {
+    printGenet22()
   } else if shellBufferSliceEquals(commandStart, commandLen, "pools") {
     printPools()
   } else if shellBufferSliceEquals(commandStart, commandLen, "poolcheck") {
