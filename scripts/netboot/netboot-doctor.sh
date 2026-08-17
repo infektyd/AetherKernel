@@ -305,6 +305,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "sdfb ok=1 version=114 match=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v115: FAT32 FAT mirror" \
       && printf '%s' "$serial_delta" | grep -q "sdfm ok=1 version=115 match=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v116: FAT32 scratch unlink" \
+      && printf '%s' "$serial_delta" | grep -q "sdrm ok=1 version=116 deleted=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

@@ -1347,6 +1347,18 @@ struct Application {
     uartPutDec(UInt64(kernel_sdfm_fats()))
     uartPuts("\n")
 
+    // Runtime V116: FAT32 scratch unlink. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts.
+    uartPuts("runtime v116: FAT32 scratch unlink\n")
+    let sdrm_ok_boot = kernel_sdrm_selftest()
+    uartPuts("sdrm ok=")
+    uartPutDec(UInt64(sdrm_ok_boot))
+    uartPuts(" version=116 deleted=")
+    uartPutDec(UInt64(kernel_sdrm_deleted()))
+    uartPuts(" present=")
+    uartPutDec(UInt64(kernel_sdrm_present()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

@@ -384,6 +384,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "sdfb ok=1 version=114 match=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v115: FAT32 FAT mirror" \
       && printf '%s' "$serial_delta" | grep -qa "sdfm ok=1 version=115 match=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v116: FAT32 scratch unlink" \
+      && printf '%s' "$serial_delta" | grep -qa "sdrm ok=1 version=116 deleted=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -657,6 +659,8 @@ PY
         probe_shell "sdfb" "^sdfb ok=1 version=114 match="
         # V115: FAT32 FAT-mirror compare after GENET. fats>=2. No EL0.
         probe_shell "sdfm" "^sdfm ok=1 version=115 match="
+        # V116: FAT32 scratch unlink after GENET. deleted+absent. No EL0.
+        probe_shell "sdrm" "^sdrm ok=1 version=116 deleted="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

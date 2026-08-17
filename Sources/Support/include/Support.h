@@ -1004,6 +1004,8 @@ int           kernel_sdhci_fat32_backup(unsigned int *match_out,
                                         unsigned int *sec_out);
 int           kernel_sdhci_fat32_mirror(unsigned int *match_out,
                                         unsigned int *fats_out);
+int           kernel_sdhci_fat32_unlink_scratch(unsigned int *deleted_out,
+                                                unsigned int *present_out);
 
 // Runtime V58: VideoCore ARM->GPU property mailbox probe (firmware revision).
 int kernel_vc_mbox_probe(void);
@@ -1168,6 +1170,12 @@ int           kernel_sdfm_selftest(void);
 int           kernel_sdfm_ok(void);
 unsigned int  kernel_sdfm_match(void);
 unsigned int  kernel_sdfm_fats(void);
+
+// V116: FAT32 scratch unlink after GENET. Fail-closed deleted+absent. No EL0.
+int           kernel_sdrm_selftest(void);
+int           kernel_sdrm_ok(void);
+unsigned int  kernel_sdrm_deleted(void);
+unsigned int  kernel_sdrm_present(void);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.
