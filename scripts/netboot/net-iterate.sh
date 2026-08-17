@@ -183,11 +183,13 @@ while [ "$attempt" -le "$RETRIES" ]; do
   # V118: host UDP echo on 10.42.0.1:41240 so boot-time originate can fail-close.
   if ! pgrep -f 'aether-udp-echo-v118' >/dev/null 2>&1; then
     python3 "$SCRIPT_DIR/aether-udp-echo-v118.py" >/tmp/aether-udp-echo-v118.log 2>&1 &
+    disown $! || true
   fi
 
   # V119: host TCP echo on 10.42.0.1:41241 so boot-time originate can fail-close.
   if ! pgrep -f 'aether-tcp-echo-v119' >/dev/null 2>&1; then
     python3 "$SCRIPT_DIR/aether-tcp-echo-v119.py" >/tmp/aether-tcp-echo-v119.log 2>&1 &
+    disown $! || true
   fi
 
   # V120: known TFTP payload so boot-time RRQ can fail-close. New file only.
@@ -196,6 +198,12 @@ from pathlib import Path
 import sys
 Path(sys.argv[1]).write_bytes(bytes.fromhex("A1200001A1200002A1200003A1200004"))
 PY
+
+  # V121: host mDNS A for aether-v121.local so boot-time query can fail-close.
+  if ! pgrep -f 'aether-mdns-v121' >/dev/null 2>&1; then
+    python3 "$SCRIPT_DIR/aether-mdns-v121.py" >/tmp/aether-mdns-v121.log 2>&1 &
+    disown $! || true
+  fi
 
   if [ -n "${AETHER_POWER_BACKEND:-}" ] && [ "${AETHER_POWER_BACKEND}" != "none" ]; then
     # Cold power-cycle via external switch — REQUIRED for the Pi bootloader to
@@ -411,6 +419,8 @@ PY
       && printf '%s' "$serial_delta" | grep -qa "genet15 ok=1 version=119 tcp=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v120: GENET originate TFTP" \
       && printf '%s' "$serial_delta" | grep -qa "genet16 ok=1 version=120 tftp=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v121: GENET originate mDNS" \
+      && printf '%s' "$serial_delta" | grep -qa "genet17 ok=1 version=121 mdns=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -694,6 +704,8 @@ PY
         probe_shell "genet15" "^genet15 ok=1 version=119 tcp="
         # V120: originate TFTP RRQ of aether/v120.bin. No EL0.
         probe_shell "genet16" "^genet16 ok=1 version=120 tftp="
+        # V121: originate mDNS A query for aether-v121.local. No EL0.
+        probe_shell "genet17" "^genet17 ok=1 version=121 mdns="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

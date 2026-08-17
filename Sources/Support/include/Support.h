@@ -1477,6 +1477,12 @@ int           kernel_genet16_ok(void);
 unsigned int  kernel_genet16_tftp(void);
 unsigned int  kernel_genet16_match(void);
 
+// V121: originate mDNS A query for aether-v121.local. Bounded park. No EL0.
+int           kernel_genet17_selftest(void);
+int           kernel_genet17_ok(void);
+unsigned int  kernel_genet17_mdns(void);
+unsigned int  kernel_genet17_ans(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);
