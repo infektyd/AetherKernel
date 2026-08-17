@@ -4882,3 +4882,53 @@ int kernel_genet30_selftest(void) {
 int          kernel_genet30_ok(void)      { return genet30_ok_val;      }
 unsigned int kernel_genet30_eee(void)     { return genet30_eee_val;     }
 unsigned int kernel_genet30_restore(void) { return genet30_restore_val; }
+
+// V135: HFB filter-0 enable bitmap. Program HFB_FLT_ENABLE bit 0
+// at hfb_reg_offset 0xFC00+0x04, require clear then set, then
+// restore leftover. Does not set HFB_CTRL RBUF_HFB_EN (engine
+// stays off). Unused hardware filter block — not TBUF EEE, not
+// RBUF RXCHK, not a UMAC poke, and not TX csum / 64B status
+// blocks. No DMA. No EL0. UART token only.
+#define HFB_FLT0_EN (1U << 0)
+
+int kernel_genet31_selftest(void);
+
+static int genet31_probed;
+static int genet31_ok_val;
+static unsigned int genet31_hfb_val;
+static unsigned int genet31_restore_val;
+
+int kernel_genet31_selftest(void) {
+    uint32_t saved;
+    uint32_t got;
+
+    if (genet31_probed) return genet31_ok_val;
+    genet31_probed = 1;
+    genet31_ok_val = 0;
+    genet31_hfb_val = 0;
+    genet31_restore_val = 0;
+
+    if (!kernel_genet_selftest()) return 0;
+
+    saved = G32(HFB_REG_OFF + HFB_FLT_ENABLE);
+    if (saved == 0xDEADDEADU || saved == 0xFFFFFFFFU) return 0;
+
+    genet_wr32(HFB_REG_OFF + HFB_FLT_ENABLE, saved & ~HFB_FLT0_EN);
+    got = G32(HFB_REG_OFF + HFB_FLT_ENABLE);
+    if ((got & HFB_FLT0_EN) != 0U) return 0;
+
+    genet_wr32(HFB_REG_OFF + HFB_FLT_ENABLE, saved | HFB_FLT0_EN);
+    got = G32(HFB_REG_OFF + HFB_FLT_ENABLE);
+    if ((got & HFB_FLT0_EN) == 0U) return 0;
+    genet31_hfb_val = 1;
+
+    genet_wr32(HFB_REG_OFF + HFB_FLT_ENABLE, saved);
+    if (G32(HFB_REG_OFF + HFB_FLT_ENABLE) != saved) return 0;
+    genet31_restore_val = 1;
+    genet31_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet31_ok(void)      { return genet31_ok_val;      }
+unsigned int kernel_genet31_hfb(void)     { return genet31_hfb_val;     }
+unsigned int kernel_genet31_restore(void) { return genet31_restore_val; }

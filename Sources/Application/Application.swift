@@ -1575,6 +1575,18 @@ struct Application {
     uartPutDec(UInt64(kernel_genet30_restore()))
     uartPuts("\n")
 
+    // Runtime V135: HFB_FLT_ENABLE program+readback. UART token only.
+    // No boot event emit. No DMA / unpark. No EL0 enter after GENET.
+    uartPuts("runtime v135: GENET HFB enable\n")
+    let genet31_ok_boot = kernel_genet31_selftest()
+    uartPuts("genet31 ok=")
+    uartPutDec(UInt64(genet31_ok_boot))
+    uartPuts(" version=135 hfb=")
+    uartPutDec(UInt64(kernel_genet31_hfb()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_genet31_restore()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

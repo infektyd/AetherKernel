@@ -1561,6 +1561,12 @@ int           kernel_genet30_ok(void);
 unsigned int  kernel_genet30_eee(void);
 unsigned int  kernel_genet30_restore(void);
 
+// V135: HFB_FLT_ENABLE bit-0 program+readback. No DMA. No EL0.
+int           kernel_genet31_selftest(void);
+int           kernel_genet31_ok(void);
+unsigned int  kernel_genet31_hfb(void);
+unsigned int  kernel_genet31_restore(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);
