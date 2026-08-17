@@ -1009,6 +1009,23 @@ struct Application {
     uartPutHexCompact(UInt64(kernel_sdovf_sum()))
     uartPuts("\n")
 
+    // Runtime V90: issue.txt by name after GENET. UART token only. No boot event emit.
+    // Fail-closed if missing. No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v90: FAT32 issue.txt\n")
+    let sdiss_ok_boot = kernel_sdiss_selftest()
+    uartPuts("sdiss ok=")
+    uartPutDec(UInt64(sdiss_ok_boot))
+    uartPuts(" version=90")
+    uartPuts(" present=")
+    uartPutDec(UInt64(kernel_sdiss_present()))
+    uartPuts(" name=")
+    uartPutHexCompact(UInt64(kernel_sdiss_name()))
+    uartPuts(" bytes=")
+    uartPutDec(UInt64(kernel_sdiss_bytes()))
+    uartPuts(" checksum=")
+    uartPutHexCompact(UInt64(kernel_sdiss_sum()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
