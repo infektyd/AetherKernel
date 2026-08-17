@@ -107,3 +107,11 @@ unsigned long watchdog_disable_count(void) {
     irq_restore(flags);
     return count;
 }
+
+unsigned int watchdog_remaining_ticks(void) {
+    return mmio_read32(PM_WDOG) & PM_WDOG_TIME_MASK;
+}
+
+int watchdog_full_reset_armed(void) {
+    return ((mmio_read32(PM_RSTC) & 0x30U) == PM_RSTC_WRCFG_FULL_RESET) ? 1 : 0;
+}

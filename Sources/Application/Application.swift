@@ -1112,6 +1112,21 @@ struct Application {
     uartPutDec(UInt64(kernel_mboxc_hz()))
     uartPuts("\n")
 
+    // Runtime V98: PM watchdog remaining-tick readback. UART token only.
+    // Arm, read, disable. Never reset_now. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v98: watchdog remaining\n")
+    let wdog2_ok_boot = kernel_wdog2_selftest()
+    uartPuts("wdog2 ok=")
+    uartPutDec(UInt64(wdog2_ok_boot))
+    uartPuts(" version=98 armed=")
+    uartPutDec(UInt64(kernel_wdog2_armed()))
+    uartPuts(" off=")
+    uartPutDec(UInt64(kernel_wdog2_off()))
+    uartPuts(" remain=")
+    uartPutDec(UInt64(kernel_wdog2_remain()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

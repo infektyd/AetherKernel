@@ -269,6 +269,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "mboxt ok=1 version=96 temp=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v97: mailbox clock rate" \
       && printf '%s' "$serial_delta" | grep -q "mboxc ok=1 version=97 clk=3 hz=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v98: watchdog remaining" \
+      && printf '%s' "$serial_delta" | grep -q "wdog2 ok=1 version=98 armed=1 off=1 remain=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

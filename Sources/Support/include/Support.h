@@ -1405,3 +1405,13 @@ unsigned long watchdog_reset_count(void);
 unsigned long watchdog_arm_count(void);
 unsigned long watchdog_pet_count(void);
 unsigned long watchdog_disable_count(void);
+unsigned int  watchdog_remaining_ticks(void);
+int           watchdog_full_reset_armed(void);
+
+// V98: PM watchdog remaining-tick readback after GENET. Arm, read, disable.
+// Never reset_now. Fail-closed remaining range. No EL0.
+int           kernel_wdog2_selftest(void);
+int           kernel_wdog2_ok(void);
+int           kernel_wdog2_armed(void);
+int           kernel_wdog2_off(void);
+unsigned int  kernel_wdog2_remain(void);
