@@ -50,3 +50,32 @@ told to continue:
 6. **Never** push, merge to `main`, fabricate proof, or mark a slice accepted without a captured board marker — autonomy does not relax the hard constraints above.
 7. **Make forward progress every turn.** Each turn should end with either a new commit, a slice/plan state change, or a stop line. A turn that did none of these is a stall; say so via `AUTODRIVE_BLOCKED` rather than spinning.
 8. **Keep the roadmap honest.** When a milestone completes, update `ROADMAP.md`'s "Where we are now" line and check off the increment in the same commit.
+
+---
+
+## Cursor Cloud specific instructions
+
+Cloud Agents run on **x86_64 Linux**, so the macOS/hardware half of this repo does
+**not** run there. The Swift→Mach-O build (`./build.sh`) needs the Apple
+`swift-6.3.2-RELEASE.xctoolchain`, `ld64`, and the Embedded `arm64-apple-none-macho`
+`_Concurrency` archive (macOS only), and hardware proof (`net-iterate.sh`) needs a
+physical Pi 4 + serial + power backend. Do **not** attempt those in Cloud, and do not
+retarget the triple or swap toolchains to force a Linux build — that would violate the
+pinned-toolchain hard constraint above.
+
+What **is** reproducible in Cloud is the repository's verification layer — the Python
+`tests/` suite (runtime-contract snapshots, netboot/TFTP script behavior, `aether_tftp`
+transfers, `serialdash` parsing) and the `uv`-based tooling (`scripts/macho2bin.py`).
+
+- **Environment install:** `python3 -m pip install --user --upgrade uv pytest`
+  (`~/.local/bin` is on the login-shell PATH; idempotent).
+- **Run the suite:** `python3 -m pytest tests/ -q` from the repo root.
+- **Expected result on a current branch:** most tests pass, but a fixed set is
+  **pre-existing red**, independent of the environment:
+  - `test_runtime_vN_contract.py` for older `N` pin an exact
+    `KERNEL_SCHEDULER_VERSION NU`; once the kernel advances past `N` those exact-version
+    snapshots can no longer hold. They are historical gates, not live checks.
+  - `serial-command.sh` / `serial-reset.sh` require a physical USB-TTL adapter even in
+    dry-run, so their two tests fail on any machine without the dongle.
+  These failures are **not** an environment defect — do not "fix" application code to make
+  them green. Iterate against the version-current and tooling tests instead.
