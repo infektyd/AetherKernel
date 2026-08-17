@@ -1483,6 +1483,12 @@ int           kernel_genet17_ok(void);
 unsigned int  kernel_genet17_mdns(void);
 unsigned int  kernel_genet17_ans(void);
 
+// V122: originate HTTP/1.0 GET /aether/v122.txt. Bounded park. No EL0.
+int           kernel_genet18_selftest(void);
+int           kernel_genet18_ok(void);
+unsigned int  kernel_genet18_http(void);
+unsigned int  kernel_genet18_body(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);

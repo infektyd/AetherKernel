@@ -205,6 +205,12 @@ PY
     disown $! || true
   fi
 
+  # V122: host HTTP/1.0 GET /aether/v122.txt so boot-time originate can fail-close.
+  if ! pgrep -f 'aether-http-v122' >/dev/null 2>&1; then
+    python3 "$SCRIPT_DIR/aether-http-v122.py" >/tmp/aether-http-v122.log 2>&1 &
+    disown $! || true
+  fi
+
   if [ -n "${AETHER_POWER_BACKEND:-}" ] && [ "${AETHER_POWER_BACKEND}" != "none" ]; then
     # Cold power-cycle via external switch — REQUIRED for the Pi bootloader to
     # re-enter netboot/TFTP mode (a warm serial reset does not re-arm it). This is
@@ -421,6 +427,8 @@ PY
       && printf '%s' "$serial_delta" | grep -qa "genet16 ok=1 version=120 tftp=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v121: GENET originate mDNS" \
       && printf '%s' "$serial_delta" | grep -qa "genet17 ok=1 version=121 mdns=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v122: GENET originate HTTP" \
+      && printf '%s' "$serial_delta" | grep -qa "genet18 ok=1 version=122 http=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -706,6 +714,8 @@ PY
         probe_shell "genet16" "^genet16 ok=1 version=120 tftp="
         # V121: originate mDNS A query for aether-v121.local. No EL0.
         probe_shell "genet17" "^genet17 ok=1 version=121 mdns="
+        # V122: originate HTTP GET /aether/v122.txt. No EL0.
+        probe_shell "genet18" "^genet18 ok=1 version=122 http="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
