@@ -1543,6 +1543,12 @@ int           kernel_genet27_ok(void);
 unsigned int  kernel_genet27_wr(void);
 unsigned int  kernel_genet27_match(void);
 
+// V132: UMAC MDF perfect-match filter program+readback. No DMA. No EL0.
+int           kernel_genet28_selftest(void);
+int           kernel_genet28_ok(void);
+unsigned int  kernel_genet28_mdf(void);
+unsigned int  kernel_genet28_restore(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);

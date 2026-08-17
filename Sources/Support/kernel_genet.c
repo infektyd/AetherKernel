@@ -594,6 +594,8 @@ unsigned int kernel_genet6_tx(void)     { return genet6_tx_val;     }
 unsigned int kernel_genet6_frames(void) { return genet6_frames_val; }
 
 #define UMAC_TX_FLUSH (UMAC_OFF + 0x334U)
+#define UMAC_MDF_CTRL (UMAC_OFF + 0x650U)
+#define UMAC_MDF_ADDR (UMAC_OFF + 0x654U)
 #define DMA_SCB_BURST 0x0CU
 #define DMA_MAX_BURST 0x10U
 
@@ -4716,3 +4718,69 @@ int kernel_genet27_selftest(void) {
 int          kernel_genet27_ok(void)    { return genet27_ok_val;    }
 unsigned int kernel_genet27_wr(void)    { return genet27_wr_val;    }
 unsigned int kernel_genet27_match(void) { return genet27_match_val; }
+
+// V132: UMAC MDF perfect-match filter. Program slot 0 with the
+// mailbox station MAC (Linux 2+4 byte layout), enable bit 16, then
+// restore the leftover CTRL/ADDR words. Unused hardware — not the
+// UMAC_MAC0/1 station filter and not PROMISC. No DMA. No EL0.
+int kernel_genet28_selftest(void);
+
+static int genet28_probed;
+static int genet28_ok_val;
+static unsigned int genet28_mdf_val;
+static unsigned int genet28_restore_val;
+
+int kernel_genet28_selftest(void) {
+    unsigned long mac;
+    uint32_t want0;
+    uint32_t want1;
+    uint32_t saved_ctrl;
+    uint32_t saved0;
+    uint32_t saved1;
+    uint32_t enable;
+
+    if (genet28_probed) return genet28_ok_val;
+    genet28_probed = 1;
+    genet28_ok_val = 0;
+    genet28_mdf_val = 0;
+    genet28_restore_val = 0;
+
+    if (!kernel_genet_selftest()) return 0;
+    if (!kernel_genet3_selftest()) return 0;
+    mac = kernel_genet3_mac();
+    if (mac == 0UL) return 0;
+
+    saved_ctrl = G32(UMAC_MDF_CTRL);
+    saved0 = G32(UMAC_MDF_ADDR);
+    saved1 = G32(UMAC_MDF_ADDR + 4U);
+    if (saved_ctrl == 0xDEADDEADU || saved0 == 0xDEADDEADU ||
+        saved1 == 0xDEADDEADU) {
+        return 0;
+    }
+
+    // Linux bcmgenet_set_mdf_addr: word0 = mac[0:1], word1 = mac[2:5].
+    want0 = (uint32_t)((mac >> 32) & 0xFFFFUL);
+    want1 = (uint32_t)(mac & 0xFFFFFFFFUL);
+    enable = 1U << 16;
+    genet_wr32(UMAC_MDF_ADDR, want0);
+    genet_wr32(UMAC_MDF_ADDR + 4U, want1);
+    genet_wr32(UMAC_MDF_CTRL, enable);
+    if ((G32(UMAC_MDF_ADDR) & 0xFFFFU) != want0) return 0;
+    if (G32(UMAC_MDF_ADDR + 4U) != want1) return 0;
+    if ((G32(UMAC_MDF_CTRL) & enable) == 0U) return 0;
+    genet28_mdf_val = 1;
+
+    genet_wr32(UMAC_MDF_ADDR, saved0);
+    genet_wr32(UMAC_MDF_ADDR + 4U, saved1);
+    genet_wr32(UMAC_MDF_CTRL, saved_ctrl);
+    if (G32(UMAC_MDF_ADDR) != saved0) return 0;
+    if (G32(UMAC_MDF_ADDR + 4U) != saved1) return 0;
+    if (G32(UMAC_MDF_CTRL) != saved_ctrl) return 0;
+    genet28_restore_val = 1;
+    genet28_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet28_ok(void)      { return genet28_ok_val;      }
+unsigned int kernel_genet28_mdf(void)     { return genet28_mdf_val;     }
+unsigned int kernel_genet28_restore(void) { return genet28_restore_val; }

@@ -1539,6 +1539,18 @@ struct Application {
     uartPutDec(UInt64(kernel_genet27_match()))
     uartPuts("\n")
 
+    // Runtime V132: UMAC MDF filter program+readback. UART token only.
+    // No boot event emit. No DMA / unpark. No EL0 enter after GENET.
+    uartPuts("runtime v132: GENET UMAC MDF\n")
+    let genet28_ok_boot = kernel_genet28_selftest()
+    uartPuts("genet28 ok=")
+    uartPutDec(UInt64(genet28_ok_boot))
+    uartPuts(" version=132 mdf=")
+    uartPutDec(UInt64(kernel_genet28_mdf()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_genet28_restore()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

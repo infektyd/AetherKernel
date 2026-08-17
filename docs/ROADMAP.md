@@ -129,6 +129,7 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - [x] V129 MDIO PHY identifier after GENET (`genet25 ok=1 version=129 phy=`). Fail-closed PHYSID1+PHYSID2 neither 0 nor 0xFFFF; no DMA; no EL0. Not a BMSR clone.
 - [x] V130 UMAC max frame after GENET (`genet26 ok=1 version=130 len=`). Fail-closed `UMAC_MAX_FRAME_LEN` write 1518 + restore 1536; no DMA; no EL0. Not an MDIO clone.
 - [x] V131 MDIO write after GENET (`genet27 ok=1 version=131 wr=`). Fail-closed BMCR write of the same value + readback match; no DMA; no EL0. Not a BMSR/link clone.
+- [x] V132 UMAC MDF after GENET (`genet28 ok=1 version=132 mdf=`). Fail-closed slot-0 station-MAC program + bit-16 enable + leftover restore; no DMA; no EL0. Not a PROMISC/station-MAC or max-frame clone.
 - Minimal TCP/IP: ARP, IPv4, ICMP (ping), UDP, then TCP.
 - A tiny socket API exposed as syscalls. (EL0 `sys_socket` after genet12 I-aborts `esr=0xbf000002` and watchdog-resets; deferred.)
 - *First proof:* the kernel answers an ICMP ping from the host over its OWN driver
