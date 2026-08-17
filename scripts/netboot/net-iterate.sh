@@ -295,6 +295,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "genet5 ok=1 version=72 stop=.* ring=.* rx=.* frames=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v73: GENET UMAC MAC and TX ARP" \
       && printf '%s' "$serial_delta" | grep -qa "genet6 ok=1 version=73 mac=.* tx=.* frames=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v74: GENET Linux ring-16 and TX CONS" \
+      && printf '%s' "$serial_delta" | grep -qa "genet7 ok=1 version=74 ring=.* tx=.* cons=.* prod=.* frames=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -424,6 +426,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "genet5" "^genet5 ok=1 version=72 stop=1 ring=1 rx=1 frames="
         # GENET6: mailbox MAC written to UMAC, one TX ARP issued. frames=0 is honest.
         probe_shell "genet6" "^genet6 ok=1 version=73 mac=1 tx=1 frames="
+        # GENET7: Linux ring-16 geometry. tx=1 only if TDMA CONS moved. frames=0 is honest.
+        probe_shell "genet7" "^genet7 ok=1 version=74 ring=1 tx=.* cons=.* prod=.* frames="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

@@ -573,3 +573,204 @@ int          kernel_genet6_ok(void)     { return genet6_ok_val;     }
 unsigned int kernel_genet6_mac(void)    { return genet6_mac_val;    }
 unsigned int kernel_genet6_tx(void)     { return genet6_tx_val;     }
 unsigned int kernel_genet6_frames(void) { return genet6_frames_val; }
+
+#define UMAC_TX_FLUSH (UMAC_OFF + 0x334U)
+#define DMA_SCB_BURST 0x0CU
+#define DMA_MAX_BURST 0x10U
+
+static int genet7_probed;
+static int genet7_ok_val;
+static unsigned int genet7_ring_val;
+static unsigned int genet7_tx_val;
+static unsigned int genet7_cons_val;
+static unsigned int genet7_prod_val;
+static unsigned int genet7_frames_val;
+static unsigned long genet7_rx_pa[128];
+
+static void genet_wr32(unsigned int off, uint32_t v) {
+    G32(off) = v;
+    __asm__ volatile("dsb sy" ::: "memory");
+}
+
+static void genet_pulse32(unsigned int off, uint32_t on, uint32_t offv) {
+    genet_wr32(off, on);
+    genet_udelay(10);
+    genet_wr32(off, offv);
+}
+
+// V74: leftover RBUF/RDMA reset, Linux ring-16 BD count, fail-closed TX CONS.
+int kernel_genet7_selftest(void) {
+    enum {
+        RX_Q16_N = 256U,
+        TX_Q16_N = 128U,
+        TX_Q16_START = 128U,
+        RX_PAGES = 128U,
+        FC_XOFF = 5U,
+        FC_XON = 16U
+    };
+    if (genet7_probed) return genet7_ok_val;
+    genet7_probed = 1;
+    genet7_ok_val = 0;
+    genet7_ring_val = 0;
+    genet7_tx_val = 0;
+    genet7_cons_val = 0;
+    genet7_prod_val = 0;
+    genet7_frames_val = 0;
+
+    if (!kernel_genet6_selftest()) return 0;
+
+    unsigned long mac = kernel_genet3_mac();
+    if (!mac) return 0;
+
+    uint32_t cmd = G32(UMAC_CMD);
+    if (cmd == 0xFFFFFFFFU || cmd == 0xDEADDEADU) return 0;
+    genet_wr32(UMAC_CMD, cmd & ~(CMD_RX_EN | CMD_TX_EN));
+    genet_wait_us(2000, leftover_rx_clear);
+
+    rdma_common_wr(DMA_CTRL_OFF, 0);
+    tdma_common_wr(DMA_CTRL_OFF, 0);
+    rdma_common_wr(DMA_RING_CFG_OFF, 0);
+    tdma_common_wr(DMA_RING_CFG_OFF, 0);
+    if (!genet_wait_us(5000, rdma_is_disabled)) return 0;
+    if (!genet_wait_us(5000, tdma_is_disabled)) return 0;
+
+    genet_pulse32(UMAC_TX_FLUSH, 1, 0);
+    uint32_t rbuf = G32(RBUF_OFF + RBUF_CTRL);
+    if (rbuf != 0xFFFFFFFFU && rbuf != 0xDEADDEADU && (rbuf & RBUF_64B_EN)) {
+        genet_wr32(RBUF_OFF + RBUF_CTRL, rbuf & ~RBUF_64B_EN);
+    }
+
+    G32(HFB_REG_OFF + HFB_CTRL) = 0;
+    G32(HFB_REG_OFF + HFB_FLT_ENABLE) = 0;
+    G32(HFB_REG_OFF + HFB_FLT_ENABLE + 4U) = 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    unsigned int i;
+    for (i = 0; i < 8U; i++) {
+        rdma_common_wr(DMA_INDEX2RING0 + i * 4U, 0);
+    }
+    rdma_common_wr(DMA_SCB_BURST, DMA_MAX_BURST);
+    tdma_common_wr(DMA_SCB_BURST, DMA_MAX_BURST);
+
+    uint32_t mac0 = (uint32_t)(mac >> 16);
+    uint32_t mac1 = (uint32_t)(mac & 0xFFFFUL);
+    genet_wr32(UMAC_MAC0, mac0);
+    genet_wr32(UMAC_MAC1, mac1);
+    if (G32(UMAC_MAC0) != mac0) return 0;
+    if ((G32(UMAC_MAC1) & 0xFFFFU) != mac1) return 0;
+    genet_wr32(UMAC_MAX_FRAME_LEN, 1536U);
+
+    for (i = 0; i < RX_PAGES; i++) {
+        void *nc = 0;
+        if (!kernel_dma_alloc_nc(&genet7_rx_pa[i], &nc)) return 0;
+    }
+    unsigned long tx_pa = 0;
+    void *tx_nc = 0;
+    if (!kernel_dma_alloc_nc(&tx_pa, &tx_nc)) return 0;
+    genet_write_arp((volatile uint8_t *)tx_nc, mac);
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    for (i = 0; i < RX_Q16_N; i++) {
+        unsigned long buf_pa = genet7_rx_pa[i / 2U] + (unsigned long)(i % 2U) * RX_BUF_LEN;
+        unsigned int bd = RDMA_OFF + i * DESC_BYTES;
+        G32(bd + 4U) = (uint32_t)buf_pa;
+        G32(bd + 8U) = 0;
+        G32(bd + 0U) = (RX_BUF_LEN << 16);
+    }
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    rdma_ring16_wr(RR_PROD_INDEX, 0);
+    rdma_ring16_wr(RR_CONS_INDEX, 0);
+    rdma_ring16_wr(RR_BUF_SIZE, (RX_Q16_N << 16) | RX_BUF_LEN);
+    rdma_ring16_wr(RR_XON_XOFF, (FC_XOFF << 16) | FC_XON);
+    rdma_ring16_wr(RR_START, 0);
+    rdma_ring16_wr(RR_READ_PTR, 0);
+    rdma_ring16_wr(RR_WRITE_PTR, 0);
+    rdma_ring16_wr(RR_END, RX_Q16_N * DESC_WORDS - 1U);
+
+    uint32_t tx_start = TX_Q16_START * DESC_WORDS;
+    uint32_t tx_end = (TX_Q16_START + TX_Q16_N) * DESC_WORDS - 1U;
+    for (i = 0; i < TX_Q16_N; i++) {
+        unsigned int bd = TDMA_OFF + (TX_Q16_START + i) * DESC_BYTES;
+        G32(bd + 4U) = (uint32_t)tx_pa;
+        G32(bd + 8U) = 0;
+        G32(bd + 0U) = 0;
+    }
+    uint32_t len_stat = ((uint32_t)TX_FRAME_LEN << 16) |
+                        (DMA_QTAG_MASK << DMA_TX_QTAG_SHIFT) |
+                        DMA_TX_APPEND_CRC | DMA_SOP | DMA_EOP;
+    unsigned int tx_bd = TDMA_OFF + TX_Q16_START * DESC_BYTES;
+    G32(tx_bd + 0U) = len_stat;
+    G32(tx_bd + 4U) = (uint32_t)tx_pa;
+    G32(tx_bd + 8U) = 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    tdma_ring16_wr(RR_PROD_INDEX, 0);
+    tdma_ring16_wr(RR_CONS_INDEX, 0);
+    tdma_ring16_wr(RR_BUF_SIZE, (TX_Q16_N << 16) | RX_BUF_LEN);
+    tdma_ring16_wr(DMA_MBUF_DONE, 1);
+    tdma_ring16_wr(RR_XON_XOFF, 0);
+    tdma_ring16_wr(RR_START, tx_start);
+    tdma_ring16_wr(RR_READ_PTR, tx_start);
+    tdma_ring16_wr(RR_WRITE_PTR, tx_start);
+    tdma_ring16_wr(RR_END, tx_end);
+
+    if (rdma_ring16(RR_END) != (RX_Q16_N * DESC_WORDS - 1U)) return 0;
+    if (tdma_ring16(RR_START) != tx_start) return 0;
+    if (tdma_ring16(RR_END) != tx_end) return 0;
+    if (G32(tx_bd + 4U) != (uint32_t)tx_pa) return 0;
+    genet7_ring_val = 1;
+
+    rdma_common_wr(DMA_RING_CFG_OFF, (1U << DESC_INDEX));
+    tdma_common_wr(DMA_RING_CFG_OFF, (1U << DESC_INDEX));
+    rdma_common_wr(DMA_CTRL_OFF, DMA_EN | DMA_RING16_EN);
+    tdma_common_wr(DMA_CTRL_OFF, DMA_EN | DMA_RING16_EN);
+
+    cmd = G32(UMAC_CMD);
+    genet_wr32(UMAC_CMD, cmd | CMD_TX_EN | CMD_RX_EN | CMD_PROMISC);
+    if ((G32(UMAC_CMD) & (CMD_TX_EN | CMD_RX_EN)) != (CMD_TX_EN | CMD_RX_EN)) return 0;
+
+    tdma_ring16_wr(RR_PROD_INDEX, 1);
+    genet7_prod_val = tdma_ring16(RR_PROD_INDEX) & 0xFFFFU;
+
+    uint64_t freq, start, now, ticks;
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(start));
+    ticks = 50ULL * freq / 1000ULL;
+    do {
+        genet7_cons_val = tdma_ring16(RR_CONS_INDEX) & 0xFFFFU;
+        if (genet7_cons_val != 0U) break;
+        genet_udelay(100);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(now));
+    } while (now - start < ticks);
+    genet7_cons_val = tdma_ring16(RR_CONS_INDEX) & 0xFFFFU;
+    genet7_prod_val = tdma_ring16(RR_PROD_INDEX) & 0xFFFFU;
+    if (genet7_cons_val != 0U) genet7_tx_val = 1;
+
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(start));
+    ticks = 1000ULL * freq / 1000ULL;
+    do {
+        uint32_t rxprod = rdma_ring16(RR_PROD_INDEX) & 0xFFFFU;
+        genet7_frames_val = rxprod;
+        if (rxprod != 0U) break;
+        genet_udelay(1000);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(now));
+    } while (now - start < ticks);
+
+    // Park DMA after the snapshot so a 256-BD ring cannot stall UART later.
+    cmd = G32(UMAC_CMD);
+    genet_wr32(UMAC_CMD, cmd & ~(CMD_RX_EN | CMD_TX_EN));
+    rdma_common_wr(DMA_CTRL_OFF, 0);
+    tdma_common_wr(DMA_CTRL_OFF, 0);
+    genet_wait_us(2000, rdma_is_disabled);
+    genet_wait_us(2000, tdma_is_disabled);
+
+    genet7_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet7_ok(void)     { return genet7_ok_val;     }
+unsigned int kernel_genet7_ring(void)   { return genet7_ring_val;   }
+unsigned int kernel_genet7_tx(void)     { return genet7_tx_val;     }
+unsigned int kernel_genet7_cons(void)   { return genet7_cons_val;   }
+unsigned int kernel_genet7_prod(void)   { return genet7_prod_val;   }
+unsigned int kernel_genet7_frames(void) { return genet7_frames_val; }

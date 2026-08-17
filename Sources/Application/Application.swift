@@ -758,6 +758,23 @@ struct Application {
     uartPutDec(UInt64(kernel_genet6_frames()))
     uartPuts("\n")
 
+    // Runtime V74: Linux ring-16 + leftover RBUF reset. UART token only.
+    uartPuts("runtime v74: GENET Linux ring-16 and TX CONS\n")
+    let genet7_ok_boot = kernel_genet7_selftest()
+    uartPuts("genet7 ok=")
+    uartPutDec(UInt64(genet7_ok_boot))
+    uartPuts(" version=74 ring=")
+    uartPutDec(UInt64(kernel_genet7_ring()))
+    uartPuts(" tx=")
+    uartPutDec(UInt64(kernel_genet7_tx()))
+    uartPuts(" cons=")
+    uartPutDec(UInt64(kernel_genet7_cons()))
+    uartPuts(" prod=")
+    uartPutDec(UInt64(kernel_genet7_prod()))
+    uartPuts(" frames=")
+    uartPutDec(UInt64(kernel_genet7_frames()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

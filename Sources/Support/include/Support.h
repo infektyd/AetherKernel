@@ -1205,6 +1205,15 @@ unsigned int  kernel_genet6_mac(void);
 unsigned int  kernel_genet6_tx(void);
 unsigned int  kernel_genet6_frames(void);
 
+// V74: Linux ring-16 geometry + leftover RBUF reset. tx=1 only if CONS moved.
+int           kernel_genet7_selftest(void);
+int           kernel_genet7_ok(void);
+unsigned int  kernel_genet7_ring(void);
+unsigned int  kernel_genet7_tx(void);
+unsigned int  kernel_genet7_cons(void);
+unsigned int  kernel_genet7_prod(void);
+unsigned int  kernel_genet7_frames(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.
