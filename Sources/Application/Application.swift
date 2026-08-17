@@ -1611,6 +1611,18 @@ struct Application {
     uartPutDec(UInt64(kernel_genet33_tflush()))
     uartPuts("\n")
 
+    // Runtime V138: EXT RGMII OOB_DISABLE writeback. UART token only.
+    // No boot event emit. No DMA / unpark. No EL0 enter after GENET.
+    uartPuts("runtime v138: GENET EXT OOB\n")
+    let genet34_ok_boot = kernel_genet34_selftest()
+    uartPuts("genet34 ok=")
+    uartPutDec(UInt64(genet34_ok_boot))
+    uartPuts(" version=138 oob=")
+    uartPutDec(UInt64(kernel_genet34_oob()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_genet34_restore()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

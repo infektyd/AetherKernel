@@ -18,6 +18,7 @@
 #define EXT_OFF 0x0080U
 #define EXT_RGMII_OOB_CTRL (EXT_OFF + 0x000CU)
 #define RGMII_LINK (1U << 4)
+#define OOB_DISABLE (1U << 5)
 
 #define UMAC_OFF 0x0800U
 #define UMAC_CMD (UMAC_OFF + 0x008U)
@@ -5048,3 +5049,52 @@ int kernel_genet33_selftest(void) {
 int          kernel_genet33_ok(void)     { return genet33_ok_val;     }
 unsigned int kernel_genet33_rflush(void) { return genet33_rflush_val; }
 unsigned int kernel_genet33_tflush(void) { return genet33_tflush_val; }
+
+// V138: EXT RGMII OOB_DISABLE writeback (Linux EXT_RGMII_OOB_CTRL).
+// Unused EXT-block mechanism — not a UMAC/RBUF/TBUF/HFB/MIB/SYS-flush
+// clone, not BMSR/link MDIO, not TX csum / 64B descriptors, not
+// local loopback. Clear then set bit 5, restore leftover. No DMA.
+// No EL0. UART token only.
+int kernel_genet34_selftest(void);
+
+static int genet34_probed;
+static int genet34_ok_val;
+static unsigned int genet34_oob_val;
+static unsigned int genet34_restore_val;
+
+int kernel_genet34_selftest(void) {
+    uint32_t saved;
+    uint32_t got;
+
+    if (genet34_probed) return genet34_ok_val;
+    genet34_probed = 1;
+    genet34_ok_val = 0;
+    genet34_oob_val = 0;
+    genet34_restore_val = 0;
+
+    if (!kernel_genet33_selftest()) return 0;
+
+    saved = G32(EXT_RGMII_OOB_CTRL);
+    if (saved == 0xDEADDEADU || saved == 0xFFFFFFFFU) return 0;
+
+    genet_wr32(EXT_RGMII_OOB_CTRL, saved & ~OOB_DISABLE);
+    got = G32(EXT_RGMII_OOB_CTRL);
+    if (got == 0xDEADDEADU || got == 0xFFFFFFFFU) return 0;
+    if ((got & OOB_DISABLE) != 0U) return 0;
+
+    genet_wr32(EXT_RGMII_OOB_CTRL, saved | OOB_DISABLE);
+    got = G32(EXT_RGMII_OOB_CTRL);
+    if (got == 0xDEADDEADU || got == 0xFFFFFFFFU) return 0;
+    if ((got & OOB_DISABLE) == 0U) return 0;
+    genet34_oob_val = 1;
+
+    genet_wr32(EXT_RGMII_OOB_CTRL, saved);
+    if (G32(EXT_RGMII_OOB_CTRL) != saved) return 0;
+    genet34_restore_val = 1;
+    genet34_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet34_ok(void)      { return genet34_ok_val;      }
+unsigned int kernel_genet34_oob(void)     { return genet34_oob_val;     }
+unsigned int kernel_genet34_restore(void) { return genet34_restore_val; }
