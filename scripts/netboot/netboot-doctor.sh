@@ -275,6 +275,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "mboxv ok=1 version=99 id=1 uv=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v100: RNG200 word" \
       && printf '%s' "$serial_delta" | grep -q "rng ok=1 version=100 ready=1 data=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v101: DMA memcpy" \
+      && printf '%s' "$serial_delta" | grep -q "dma2 ok=1 version=101 chan=4 match=1 bytes=32" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

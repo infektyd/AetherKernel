@@ -1151,6 +1151,20 @@ struct Application {
     uartPutDec(UInt64(kernel_rng_data()))
     uartPuts("\n")
 
+    // Runtime V101: BCM2711 DMA engine memcpy. UART token only. No boot event emit.
+    // Channel 4, 32-byte NC copy, src==dst. No EL0 enter: after GENET DMA that I-aborts.
+    uartPuts("runtime v101: DMA memcpy\n")
+    let dma2_ok_boot = kernel_dma2_selftest()
+    uartPuts("dma2 ok=")
+    uartPutDec(UInt64(dma2_ok_boot))
+    uartPuts(" version=101 chan=")
+    uartPutDec(UInt64(kernel_dma2_chan()))
+    uartPuts(" match=")
+    uartPutDec(UInt64(kernel_dma2_match()))
+    uartPuts(" bytes=")
+    uartPutDec(UInt64(kernel_dma2_bytes()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

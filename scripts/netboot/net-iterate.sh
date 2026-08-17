@@ -354,6 +354,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "mboxv ok=1 version=99 id=1 uv=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v100: RNG200 word" \
       && printf '%s' "$serial_delta" | grep -qa "rng ok=1 version=100 ready=1 data=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v101: DMA memcpy" \
+      && printf '%s' "$serial_delta" | grep -qa "dma2 ok=1 version=101 chan=4 match=1 bytes=32" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -597,6 +599,8 @@ PY
         probe_shell "mboxv" "^mboxv ok=1 version=99 id=1 uv="
         # V100: BCM2711 RNG200 word after GENET. FIFO ready. No EL0.
         probe_shell "rng" "^rng ok=1 version=100 ready=1 data="
+        # V101: BCM2711 DMA engine memcpy after GENET. Channel 4, 32 bytes. No EL0.
+        probe_shell "dma2" "^dma2 ok=1 version=101 chan=4 match=1 bytes=32"
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
