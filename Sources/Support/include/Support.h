@@ -1012,6 +1012,8 @@ int           kernel_vc_mbox_board_serial(unsigned long *out);
 int           kernel_vc_mbox_get_temp(unsigned int *out);
 // V97: GET_CLOCK_RATE (0x00030002). Hz. Boot/shell only.
 int           kernel_vc_mbox_get_clock_rate(unsigned int clock_id, unsigned int *out);
+// V99: GET_VOLTAGE (0x00030003). Microvolts. Boot/shell only.
+int           kernel_vc_mbox_get_voltage(unsigned int volt_id, unsigned int *out);
 
 // V96: mailbox temperature after GENET. Fail-closed range. No EL0.
 int           kernel_mboxt_selftest(void);
@@ -1023,6 +1025,12 @@ int           kernel_mboxc_selftest(void);
 int           kernel_mboxc_ok(void);
 unsigned int  kernel_mboxc_clk(void);
 unsigned int  kernel_mboxc_hz(void);
+
+// V99: mailbox core voltage after GENET. Fail-closed range. No EL0.
+int           kernel_mboxv_selftest(void);
+int           kernel_mboxv_ok(void);
+unsigned int  kernel_mboxv_id(void);
+unsigned int  kernel_mboxv_uv(void);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.

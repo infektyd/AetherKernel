@@ -1127,6 +1127,18 @@ struct Application {
     uartPutDec(UInt64(kernel_wdog2_remain()))
     uartPuts("\n")
 
+    // Runtime V99: mailbox GET_VOLTAGE (core). UART token only. No boot event emit.
+    // Microvolts. No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v99: mailbox voltage\n")
+    let mboxv_ok_boot = kernel_mboxv_selftest()
+    uartPuts("mboxv ok=")
+    uartPutDec(UInt64(mboxv_ok_boot))
+    uartPuts(" version=99 id=")
+    uartPutDec(UInt64(kernel_mboxv_id()))
+    uartPuts(" uv=")
+    uartPutDec(UInt64(kernel_mboxv_uv()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

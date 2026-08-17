@@ -350,6 +350,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "mboxc ok=1 version=97 clk=3 hz=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v98: watchdog remaining" \
       && printf '%s' "$serial_delta" | grep -qa "wdog2 ok=1 version=98 armed=1 off=1 remain=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v99: mailbox voltage" \
+      && printf '%s' "$serial_delta" | grep -qa "mboxv ok=1 version=99 id=1 uv=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -589,6 +591,8 @@ PY
         probe_shell "mboxc" "^mboxc ok=1 version=97 clk=3 hz="
         # V98: PM watchdog remaining-tick readback after GENET. Arm/read/disable. No reset. No EL0.
         probe_shell "wdog2" "^wdog2 ok=1 version=98 armed=1 off=1 remain="
+        # V99: mailbox GET_VOLTAGE (core) after GENET. Microvolts. No EL0.
+        probe_shell "mboxv" "^mboxv ok=1 version=99 id=1 uv="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

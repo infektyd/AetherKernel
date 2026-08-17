@@ -473,3 +473,42 @@ int kernel_vc_mbox_get_clock_rate(unsigned int clock_id, unsigned int *out) {
     }
     return 1;
 }
+
+// RPI_FIRMWARE_GET_VOLTAGE (0x00030003). Microvolts. Boot/shell only.
+#define TAG_GET_VOLTAGE 0x00030003U
+
+int kernel_vc_mbox_get_voltage(unsigned int volt_id, unsigned int *out) {
+    vc_buf[0] = 8U * 4U;
+    vc_buf[1] = MBOX_REQ;
+    vc_buf[2] = TAG_GET_VOLTAGE;
+    vc_buf[3] = 8U;
+    vc_buf[4] = 4U;
+    vc_buf[5] = volt_id;
+    vc_buf[6] = 0U;
+    vc_buf[7] = TAG_END;
+
+    if (!vc_call(32U)) {
+        if (out) {
+            *out = 0;
+        }
+        return 0;
+    }
+    if ((vc_buf[4] & MBOX_RESP_OK) == 0U) {
+        if (out) {
+            *out = 0;
+        }
+        return 0;
+    }
+    if ((unsigned int)vc_buf[5] != volt_id) {
+        if (out) {
+            *out = 0;
+        }
+        return 0;
+    }
+
+    unsigned int uv = (unsigned int)vc_buf[6];
+    if (out) {
+        *out = uv;
+    }
+    return 1;
+}
