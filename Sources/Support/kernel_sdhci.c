@@ -2054,3 +2054,73 @@ int kernel_sdhci_fat32_fsinfo(unsigned int *lead_out,
     if (lead != 0x41615252u || st != 0x61417272u || trail != 0xAA55u) return 0;
     return 1;
 }
+
+// V114: FAT32 backup boot sector after GENET. Reserved-area copy
+// (Microsoft FAT BPB_BkBootSec at offset 50), not a new SDHCI
+// command — CMD17 via sdhci_read_block_pio. Stash primary BPB
+// scalars then reread the backup; no second 512 B buffer on the
+// 4 KiB core0 stack. Fail-closed trail + matching BPB fields.
+// Independent MBR/VBR walk. No FAT write. No named boot file.
+int kernel_sdhci_fat32_backup(unsigned int *match_out,
+                              unsigned int *sec_out) {
+    unsigned int part_lba = 0u;
+    unsigned int found = 0u;
+    unsigned int i;
+    unsigned int p_bps;
+    unsigned int p_spc;
+    unsigned int p_rsvd;
+    unsigned int p_nf;
+    unsigned int p_fatsz;
+    unsigned int p_root;
+    unsigned int p_fsi;
+    unsigned int p_bk;
+    unsigned int match = 0u;
+
+    if (match_out) *match_out = 0u;
+    if (sec_out) *sec_out = 0u;
+
+    if (sdhci_card_rca == 0u) return 0;
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+
+    if (!sdhci_read_block_pio(0, sdhci_fat32_buf)) return 0;
+    if (((sdhci_fat32_buf[127] >> 16) & 0xFFFFu) != 0xAA55u) return 0;
+    for (i = 0u; i < 4u && !found; i++) {
+        unsigned int base = 446u + i * 16u;
+        unsigned int ptype = fat32_byte(sdhci_fat32_buf, base + 4u);
+        if (ptype == 0x0Bu || ptype == 0x0Cu) {
+            part_lba = fat32_u32(sdhci_fat32_buf, base + 8u);
+            found = 1u;
+        }
+    }
+    if (!found) return 0;
+
+    if (!sdhci_read_block_pio(part_lba, sdhci_fat32_buf)) return 0;
+    if (fat32_u16(sdhci_fat32_buf, 510u) != 0xAA55u) return 0;
+    p_bps = fat32_u16(sdhci_fat32_buf, 11u);
+    p_spc = fat32_byte(sdhci_fat32_buf, 13u);
+    p_rsvd = fat32_u16(sdhci_fat32_buf, 14u);
+    p_nf = fat32_byte(sdhci_fat32_buf, 16u);
+    p_fatsz = fat32_u32(sdhci_fat32_buf, 36u);
+    p_root = fat32_u32(sdhci_fat32_buf, 44u);
+    p_fsi = fat32_u16(sdhci_fat32_buf, 48u);
+    p_bk = fat32_u16(sdhci_fat32_buf, 50u);
+    if (p_bps != 512u || p_spc == 0u || p_rsvd == 0u) return 0;
+    if (p_bk == 0u || p_bk >= p_rsvd) return 0;
+    if (sec_out) *sec_out = p_bk;
+
+    if (!sdhci_read_block_pio(part_lba + p_bk, sdhci_fat32_buf)) return 0;
+    if (fat32_u16(sdhci_fat32_buf, 510u) != 0xAA55u) return 0;
+    if (fat32_u16(sdhci_fat32_buf, 11u) == p_bps &&
+        fat32_byte(sdhci_fat32_buf, 13u) == p_spc &&
+        fat32_u16(sdhci_fat32_buf, 14u) == p_rsvd &&
+        fat32_byte(sdhci_fat32_buf, 16u) == p_nf &&
+        fat32_u32(sdhci_fat32_buf, 36u) == p_fatsz &&
+        fat32_u32(sdhci_fat32_buf, 44u) == p_root &&
+        fat32_u16(sdhci_fat32_buf, 48u) == p_fsi &&
+        fat32_u16(sdhci_fat32_buf, 50u) == p_bk) {
+        match = 1u;
+    }
+    if (match_out) *match_out = match;
+    if (match != 1u) return 0;
+    return 1;
+}

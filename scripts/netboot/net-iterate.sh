@@ -380,6 +380,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "sdbc ok=1 version=112 count=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v113: FAT32 FSInfo" \
       && printf '%s' "$serial_delta" | grep -qa "sdfi ok=1 version=113 lead=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v114: FAT32 backup boot" \
+      && printf '%s' "$serial_delta" | grep -qa "sdfb ok=1 version=114 match=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -649,6 +651,8 @@ PY
         probe_shell "sdbc" "^sdbc ok=1 version=112 count="
         # V113: FAT32 FSInfo sector after GENET. Lead+struct. No EL0.
         probe_shell "sdfi" "^sdfi ok=1 version=113 lead="
+        # V114: FAT32 backup boot sector after GENET. BPB match. No EL0.
+        probe_shell "sdfb" "^sdfb ok=1 version=114 match="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
