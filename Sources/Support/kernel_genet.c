@@ -36,6 +36,8 @@
 
 #define PHY_ADDR 1U
 #define MII_BMSR 1U
+#define MII_PHYSID1 2U
+#define MII_PHYSID2 3U
 #define BMSR_LSTATUS (1U << 2)
 
 static int genet_probed;
@@ -4588,3 +4590,39 @@ int kernel_genet24_selftest(void) {
 int          kernel_genet24_ok(void)     { return genet24_ok_val;     }
 unsigned int kernel_genet24_filter(void) { return genet24_filter_val; }
 unsigned int kernel_genet24_arp(void)    { return genet24_arp_val;    }
+
+// V129: MDIO PHY identifier. IEEE PHYSID1 (reg 2) + PHYSID2 (reg 3).
+// Fail-closed if either read fails or returns 0 / 0xFFFF (empty bus).
+// Does not guess a Broadcom model number. No DMA. No unpark. No EL0.
+// Requires V67 MDIO path only. UART token only. No boot event.
+int kernel_genet25_selftest(void);
+
+static int genet25_probed;
+static int genet25_ok_val;
+static unsigned int genet25_phy_val;
+static unsigned int genet25_id_val;
+
+int kernel_genet25_selftest(void) {
+    unsigned int id1 = 0;
+    unsigned int id2 = 0;
+
+    if (genet25_probed) return genet25_ok_val;
+    genet25_probed = 1;
+    genet25_ok_val = 0;
+    genet25_phy_val = 0;
+    genet25_id_val = 0;
+
+    if (!kernel_genet_selftest()) return 0;
+    if (!genet_mdio_read(PHY_ADDR, MII_PHYSID1, &id1)) return 0;
+    if (!genet_mdio_read(PHY_ADDR, MII_PHYSID2, &id2)) return 0;
+    if (id1 == 0U || id1 == 0xFFFFU) return 0;
+    if (id2 == 0U || id2 == 0xFFFFU) return 0;
+    genet25_phy_val = 1;
+    genet25_id_val = (id1 << 16) | id2;
+    genet25_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet25_ok(void)  { return genet25_ok_val;  }
+unsigned int kernel_genet25_phy(void) { return genet25_phy_val; }
+unsigned int kernel_genet25_id(void)  { return genet25_id_val;  }

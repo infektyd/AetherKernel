@@ -471,6 +471,8 @@ PY
       && printf '%s' "$serial_delta" | grep -qa "genet23 ok=1 version=127 irq=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v128: GENET UMAC station filter" \
       && printf '%s' "$serial_delta" | grep -qa "genet24 ok=1 version=128 filter=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v129: GENET MDIO PHY ID" \
+      && printf '%s' "$serial_delta" | grep -qa "genet25 ok=1 version=129 phy=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -770,6 +772,8 @@ PY
         probe_shell "genet23" "^genet23 ok=1 version=127 irq="
         # V128: UMAC station filter with PROMISC off. No EL0.
         probe_shell "genet24" "^genet24 ok=1 version=128 filter="
+        # V129: MDIO PHY identifier (PHYSID1+PHYSID2). No DMA. No EL0.
+        probe_shell "genet25" "^genet25 ok=1 version=129 phy="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

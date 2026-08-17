@@ -1525,6 +1525,12 @@ int           kernel_genet24_ok(void);
 unsigned int  kernel_genet24_filter(void);
 unsigned int  kernel_genet24_arp(void);
 
+// V129: MDIO PHY identifier (PHYSID1+PHYSID2). No DMA. No EL0.
+int           kernel_genet25_selftest(void);
+int           kernel_genet25_ok(void);
+unsigned int  kernel_genet25_phy(void);
+unsigned int  kernel_genet25_id(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);

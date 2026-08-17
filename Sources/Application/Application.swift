@@ -1503,6 +1503,18 @@ struct Application {
     uartPutDec(UInt64(kernel_genet24_arp()))
     uartPuts("\n")
 
+    // Runtime V129: MDIO PHY identifier. UART token only. No boot event emit.
+    // No DMA / unpark. No EL0 enter after GENET.
+    uartPuts("runtime v129: GENET MDIO PHY ID\n")
+    let genet25_ok_boot = kernel_genet25_selftest()
+    uartPuts("genet25 ok=")
+    uartPutDec(UInt64(genet25_ok_boot))
+    uartPuts(" version=129 phy=")
+    uartPutDec(UInt64(kernel_genet25_phy()))
+    uartPuts(" id=")
+    uartPutDec(UInt64(kernel_genet25_id()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
