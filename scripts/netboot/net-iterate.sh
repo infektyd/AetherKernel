@@ -310,6 +310,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "genet10 ok=1 version=77 rx=.* tx=.* replies=.* kind=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v78: GENET bounded UDP echo" \
       && printf '%s' "$serial_delta" | grep -qa "genet11 ok=1 version=78 rx=.* tx=.* replies=.* kind=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v79: GENET bounded TCP echo" \
+      && printf '%s' "$serial_delta" | grep -qa "genet12 ok=1 version=79 rx=.* tx=.* replies=.* kind=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -483,6 +485,34 @@ PY
         echo "==== host udp 10.42.0.2:7 ===="
         cat "$udp_out" || true
         echo "==== end host udp ===="
+        # GENET12: bounded TCP echo on port 7. Host connect must overlap this window.
+        tcp_out="${AETHER_TCP_LOG:-/tmp/aether-tcp-genet12.txt}"
+        : > "$tcp_out"
+        ( sleep 0.5; python3 - <<'PY' > "$tcp_out" 2>&1
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.settimeout(3.0)
+try:
+    s.connect(("10.42.0.2", 7))
+    s.sendall(b"aether")
+    data = s.recv(64)
+    print("tcp_echo recv=%s" % data.decode("ascii", "replace"))
+    print("tcp_echo ok=%s" % (b"aether" == data))
+except Exception as e:
+    print("tcp_echo fail=%s" % e)
+finally:
+    try:
+        s.close()
+    except Exception:
+        pass
+PY
+        ) &
+        tcp_pid=$!
+        AETHER_SERIAL_PROBE_TIMEOUT=15 probe_shell "genet12" "^genet12 ok=1 version=79 rx=.* tx=.* replies=.* kind="
+        wait "$tcp_pid" || true
+        echo "==== host tcp 10.42.0.2:7 ===="
+        cat "$tcp_out" || true
+        echo "==== end host tcp ===="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

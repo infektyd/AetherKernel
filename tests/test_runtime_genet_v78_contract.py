@@ -19,7 +19,7 @@ def test_genet11_bounded_udp_echo() -> None:
     scheduler = read_repo("Sources/Support/kernel_scheduler.c")
 
     genet10 = genet.split("kernel_genet11_selftest")[0]
-    genet11 = genet.split("kernel_genet11_selftest", 1)[1]
+    genet11 = genet.split("kernel_genet11_selftest", 1)[1].split("kernel_genet12_selftest")[0]
 
     assert "int           kernel_genet11_selftest(void);" in support
     assert "int           kernel_genet11_poll(void);" in support

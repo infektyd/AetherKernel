@@ -852,6 +852,26 @@ struct Application {
     }
     uartPuts("\n")
 
+    // Runtime V79: bounded TCP echo. UART token only. No long boot wait.
+    uartPuts("runtime v79: GENET bounded TCP echo\n")
+    let genet12_ok_boot = kernel_genet12_selftest()
+    uartPuts("genet12 ok=")
+    uartPutDec(UInt64(genet12_ok_boot))
+    uartPuts(" version=79 rx=")
+    uartPutDec(UInt64(kernel_genet12_rx()))
+    uartPuts(" tx=")
+    uartPutDec(UInt64(kernel_genet12_tx()))
+    uartPuts(" replies=")
+    uartPutDec(UInt64(kernel_genet12_replies()))
+    uartPuts(" kind=")
+    let genet12_kind_boot = kernel_genet12_kind()
+    if genet12_kind_boot == 4 {
+        uartPuts("tcp")
+    } else {
+        uartPuts("none")
+    }
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
