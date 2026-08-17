@@ -1292,6 +1292,13 @@ unsigned int  kernel_stimer_clo(void);
 unsigned int  kernel_stimer_chi(void);
 unsigned int  kernel_stimer_chans(void);
 
+// V85: reload config.txt after GENET. match=1 vs V57. No EL0. No boot emit.
+int           kernel_sdload_selftest(void);
+int           kernel_sdload_ok(void);
+unsigned int  kernel_sdload_match(void);
+unsigned int  kernel_sdload_bytes(void);
+unsigned int  kernel_sdload_sum(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

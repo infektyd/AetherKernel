@@ -941,6 +941,20 @@ struct Application {
     uartPutDec(UInt64(kernel_stimer_chans()))
     uartPuts("\n")
 
+    // Runtime V85: SD reload after GENET. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v85: SD config.txt reload\n")
+    let sdload_ok_boot = kernel_sdload_selftest()
+    uartPuts("sdload ok=")
+    uartPutDec(UInt64(sdload_ok_boot))
+    uartPuts(" version=85 file=config.txt bytes=")
+    uartPutDec(UInt64(kernel_sdload_bytes()))
+    uartPuts(" checksum=")
+    uartPutHexCompact(UInt64(kernel_sdload_sum()))
+    uartPuts(" match=")
+    uartPutDec(UInt64(kernel_sdload_match()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

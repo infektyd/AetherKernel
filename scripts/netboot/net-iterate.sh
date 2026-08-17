@@ -322,6 +322,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "spi2 ok=1 version=83 done=1 loop=.* rx=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v84: system timer register probe" \
       && printf '%s' "$serial_delta" | grep -qa "stimer ok=1 version=84 clo=.* chi=.* chans=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v85: SD config.txt reload" \
+      && printf '%s' "$serial_delta" | grep -qa "sdload ok=1 version=85 file=config.txt bytes=.* checksum=.* match=1" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -533,6 +535,8 @@ PY
         probe_shell "spi2" "^spi2 ok=1 version=83 done=1 loop=.* rx="
         # V84: system timer CLO/CHI + four compare slots. Read-only.
         probe_shell "stimer" "^stimer ok=1 version=84 clo=.* chi=.* chans=1"
+        # V85: reload config.txt after GENET. match=1 vs V57. No EL0.
+        probe_shell "sdload" "^sdload ok=1 version=85 file=config.txt bytes=.* checksum=.* match=1"
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
