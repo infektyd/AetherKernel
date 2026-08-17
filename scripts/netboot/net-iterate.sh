@@ -481,6 +481,8 @@ PY
       && printf '%s' "$serial_delta" | grep -qa "genet28 ok=1 version=132 mdf=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v133: GENET RBUF RXCHK" \
       && printf '%s' "$serial_delta" | grep -qa "genet29 ok=1 version=133 rxchk=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v134: GENET TBUF EEE" \
+      && printf '%s' "$serial_delta" | grep -qa "genet30 ok=1 version=134 eee=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -790,6 +792,8 @@ PY
         probe_shell "genet28" "^genet28 ok=1 version=132 mdf="
         # V133: RBUF RXCHK program+readback. No DMA. No EL0.
         probe_shell "genet29" "^genet29 ok=1 version=133 rxchk="
+        # V134: TBUF EEE program+readback. No DMA. No EL0.
+        probe_shell "genet30" "^genet30 ok=1 version=134 eee="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

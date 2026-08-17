@@ -4832,3 +4832,53 @@ int kernel_genet29_selftest(void) {
 int          kernel_genet29_ok(void)      { return genet29_ok_val;      }
 unsigned int kernel_genet29_rxchk(void)   { return genet29_rxchk_val;   }
 unsigned int kernel_genet29_restore(void) { return genet29_restore_val; }
+
+// V134: TBUF EEE enable. Program TBUF_ENERGY_CTRL bit 0 (Linux
+// TBUF_EEE_EN), require clear then set, then restore leftover.
+// Unused hardware — not RBUF RXCHK, not a UMAC poke, and not
+// TX csum / 64B status blocks. No DMA. No EL0. UART token only.
+#define GENET_TBUF_OFF 0x0600U
+#define TBUF_ENERGY_CTRL 0x14U
+#define TBUF_EEE_EN (1U << 0)
+
+int kernel_genet30_selftest(void);
+
+static int genet30_probed;
+static int genet30_ok_val;
+static unsigned int genet30_eee_val;
+static unsigned int genet30_restore_val;
+
+int kernel_genet30_selftest(void) {
+    uint32_t saved;
+    uint32_t got;
+
+    if (genet30_probed) return genet30_ok_val;
+    genet30_probed = 1;
+    genet30_ok_val = 0;
+    genet30_eee_val = 0;
+    genet30_restore_val = 0;
+
+    if (!kernel_genet_selftest()) return 0;
+
+    saved = G32(GENET_TBUF_OFF + TBUF_ENERGY_CTRL);
+    if (saved == 0xDEADDEADU || saved == 0xFFFFFFFFU) return 0;
+
+    genet_wr32(GENET_TBUF_OFF + TBUF_ENERGY_CTRL, saved & ~TBUF_EEE_EN);
+    got = G32(GENET_TBUF_OFF + TBUF_ENERGY_CTRL);
+    if ((got & TBUF_EEE_EN) != 0U) return 0;
+
+    genet_wr32(GENET_TBUF_OFF + TBUF_ENERGY_CTRL, saved | TBUF_EEE_EN);
+    got = G32(GENET_TBUF_OFF + TBUF_ENERGY_CTRL);
+    if ((got & TBUF_EEE_EN) == 0U) return 0;
+    genet30_eee_val = 1;
+
+    genet_wr32(GENET_TBUF_OFF + TBUF_ENERGY_CTRL, saved);
+    if (G32(GENET_TBUF_OFF + TBUF_ENERGY_CTRL) != saved) return 0;
+    genet30_restore_val = 1;
+    genet30_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet30_ok(void)      { return genet30_ok_val;      }
+unsigned int kernel_genet30_eee(void)     { return genet30_eee_val;     }
+unsigned int kernel_genet30_restore(void) { return genet30_restore_val; }

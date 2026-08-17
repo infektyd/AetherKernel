@@ -1563,6 +1563,18 @@ struct Application {
     uartPutDec(UInt64(kernel_genet29_restore()))
     uartPuts("\n")
 
+    // Runtime V134: TBUF EEE program+readback. UART token only.
+    // No boot event emit. No DMA / unpark. No EL0 enter after GENET.
+    uartPuts("runtime v134: GENET TBUF EEE\n")
+    let genet30_ok_boot = kernel_genet30_selftest()
+    uartPuts("genet30 ok=")
+    uartPutDec(UInt64(genet30_ok_boot))
+    uartPuts(" version=134 eee=")
+    uartPutDec(UInt64(kernel_genet30_eee()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_genet30_restore()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
