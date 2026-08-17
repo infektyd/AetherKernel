@@ -133,6 +133,7 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - [x] V133 RBUF RXCHK after GENET (`genet29 ok=1 version=133 rxchk=`). Fail-closed `RBUF_CHK_CTRL` bit-0 clear/set + leftover restore; no DMA; no EL0. Not a UMAC poke or TX csum / 64B-descriptor clone.
 - [x] V134 TBUF EEE after GENET (`genet30 ok=1 version=134 eee=`). Fail-closed `TBUF_ENERGY_CTRL` bit-0 clear/set + leftover restore; no DMA; no EL0. Not an RBUF/UMAC poke or TX csum / 64B-descriptor clone.
 - [x] V135 HFB filter-0 enable after GENET (`genet31 ok=1 version=135 hfb=`). Fail-closed `HFB_FLT_ENABLE` bit-0 clear/set + leftover restore; does not set `RBUF_HFB_EN`; no DMA; no EL0. Not an RBUF/TBUF/UMAC poke or TX csum / 64B-descriptor clone.
+- [x] V136 UMAC TX MIB reset after GENET (`genet32 ok=1 version=136 rst=1 zero=1`). Fail-closed leftover `tx.pok`/`tx.bytes` non-zero, `UMAC_MIB_CTRL` `UMAC_MIB_RESET_TX` pulse, counters == 0; no DMA; no EL0. Not an RBUF/TBUF/HFB-enable writeback or TX csum / 64B-descriptor clone.
 - Minimal TCP/IP: ARP, IPv4, ICMP (ping), UDP, then TCP.
 - A tiny socket API exposed as syscalls. (EL0 `sys_socket` after genet12 I-aborts `esr=0xbf000002` and watchdog-resets; deferred.)
 - *First proof:* the kernel answers an ICMP ping from the host over its OWN driver

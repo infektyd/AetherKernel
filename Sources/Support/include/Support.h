@@ -1567,6 +1567,12 @@ int           kernel_genet31_ok(void);
 unsigned int  kernel_genet31_hfb(void);
 unsigned int  kernel_genet31_restore(void);
 
+// V136: UMAC_MIB_CTRL TX reset + zeroed counters. No DMA. No EL0.
+int           kernel_genet32_selftest(void);
+int           kernel_genet32_ok(void);
+unsigned int  kernel_genet32_rst(void);
+unsigned int  kernel_genet32_zero(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);

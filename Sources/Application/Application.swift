@@ -1587,6 +1587,18 @@ struct Application {
     uartPutDec(UInt64(kernel_genet31_restore()))
     uartPuts("\n")
 
+    // Runtime V136: UMAC TX MIB reset. UART token only.
+    // No boot event emit. No DMA / unpark. No EL0 enter after GENET.
+    uartPuts("runtime v136: GENET UMAC MIB reset\n")
+    let genet32_ok_boot = kernel_genet32_selftest()
+    uartPuts("genet32 ok=")
+    uartPutDec(UInt64(genet32_ok_boot))
+    uartPuts(" version=136 rst=")
+    uartPutDec(UInt64(kernel_genet32_rst()))
+    uartPuts(" zero=")
+    uartPutDec(UInt64(kernel_genet32_zero()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

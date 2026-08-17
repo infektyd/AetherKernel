@@ -345,6 +345,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "genet30 ok=1 version=134 eee=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v135: GENET HFB enable" \
       && printf '%s' "$serial_delta" | grep -q "genet31 ok=1 version=135 hfb=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v136: GENET UMAC MIB reset" \
+      && printf '%s' "$serial_delta" | grep -q "genet32 ok=1 version=136 rst=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \
