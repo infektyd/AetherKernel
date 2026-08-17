@@ -1474,3 +1474,77 @@ int kernel_sdhci_card_scr(unsigned int *spec_out, unsigned int *bus_out) {
     if ((bus & 4u) == 0u) return 0;
     return 1;
 }
+
+// V107: ACMD13 SD_STATUS after GENET. 64-byte ADTC into the shared
+// 512 B scratch. Restore 512-byte block length. Fail-closed unless
+// SD_CARD_TYPE is SD (0) or SDHC/SDXC (1). No FAT write.
+int kernel_sdhci_card_sd_status(unsigned int *type_out, unsigned int *class_out) {
+    unsigned int resp[4];
+    unsigned int w0;
+    unsigned int type;
+    unsigned int cls;
+    unsigned int irpt;
+    unsigned int i;
+
+    if (type_out) *type_out = 0u;
+    if (class_out) *class_out = 0u;
+
+    if (sdhci_card_rca == 0u) return 0;
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+    if (!sdhci_send_cmd(CMDTM_CMD(55, CMD_RESP_48, CMD_CRC_CHK | CMD_IXCHK_EN),
+                        sdhci_card_rca << 16, resp))
+        return 0;
+
+    mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 64u);
+    if (!sdhci_send_cmd(
+            CMDTM_CMD(13, CMD_RESP_48, CMD_CRC_CHK | CMD_IXCHK_EN | CMD_IS_DATA | TM_DAT_DIR_RD),
+            0, resp)) {
+        mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 512u);
+        return 0;
+    }
+
+    irpt = 0u;
+    for (i = 0u; i < 200000u; i++) {
+        irpt = mmio_read32(EMMC2_BASE + SDHCI_INTERRUPT);
+        if (irpt & (SDHCI_INT_READ_RDY | SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))
+            break;
+        sdhci_delay_us(1);
+    }
+    if (!(irpt & SDHCI_INT_READ_RDY) || (irpt & (SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))) {
+        mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, 0xFFFFFFFFu);
+        mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 512u);
+        return 0;
+    }
+    mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, SDHCI_INT_READ_RDY);
+    for (i = 0u; i < 16u; i++) {
+        sdhci_fat32_buf[i] = mmio_read32(EMMC2_BASE + SDHCI_DATA);
+    }
+
+    irpt = 0u;
+    for (i = 0u; i < 200000u; i++) {
+        irpt = mmio_read32(EMMC2_BASE + SDHCI_INTERRUPT);
+        if (irpt & (SDHCI_INT_DATA_DONE | SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))
+            break;
+        sdhci_delay_us(1);
+    }
+    mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 512u);
+    if (!(irpt & SDHCI_INT_DATA_DONE) || (irpt & (SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))) {
+        mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, 0xFFFFFFFFu);
+        return 0;
+    }
+    mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, SDHCI_INT_DATA_DONE);
+
+    w0 = sdhci_fat32_buf[0];
+    type = w0 & 0xFFFFu;
+    cls = (sdhci_fat32_buf[2] >> 24) & 0xFFu;
+    if (type > 1u) {
+        w0 = ((w0 & 0xFFu) << 24) | ((w0 & 0xFF00u) << 8) |
+             ((w0 >> 8) & 0xFF00u) | (w0 >> 24);
+        type = w0 & 0xFFFFu;
+        cls = sdhci_fat32_buf[2] & 0xFFu;
+    }
+    if (type_out) *type_out = type;
+    if (class_out) *class_out = cls;
+    if (type > 1u) return 0;
+    return 1;
+}

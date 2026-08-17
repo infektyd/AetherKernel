@@ -35,7 +35,7 @@ A strong **microkernel-style runtime core**, with cold-boot metal floor through 
 - **EPIC C** ✓: **BCM2711 EMMC2/SDHCI register probe** (V54) — `sdhci ok=1 version=54 host_version=2 cap=0x45ee6432`. **SD card identification** (V55) — `card ok=1 version=55 rca=0xaaaa`. **Single block read via CMD17** (V56) — `block ok=1 version=56 mbr=0xaa55`. **FAT32 file read** (V57) — walk root directory (case-insensitive, multi-cluster chain), read config.txt; `fat32 ok=1 version=57 file=config.txt bytes=558 checksum=0xb362`. Certificate v57 fat32=1. SHA 4bc4dc050d9827d33d87f62042c699e44c866871.
 - **EPIC D ✓:** V58–V60 mailbox/framebuffer/text-console. HDMI live counter + UART→HDMI mirror proven on metal: boot `console ok=1 version=60 … counter=0 display=0` then shell `counter=64` (sha256 `6d1d24b2ac950e09070b5bbd5ec49bcc4e5ef8b6127485e13a293d1a48d4f426`); later `counter=63 display=0 mirror=37674` (sha256 `5547eaac2f7e317fdff0c76e39f7b95675bbfb4689e5ff7be8a24252122b5f37`). Tick-only in CNTP; one-glyph idle paint; no blit on IRQ/secondary/hot path.
 - **EPIC E (in progress):** V61–V66 boot markers ship PCIe/VL805/xHCI capability (`pcie ok=1 version=61`, `vl805 ok=1 version=62`, `xhci ok=1 version=63`), xHCI controller init (`xhci_run ok=1 version=64 ports_connected=.*`), USB enumeration (`usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw=`), hub downstream walk (`hubwalk ok=[01] version=66 ports=.* connected=.* hid=` — `ok=1` means ports were queried; `connected=0 hid=0` is honest with no device), and HID keyboard selftest (`kbd ok=[01] version=66 keycode=.* char=` — `ok=1` not required on unattended netboot); interactive keypress proof remains open.
-- **EPIC F (in progress):** V67–V79 GENET through bounded TCP echo (`genet12`). Standing free-running 256-BD ring is not used (UART stall). EL0 socket syscall after genet12 I-aborts and is deferred. **EPIC G:** V71–V84 peripheral probes + V91–V95 GPIO/timer/PWM + V96–V99 mailbox/watchdog + V100 RNG200 + V101 DMA memcpy. **EPIC H:** V85–V90 SD reload, root list, second file, `overlays/` walk, one overlay file load, named `issue.txt`, V102 free-cluster CMD24 write, V103 `AETHER.TMP` create/link, V104 named re-read, V105 CMD13 card status, and V106 ACMD51 SCR (no EL0).
+- **EPIC F (in progress):** V67–V79 GENET through bounded TCP echo (`genet12`). Standing free-running 256-BD ring is not used (UART stall). EL0 socket syscall after genet12 I-aborts and is deferred. **EPIC G:** V71–V84 peripheral probes + V91–V95 GPIO/timer/PWM + V96–V99 mailbox/watchdog + V100 RNG200 + V101 DMA memcpy. **EPIC H:** V85–V90 SD reload, root list, second file, `overlays/` walk, one overlay file load, named `issue.txt`, V102 free-cluster CMD24 write, V103 `AETHER.TMP` create/link, V104 named re-read, V105 CMD13 card status, V106 ACMD51 SCR, and V107 ACMD13 SD_STATUS (no EL0).
 
 **The gap to the North Star** is everything that makes an OS *general-purpose*: user
 mode, processes, storage, display, input, and networking. The epics below close it.
@@ -74,6 +74,7 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - [x] **FAT32 read** — mount the firmware boot partition, walk root directory, read config.txt.
 - [x] V105 SDHCI CMD13 SEND_STATUS after GENET (`sdst ok=1 version=105 state=4 ready=1 rca=`). Fail-closed TRAN + READY_FOR_DATA; no EL0.
 - [x] V106 SDHCI ACMD51 SEND_SCR after GENET (`sdscr ok=1 version=106 spec=`). Fail-closed structure 0 + 4-bit bus; restore 512-byte blocks; no EL0.
+- [x] V107 SDHCI ACMD13 SD_STATUS after GENET (`sdss ok=1 version=107 type=`). Fail-closed SD/SDHC type; restore 512-byte blocks; no EL0.
 - *First proof:* `fat32 ok=1 version=57 file=config.txt bytes=558 checksum=0xb362` on Pi4 metal. ✓
 
 ### EPIC D — Console & display  (see it without a laptop)
@@ -143,6 +144,7 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - [x] V104 re-read `AETHER.TMP` by name after GENET (`sdrd ok=1 version=104 match=1 present=1 name=`). Read-only; fail-closed if missing/foreign; no EL0. Do not execute.
 - [x] V105 SDHCI CMD13 SEND_STATUS after GENET (`sdst ok=1 version=105 state=4 ready=1 rca=`). Fail-closed TRAN + READY_FOR_DATA; no named-file write; no EL0.
 - [x] V106 SDHCI ACMD51 SEND_SCR after GENET (`sdscr ok=1 version=106 spec=`). Fail-closed structure 0 + 4-bit bus; no named-file write; no EL0.
+- [x] V107 SDHCI ACMD13 SD_STATUS after GENET (`sdss ok=1 version=107 type=`). Fail-closed SD/SDHC type; no named-file write; no EL0.
 - Load and run programs from the SD card at runtime (Epic C + B + G together).
 - Display + USB keyboard + storage + shell = a self-contained, interactive system you
   can use at the bench with no host attached.
