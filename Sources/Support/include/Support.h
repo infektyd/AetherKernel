@@ -1519,6 +1519,12 @@ int           kernel_genet23_ok(void);
 unsigned int  kernel_genet23_irq(void);
 unsigned int  kernel_genet23_done(void);
 
+// V128: UMAC station filter, PROMISC off. Bounded park. No EL0.
+int           kernel_genet24_selftest(void);
+int           kernel_genet24_ok(void);
+unsigned int  kernel_genet24_filter(void);
+unsigned int  kernel_genet24_arp(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);

@@ -125,6 +125,7 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - [x] V125 UMAC TX MIB after GENET (`genet21 ok=1 version=125 mib=`). Fail-closed `tx.pok` +1 and `tx.bytes` +>=60 after one 60-byte local-exp frame; bounded unpark/poll/park; no EL0. Not an application protocol.
 - [x] V126 TCP helper liveness after GENET (`genet22 ok=1 version=126 live=`). Fail-closed second originate to existing `:41241` after a host stall/timeout; V120–V124 no longer inherit a dead V119 helper; bounded unpark/poll/park; no EL0.
 - [x] V127 INTRL2 TXDMA_DONE after GENET (`genet23 ok=1 version=127 irq=`). Fail-closed L2 status bit 16 after one 60-byte local-exp frame; poll only, no GIC; bounded unpark/poll/park; no EL0.
+- [x] V128 UMAC station filter after GENET (`genet24 ok=1 version=128 filter=`). Fail-closed `UMAC_MAC0/1` + `CMD_PROMISC` clear + unicast ARP reply; bounded unpark/poll/park; no EL0. Not a protocol clone.
 - Minimal TCP/IP: ARP, IPv4, ICMP (ping), UDP, then TCP.
 - A tiny socket API exposed as syscalls. (EL0 `sys_socket` after genet12 I-aborts `esr=0xbf000002` and watchdog-resets; deferred.)
 - *First proof:* the kernel answers an ICMP ping from the host over its OWN driver

@@ -4439,3 +4439,152 @@ int kernel_genet23_selftest(void) {
 int          kernel_genet23_ok(void)    { return genet23_ok_val;    }
 unsigned int kernel_genet23_irq(void)   { return genet23_irq_val;   }
 unsigned int kernel_genet23_done(void)  { return genet23_done_val;  }
+
+// V128: UMAC station filter with PROMISC off. Re-program UMAC_MAC0/1,
+// clear CMD_PROMISC, originate ARP who-has, require a unicast reply
+// whose dest MAC is ours. ARP is the stimulus, not a new protocol.
+// Requires genet13 (peer MAC) only. Bounded unpark/poll/park.
+// TX on a DMA NC page — not the 4 KiB core0 stack. No EL0. No boot event.
+int kernel_genet24_selftest(void);
+
+static int genet24_probed;
+static int genet24_ok_val;
+static unsigned int genet24_filter_val;
+static unsigned int genet24_arp_val;
+static unsigned long genet24_tx_pa;
+static void *genet24_tx_nc;
+
+static int genet24_tx_frame(unsigned int tx_len, unsigned int tx_prod) {
+    enum {
+        V4_TDMA_CONS = 0x08U,
+        V4_TDMA_PROD = 0x0C,
+        TX_Q16_START = 128U,
+        TX_Q16_N = 128U
+    };
+    uint64_t freq, t0, tnow, twait;
+    unsigned int tcons;
+    unsigned int tx_bd;
+    uint32_t len_stat;
+
+    if (tx_len < 60U || !genet24_tx_nc) return 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    tx_bd = TDMA_OFF + (TX_Q16_START + (tx_prod % TX_Q16_N)) * DESC_BYTES;
+    len_stat = ((uint32_t)tx_len << 16) |
+               (DMA_QTAG_MASK << DMA_TX_QTAG_SHIFT) |
+               DMA_TX_APPEND_CRC | DMA_SOP | DMA_EOP;
+    G32(tx_bd + 0U) = len_stat;
+    G32(tx_bd + 4U) = (uint32_t)genet24_tx_pa;
+    G32(tx_bd + 8U) = 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    tdma_ring16_wr(V4_TDMA_PROD, tx_prod + 1U);
+
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(t0));
+    twait = 20ULL * freq / 1000ULL;
+    do {
+        tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+        if (tcons == (tx_prod + 1U)) return 1;
+        genet_udelay(100);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(tnow));
+    } while (tnow - t0 < twait);
+    tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+    return (tcons != 0U) ? 1 : 0;
+}
+
+static int genet24_unicast_arp(const volatile uint8_t *rx,
+                               unsigned int rx_len,
+                               unsigned long mac) {
+    unsigned int i;
+    if (!genet13_arp_reply(rx, rx_len, 0)) return 0;
+    for (i = 0; i < 6U; i++) {
+        uint8_t want = (uint8_t)((mac >> (40U - 8U * i)) & 0xFFUL);
+        if (rx[i] != want) return 0;
+    }
+    return 1;
+}
+
+int kernel_genet24_selftest(void) {
+    enum {
+        V4_RDMA_PROD = 0x08U,
+        V4_RDMA_CONS = 0x0C,
+        RX_Q16_N = 256U
+    };
+    unsigned long mac;
+    unsigned int cons;
+    unsigned int tx_prod = 0;
+    uint32_t mac0, mac1, cmd;
+    uint64_t freq, start, now, ticks;
+
+    if (genet24_probed) return genet24_ok_val;
+    genet24_probed = 1;
+    genet24_ok_val = 0;
+    genet24_filter_val = 0;
+    genet24_arp_val = 0;
+
+    if (!kernel_genet13_selftest()) return 0;
+    mac = kernel_genet3_mac();
+    if (!mac) return 0;
+    mac0 = (uint32_t)(mac >> 16);
+    mac1 = (uint32_t)(mac & 0xFFFFUL);
+    genet_wr32(UMAC_MAC0, mac0);
+    genet_wr32(UMAC_MAC1, mac1);
+    if (G32(UMAC_MAC0) != mac0) return 0;
+    if ((G32(UMAC_MAC1) & 0xFFFFU) != mac1) return 0;
+    if (!kernel_dma_alloc_nc(&genet24_tx_pa, &genet24_tx_nc)) return 0;
+    if (!genet24_tx_nc) return 0;
+    if (!genet10_unpark()) return 0;
+
+    cmd = G32(UMAC_CMD);
+    genet_wr32(UMAC_CMD, cmd & ~CMD_PROMISC);
+    if ((G32(UMAC_CMD) & CMD_PROMISC) != 0U) {
+        genet10_park();
+        return 0;
+    }
+    genet24_filter_val = 1;
+
+    cons = rdma_ring16(V4_RDMA_PROD) & 0xFFFFU;
+    rdma_ring16_wr(V4_RDMA_CONS, cons);
+
+    genet_write_arp((volatile uint8_t *)genet24_tx_nc, mac);
+    if (!genet24_tx_frame(TX_FRAME_LEN, tx_prod)) {
+        genet10_park();
+        return 0;
+    }
+
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(start));
+    ticks = 3000ULL * freq / 1000ULL;
+    do {
+        unsigned int prod = rdma_ring16(V4_RDMA_PROD) & 0xFFFFU;
+        while (cons != prod) {
+            unsigned int idx = cons & (RX_Q16_N - 1U);
+            unsigned int bd = RDMA_OFF + idx * DESC_BYTES;
+            unsigned int rx_len = (G32(bd) >> 16) & 0x0FFFU;
+            unsigned long buf_pa = (unsigned long)G32(bd + 4U);
+            void *rx_nc = 0;
+            if (rx_len >= 42U && kernel_dma_nc_from_pa(buf_pa, &rx_nc) && rx_nc) {
+                if (genet24_unicast_arp((const volatile uint8_t *)rx_nc,
+                                        rx_len, mac)) {
+                    genet24_arp_val = 1;
+                }
+            }
+            cons = (cons + 1U) & 0xFFFFU;
+            rdma_ring16_wr(V4_RDMA_CONS, cons);
+            if (genet24_arp_val) break;
+        }
+        if (genet24_arp_val) break;
+        genet_udelay(1000);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(now));
+    } while (now - start < ticks);
+
+    genet10_park();
+    if (genet24_filter_val == 1U && genet24_arp_val == 1U) {
+        genet24_ok_val = 1;
+        return 1;
+    }
+    return 0;
+}
+
+int          kernel_genet24_ok(void)     { return genet24_ok_val;     }
+unsigned int kernel_genet24_filter(void) { return genet24_filter_val; }
+unsigned int kernel_genet24_arp(void)    { return genet24_arp_val;    }

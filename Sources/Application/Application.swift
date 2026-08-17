@@ -1491,6 +1491,18 @@ struct Application {
     uartPutDec(UInt64(kernel_genet23_done()))
     uartPuts("\n")
 
+    // Runtime V128: UMAC station filter. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts. Parks the ring before return.
+    uartPuts("runtime v128: GENET UMAC station filter\n")
+    let genet24_ok_boot = kernel_genet24_selftest()
+    uartPuts("genet24 ok=")
+    uartPutDec(UInt64(genet24_ok_boot))
+    uartPuts(" version=128 filter=")
+    uartPutDec(UInt64(kernel_genet24_filter()))
+    uartPuts(" arp=")
+    uartPutDec(UInt64(kernel_genet24_arp()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
