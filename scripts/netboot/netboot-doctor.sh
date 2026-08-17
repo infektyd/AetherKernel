@@ -257,6 +257,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "sdiss ok=[01] version=90 present=[01] name=.* bytes=.* checksum=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v91: GPIO output readback" \
       && printf '%s' "$serial_delta" | grep -q "gpio2 ok=1 version=91 pin=42 set=1 clr=1" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v92: system timer C1 match" \
+      && printf '%s' "$serial_delta" | grep -q "stimer2 ok=1 version=92 chan=1 match=1" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

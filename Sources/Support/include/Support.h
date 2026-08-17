@@ -1312,6 +1312,12 @@ unsigned int  kernel_stimer_clo(void);
 unsigned int  kernel_stimer_chi(void);
 unsigned int  kernel_stimer_chans(void);
 
+// V92: system timer C1 match after GENET. No C0/C2 writes. No EL0.
+int           kernel_stimer2_selftest(void);
+int           kernel_stimer2_ok(void);
+unsigned int  kernel_stimer2_chan(void);
+unsigned int  kernel_stimer2_match(void);
+
 // V85: reload config.txt after GENET. match=1 vs V57. No EL0. No boot emit.
 int           kernel_sdload_selftest(void);
 int           kernel_sdload_ok(void);

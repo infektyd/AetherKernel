@@ -1040,6 +1040,18 @@ struct Application {
     uartPutDec(UInt64(kernel_gpio2_clr()))
     uartPuts("\n")
 
+    // Runtime V92: system timer C1 match. UART token only. No boot event emit.
+    // ARM C1 only. No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v92: system timer C1 match\n")
+    let stimer2_ok_boot = kernel_stimer2_selftest()
+    uartPuts("stimer2 ok=")
+    uartPutDec(UInt64(stimer2_ok_boot))
+    uartPuts(" version=92 chan=")
+    uartPutDec(UInt64(kernel_stimer2_chan()))
+    uartPuts(" match=")
+    uartPutDec(UInt64(kernel_stimer2_match()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
