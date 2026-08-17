@@ -751,3 +751,91 @@ int kernel_sdhci_fat32_read_second(unsigned int *name_out,
     if (sum_out) *sum_out = sum;
     return 1;
 }
+
+// V88: walk OVERLAYS   (directory, attr 0x10). Count short names, skip '.' / '..'.
+static unsigned int fat32_next_clus(unsigned int clus) {
+    unsigned int fat_off = clus * 4u;
+    if (!sdhci_read_block_pio(fat32_fat_lba + fat_off / 512u, sdhci_fat32_buf))
+        return 0x0FFFFFFFu;
+    return fat32_u32(sdhci_fat32_buf, fat_off % 512u) & 0x0FFFFFFFu;
+}
+
+int kernel_sdhci_fat32_list_overlays(unsigned int *files_out, unsigned int *name_out) {
+    unsigned int ovl_clus = 0u;
+    unsigned int files = 0u;
+    unsigned int first_name = 0u;
+    if (files_out) *files_out = 0u;
+    if (name_out) *name_out = 0u;
+    if (!sdhci_card_init_ok) return 0;
+    if (fat32_sec_per_clus == 0u) {
+        if (!kernel_sdhci_fat32_read()) return 0;
+    }
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+
+    unsigned int dir_clus = fat32_root_clus;
+    unsigned int dir_done = 0u;
+    for (unsigned int max_clus = 256u; !dir_done && ovl_clus == 0u && max_clus > 0u; max_clus--) {
+        unsigned int dir_lba = fat32_clus_lba(dir_clus);
+        for (unsigned int s = 0u; s < fat32_sec_per_clus; s++) {
+            if (!sdhci_read_block_pio(dir_lba + s, sdhci_fat32_buf)) return 0;
+            for (unsigned int e = 0u; e < 16u; e++) {
+                unsigned int base = e * 32u;
+                unsigned int b0 = fat32_byte(sdhci_fat32_buf, base);
+                if (b0 == 0x00u) { dir_done = 1u; break; }
+                if (b0 == 0xE5u) continue;
+                unsigned int attr = fat32_byte(sdhci_fat32_buf, base + 11u);
+                if (attr == 0x0Fu) continue;
+                if (attr & 0x08u) continue;
+                if ((attr & 0x10u) == 0u) continue;
+                if (!fat32_name_eq(base, "OVERLAYS   ")) continue;
+                unsigned int hi = fat32_u16(sdhci_fat32_buf, base + 20u);
+                unsigned int lo = fat32_u16(sdhci_fat32_buf, base + 26u);
+                ovl_clus = (hi << 16) | lo;
+                break;
+            }
+            if (dir_done || ovl_clus != 0u) break;
+        }
+        if (!dir_done && ovl_clus == 0u) {
+            unsigned int next = fat32_next_clus(dir_clus);
+            if (next >= 0x0FFFFFF8u) break;
+            dir_clus = next;
+        }
+    }
+    if (ovl_clus < 2u) return 0;
+
+    dir_clus = ovl_clus;
+    dir_done = 0u;
+    for (unsigned int max_clus = 256u; !dir_done && max_clus > 0u; max_clus--) {
+        unsigned int dir_lba = fat32_clus_lba(dir_clus);
+        for (unsigned int s = 0u; s < fat32_sec_per_clus; s++) {
+            if (!sdhci_read_block_pio(dir_lba + s, sdhci_fat32_buf)) return 0;
+            for (unsigned int e = 0u; e < 16u; e++) {
+                unsigned int base = e * 32u;
+                unsigned int b0 = fat32_byte(sdhci_fat32_buf, base);
+                if (b0 == 0x00u) { dir_done = 1u; break; }
+                if (b0 == 0xE5u) continue;
+                if (b0 == 0x2Eu) continue;
+                unsigned int attr = fat32_byte(sdhci_fat32_buf, base + 11u);
+                if (attr == 0x0Fu) continue;
+                if (attr & 0x08u) continue;
+                files++;
+                if (first_name == 0u) {
+                    first_name =
+                        (fat32_byte(sdhci_fat32_buf, base) << 24) |
+                        (fat32_byte(sdhci_fat32_buf, base + 1u) << 16) |
+                        (fat32_byte(sdhci_fat32_buf, base + 2u) << 8) |
+                        fat32_byte(sdhci_fat32_buf, base + 3u);
+                }
+            }
+            if (dir_done) break;
+        }
+        if (!dir_done) {
+            unsigned int next = fat32_next_clus(dir_clus);
+            if (next >= 0x0FFFFFF8u) break;
+            dir_clus = next;
+        }
+    }
+    if (files_out) *files_out = files;
+    if (name_out) *name_out = first_name;
+    return (files >= 1u && first_name != 0u) ? 1 : 0;
+}

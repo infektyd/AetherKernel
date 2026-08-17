@@ -983,6 +983,18 @@ struct Application {
     uartPutHexCompact(UInt64(kernel_sdfile_sum()))
     uartPuts("\n")
 
+    // Runtime V88: overlays/ walk after GENET. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v88: FAT32 overlays walk\n")
+    let sdovl_ok_boot = kernel_sdovl_selftest()
+    uartPuts("sdovl ok=")
+    uartPutDec(UInt64(sdovl_ok_boot))
+    uartPuts(" version=88 files=")
+    uartPutDec(UInt64(kernel_sdovl_files()))
+    uartPuts(" name=")
+    uartPutHexCompact(UInt64(kernel_sdovl_name()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

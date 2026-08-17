@@ -249,6 +249,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "sdls ok=1 version=86 files=.* config=1 other=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v87: FAT32 second file" \
       && printf '%s' "$serial_delta" | grep -q "sdfile ok=1 version=87 name=.* bytes=.* checksum=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v88: FAT32 overlays walk" \
+      && printf '%s' "$serial_delta" | grep -q "sdovl ok=1 version=88 files=.* name=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

@@ -328,6 +328,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "sdls ok=1 version=86 files=.* config=1 other=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v87: FAT32 second file" \
       && printf '%s' "$serial_delta" | grep -qa "sdfile ok=1 version=87 name=.* bytes=.* checksum=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v88: FAT32 overlays walk" \
+      && printf '%s' "$serial_delta" | grep -qa "sdovl ok=1 version=88 files=.* name=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -545,6 +547,8 @@ PY
         probe_shell "sdls" "^sdls ok=1 version=86 files=.* config=1 other="
         # V87: second FAT32 root file after GENET. Not CONFIG.TXT. No EL0.
         probe_shell "sdfile" "^sdfile ok=1 version=87 name=.* bytes=.* checksum="
+        # V88: walk overlays/ after GENET. files>=1. No EL0.
+        probe_shell "sdovl" "^sdovl ok=1 version=88 files=.* name="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
