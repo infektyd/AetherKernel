@@ -237,6 +237,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "i2c ok=1 version=80 bsc=.* div=.* spi=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v81: PWM register probe" \
       && printf '%s' "$serial_delta" | grep -q "pwm ok=1 version=81 ctl=.* sta=.* pwm1=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v82: I2C no-ACK transfer" \
+      && printf '%s' "$serial_delta" | grep -q "i2c2 ok=1 version=82 nack=1 addr=.* sta=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

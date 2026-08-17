@@ -899,6 +899,20 @@ struct Application {
     uartPutDec(UInt64(kernel_pwm_pwm1()))
     uartPuts("\n")
 
+    // Runtime V82: bounded BSC1 no-ACK write. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v82: I2C no-ACK transfer\n")
+    let i2c2_ok_boot = kernel_i2c2_selftest()
+    uartPuts("i2c2 ok=")
+    uartPutDec(UInt64(i2c2_ok_boot))
+    uartPuts(" version=82 nack=")
+    uartPutDec(UInt64(kernel_i2c2_nack()))
+    uartPuts(" addr=")
+    uartPutHexCompact(UInt64(kernel_i2c2_addr()))
+    uartPuts(" sta=")
+    uartPutHexCompact(UInt64(kernel_i2c2_sta()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

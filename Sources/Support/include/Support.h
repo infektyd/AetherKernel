@@ -1271,6 +1271,13 @@ unsigned int  kernel_pwm_ctl(void);
 unsigned int  kernel_pwm_sta(void);
 unsigned int  kernel_pwm_pwm1(void);
 
+// V82: one bounded BSC1 write to a vacant address. Honest nack=1. No boot emit.
+int           kernel_i2c2_selftest(void);
+int           kernel_i2c2_ok(void);
+unsigned int  kernel_i2c2_nack(void);
+unsigned int  kernel_i2c2_addr(void);
+unsigned int  kernel_i2c2_sta(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.
