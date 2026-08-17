@@ -2124,3 +2124,78 @@ int kernel_sdhci_fat32_backup(unsigned int *match_out,
     if (match != 1u) return 0;
     return 1;
 }
+
+// V115: FAT32 FAT-mirror compare after GENET. Second FAT table
+// must match the first sector of the first (Microsoft FAT
+// mirroring). Not a new SDHCI command — CMD17 via
+// sdhci_read_block_pio. Stash four prefix words + XOR of the
+// 512 B sector; no second buffer on the 4 KiB core0 stack.
+// Independent MBR/VBR walk. No FAT write. No named boot file.
+int kernel_sdhci_fat32_mirror(unsigned int *match_out,
+                              unsigned int *fats_out) {
+    unsigned int part_lba = 0u;
+    unsigned int found = 0u;
+    unsigned int i;
+    unsigned int rsvd;
+    unsigned int nf;
+    unsigned int fatsz;
+    unsigned int fat0;
+    unsigned int fat1;
+    unsigned int w0;
+    unsigned int w1;
+    unsigned int w2;
+    unsigned int w3;
+    unsigned int x0;
+    unsigned int x1;
+    unsigned int match = 0u;
+
+    if (match_out) *match_out = 0u;
+    if (fats_out) *fats_out = 0u;
+
+    if (sdhci_card_rca == 0u) return 0;
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+
+    if (!sdhci_read_block_pio(0, sdhci_fat32_buf)) return 0;
+    if (((sdhci_fat32_buf[127] >> 16) & 0xFFFFu) != 0xAA55u) return 0;
+    for (i = 0u; i < 4u && !found; i++) {
+        unsigned int base = 446u + i * 16u;
+        unsigned int ptype = fat32_byte(sdhci_fat32_buf, base + 4u);
+        if (ptype == 0x0Bu || ptype == 0x0Cu) {
+            part_lba = fat32_u32(sdhci_fat32_buf, base + 8u);
+            found = 1u;
+        }
+    }
+    if (!found) return 0;
+
+    if (!sdhci_read_block_pio(part_lba, sdhci_fat32_buf)) return 0;
+    if (fat32_u16(sdhci_fat32_buf, 510u) != 0xAA55u) return 0;
+    rsvd = fat32_u16(sdhci_fat32_buf, 14u);
+    nf = fat32_byte(sdhci_fat32_buf, 16u);
+    fatsz = fat32_u32(sdhci_fat32_buf, 36u);
+    if (fats_out) *fats_out = nf;
+    if (rsvd == 0u || nf < 2u || fatsz == 0u) return 0;
+
+    fat0 = part_lba + rsvd;
+    fat1 = fat0 + fatsz;
+    if (!sdhci_read_block_pio(fat0, sdhci_fat32_buf)) return 0;
+    w0 = sdhci_fat32_buf[0];
+    w1 = sdhci_fat32_buf[1];
+    w2 = sdhci_fat32_buf[2];
+    w3 = sdhci_fat32_buf[3];
+    x0 = 0u;
+    for (i = 0u; i < 128u; i++) x0 ^= sdhci_fat32_buf[i];
+
+    if (!sdhci_read_block_pio(fat1, sdhci_fat32_buf)) return 0;
+    x1 = 0u;
+    for (i = 0u; i < 128u; i++) x1 ^= sdhci_fat32_buf[i];
+    if (sdhci_fat32_buf[0] == w0 &&
+        sdhci_fat32_buf[1] == w1 &&
+        sdhci_fat32_buf[2] == w2 &&
+        sdhci_fat32_buf[3] == w3 &&
+        x0 == x1) {
+        match = 1u;
+    }
+    if (match_out) *match_out = match;
+    if (match != 1u) return 0;
+    return 1;
+}
