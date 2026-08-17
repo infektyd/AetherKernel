@@ -320,6 +320,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "i2c2 ok=1 version=82 nack=1 addr=.* sta=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v83: SPI0 bounded transfer" \
       && printf '%s' "$serial_delta" | grep -qa "spi2 ok=1 version=83 done=1 loop=.* rx=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v84: system timer register probe" \
+      && printf '%s' "$serial_delta" | grep -qa "stimer ok=1 version=84 clo=.* chi=.* chans=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -529,6 +531,8 @@ PY
         probe_shell "i2c2" "^i2c2 ok=1 version=82 nack=1 addr=0x7f sta="
         # V83: one SPI0 byte. DONE required. loop=1 only with MOSI-MISO jumper.
         probe_shell "spi2" "^spi2 ok=1 version=83 done=1 loop=.* rx="
+        # V84: system timer CLO/CHI + four compare slots. Read-only.
+        probe_shell "stimer" "^stimer ok=1 version=84 clo=.* chi=.* chans=1"
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

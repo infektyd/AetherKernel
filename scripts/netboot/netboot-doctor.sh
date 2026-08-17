@@ -241,6 +241,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "i2c2 ok=1 version=82 nack=1 addr=.* sta=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v83: SPI0 bounded transfer" \
       && printf '%s' "$serial_delta" | grep -q "spi2 ok=1 version=83 done=1 loop=.* rx=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v84: system timer register probe" \
+      && printf '%s' "$serial_delta" | grep -q "stimer ok=1 version=84 clo=.* chi=.* chans=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

@@ -1285,6 +1285,13 @@ unsigned int  kernel_spi2_done(void);
 unsigned int  kernel_spi2_loop(void);
 unsigned int  kernel_spi2_rx(void);
 
+// V84: system timer CLO/CHI + four compare slots. Read-only. No boot emit.
+int           kernel_stimer_selftest(void);
+int           kernel_stimer_ok(void);
+unsigned int  kernel_stimer_clo(void);
+unsigned int  kernel_stimer_chi(void);
+unsigned int  kernel_stimer_chans(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

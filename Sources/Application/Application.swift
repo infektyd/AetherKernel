@@ -927,6 +927,20 @@ struct Application {
     uartPutHexCompact(UInt64(kernel_spi2_rx()))
     uartPuts("\n")
 
+    // Runtime V84: system timer probe. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v84: system timer register probe\n")
+    let stimer_ok_boot = kernel_stimer_selftest()
+    uartPuts("stimer ok=")
+    uartPutDec(UInt64(stimer_ok_boot))
+    uartPuts(" version=84 clo=")
+    uartPutHexCompact(UInt64(kernel_stimer_clo()))
+    uartPuts(" chi=")
+    uartPutHexCompact(UInt64(kernel_stimer_chi()))
+    uartPuts(" chans=")
+    uartPutDec(UInt64(kernel_stimer_chans()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
