@@ -24,6 +24,7 @@ Metal proof stays on the Mac + Pi 4 loop (`./netboot-auto.sh` / `./net-iterate.s
 - Boot certificate must keep reporting `swift=6.3.2`.
 - If `main` gains any commit before the land, stop and re-check ancestry. Do not force-push.
 - `feat/macho-concurrency` is **not** on the remote. The live integration tip is `pr/genet31-v135`.
+- A local `feat/weaken-v45-selftest` (seen on the Mac checkout) is also **not** on `origin`. Do not FF that name; FF `pr/genet31-v135`. The stack contains a reconcile commit *to* that tip (`ea99d06` / `a4c1f90`), but the merge target is the genet31 branch.
 
 ---
 
@@ -261,13 +262,30 @@ If the tip SHA moved: re-read this plan against the new tip before landing.
 
 - [ ] **Step 3: Confirm #2 is inside the tip and #71 still merges clean**
 
+`git merge-tree --write-tree` with **no refs** only prints usage. Both
+branch arguments are required. Fetch them first (Step 1) if
+`origin/agent/cloud-dev-env-01f1` is missing locally.
+
 ```bash
 git merge-base --is-ancestor origin/pr/event-log-attestation origin/pr/genet31-v135 && echo PR2_IN_TIP
 git merge-tree --write-tree origin/pr/genet31-v135 origin/agent/cloud-dev-env-01f1
 ```
 
-Expected: `PR2_IN_TIP` and a tree SHA (no conflict). Snapshot tree was
-`64d50fe5d8f265aea3b09f4aaece1ec7dfb01e5b`.
+Expected: `PR2_IN_TIP` and a **40-char tree SHA** on stdout, exit 0 (no
+conflict). Snapshot tree was `64d50fe5d8f265aea3b09f4aaece1ec7dfb01e5b`.
+A usage dump means the two refs were omitted. A conflict prints
+`changed in both` / conflict markers and a non-zero exit.
+
+To dry-merge **whatever HEAD you are on** (for example a local
+`feat/weaken-v45-selftest` that is not on `origin`) against #71 instead:
+
+```bash
+git fetch origin agent/cloud-dev-env-01f1
+git merge-tree --write-tree HEAD origin/agent/cloud-dev-env-01f1
+```
+
+That answers "does my current branch conflict with #71?" It is **not**
+the stack-tip preflight. The FF target remains `origin/pr/genet31-v135`.
 
 - [ ] **Step 4: Host pytest on the tip (not a metal claim)**
 
