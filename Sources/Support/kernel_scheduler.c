@@ -1920,6 +1920,58 @@ unsigned long kernel_scheduler_interval_ticks(void) {
     return value;
 }
 
+// Steal/balance and per-core probe feeds leave a lifetime drain/feed
+// max-min that lockstep timer feed preserves. Catch up from proven only
+// (bootcert/certificate — not live sched3/4 selftest, not IRQ).
+static int secondary_worker_needs_catch_up(void) {
+    return kernel_scheduler_secondary_worker_imbalance() > KERNEL_SCHEDULER_CORE_CAPACITY ||
+           kernel_scheduler_secondary_worker_feed_imbalance() > KERNEL_SCHEDULER_CORE_CAPACITY ||
+           kernel_scheduler_worker_feed_drain_gap() > KERNEL_SCHEDULER_CORE_CAPACITY;
+}
+
+static void catch_up_secondary_worker_imbalance(void) {
+    if (!secondary_worker_needs_catch_up()) {
+        return;
+    }
+    catch_up_skip_handoff = 1;
+    __asm__ volatile("dsb sy" ::: "memory");
+    unsigned long deadline = kernel_timer_now() + 5400000UL; /* ~100ms @ 54MHz */
+    unsigned int spin = 0;
+    while (secondary_worker_needs_catch_up() &&
+           kernel_timer_now() < deadline &&
+           spin < 200000U) {
+        if ((spin & 0x3ffU) == 0U) {
+            if (kernel_scheduler_secondary_worker_imbalance() > KERNEL_SCHEDULER_CORE_CAPACITY) {
+                unsigned long min = kernel_scheduler_secondary_worker_min();
+                for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+                    if (!kernel_smp_core_online(core_id)) {
+                        continue;
+                    }
+                    if (kernel_scheduler_worker_drain_count(core_id) <= min) {
+                        (void)route_worker_feed_for_core(core_id);
+                    }
+                }
+            } else if (kernel_scheduler_secondary_worker_feed_imbalance() > KERNEL_SCHEDULER_CORE_CAPACITY) {
+                unsigned long min = kernel_scheduler_secondary_worker_feed_min();
+                for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+                    if (!kernel_smp_core_online(core_id)) {
+                        continue;
+                    }
+                    if (kernel_scheduler_worker_feed_count(core_id) <= min) {
+                        (void)route_worker_feed_for_core(core_id);
+                    }
+                }
+            }
+            kernel_smp_signal_scheduler_work(KERNEL_SMP_SECONDARY_MASK);
+        }
+        spin++;
+        __asm__ volatile("nop" ::: "memory");
+    }
+    wait_for_secondary_queues_empty();
+    catch_up_skip_handoff = 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+}
+
 int kernel_scheduler_timer_worker_feed_proven(void) {
     if (KERNEL_SCHEDULER_VERSION < 45U ||
         !kernel_scheduler_active() ||
@@ -1929,6 +1981,8 @@ int kernel_scheduler_timer_worker_feed_proven(void) {
         kernel_smp_online_mask() != 0xfU) {
         return 0;
     }
+
+    catch_up_secondary_worker_imbalance();
 
     unsigned long feed_min = kernel_scheduler_secondary_worker_feed_min();
     unsigned long feed_max = kernel_scheduler_secondary_worker_feed_max();
@@ -1955,6 +2009,8 @@ int kernel_scheduler_secondary_worker_proven(void) {
         kernel_smp_online_mask() != 0xfU) {
         return 0;
     }
+
+    catch_up_secondary_worker_imbalance();
 
     return kernel_scheduler_secondary_worker_total() >= 3UL &&
         kernel_scheduler_secondary_worker_min() > 0UL &&
@@ -2029,6 +2085,50 @@ int kernel_scheduler_secondary_wake_proven(void) {
         kernel_scheduler_secondary_wake_gap() <= KERNEL_SCHEDULER_CORE_CAPACITY ? 1 : 0;
 }
 
+// Steal selftests credit handoff on dest cores only. Catch up from
+// handoff_proven only; credit handoff (do not set catch_up_skip_handoff).
+static void catch_up_secondary_handoff_imbalance(void) {
+    if (kernel_scheduler_secondary_handoff_imbalance() <= KERNEL_SCHEDULER_CORE_CAPACITY &&
+        kernel_scheduler_secondary_handoff_gap() <= KERNEL_SCHEDULER_CORE_CAPACITY) {
+        return;
+    }
+    unsigned long deadline = kernel_timer_now() + 5400000UL; /* ~100ms @ 54MHz */
+    unsigned int spin = 0;
+    while ((kernel_scheduler_secondary_handoff_imbalance() > KERNEL_SCHEDULER_CORE_CAPACITY ||
+            kernel_scheduler_secondary_handoff_gap() > KERNEL_SCHEDULER_CORE_CAPACITY) &&
+           kernel_timer_now() < deadline &&
+           spin < 200000U) {
+        if ((spin & 0x3ffU) == 0U) {
+            if (kernel_scheduler_secondary_handoff_imbalance() > KERNEL_SCHEDULER_CORE_CAPACITY) {
+                unsigned long min = 0;
+                unsigned int seen = 0;
+                for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+                    if (!kernel_smp_core_online(core_id)) {
+                        continue;
+                    }
+                    unsigned long count = kernel_scheduler_secondary_handoff_completion_count(core_id);
+                    if (!seen || count < min) {
+                        min = count;
+                    }
+                    seen = 1;
+                }
+                for (unsigned int core_id = 1; core_id < KERNEL_SCHEDULER_CORE_CAPACITY; core_id++) {
+                    if (!kernel_smp_core_online(core_id)) {
+                        continue;
+                    }
+                    if (kernel_scheduler_secondary_handoff_completion_count(core_id) <= min) {
+                        (void)route_worker_feed_for_core(core_id);
+                    }
+                }
+            }
+            kernel_smp_signal_scheduler_work(KERNEL_SMP_SECONDARY_MASK);
+        }
+        spin++;
+        __asm__ volatile("nop" ::: "memory");
+    }
+    wait_for_secondary_queues_empty();
+}
+
 int kernel_scheduler_secondary_handoff_proven(void) {
     if (KERNEL_SCHEDULER_VERSION < 45U ||
         !kernel_scheduler_active() ||
@@ -2041,6 +2141,8 @@ int kernel_scheduler_secondary_handoff_proven(void) {
         kernel_smp_online_mask() != 0xfU) {
         return 0;
     }
+
+    catch_up_secondary_handoff_imbalance();
 
     return kernel_scheduler_secondary_handoff_issue_count(0) == 0 &&
         kernel_scheduler_secondary_handoff_completion_count(0) == 0 &&

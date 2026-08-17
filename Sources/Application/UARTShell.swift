@@ -767,8 +767,8 @@ func printScheduler9() {
 }
 
 func printScheduler10() {
-  let wake = kernel_scheduler_secondary_wake_selftest()
-  let handoff = kernel_scheduler_secondary_handoff_selftest()
+  let wake = kernel_scheduler_secondary_wake_proven()
+  let handoff = kernel_scheduler_secondary_handoff_proven()
   let backpressure = kernel_scheduler_backpressure_selftest()
   let stealing = kernel_scheduler_work_steal_selftest()
   let fairness = kernel_scheduler_fairness_selftest()
