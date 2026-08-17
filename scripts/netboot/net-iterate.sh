@@ -342,6 +342,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "pwm2 ok=1 version=93 clk=1 en=1" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v94: GPIO PUP readback" \
       && printf '%s' "$serial_delta" | grep -qa "gpio3 ok=1 version=94 pin=26 up=1 dn=1" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v95: system timer C3 match" \
+      && printf '%s' "$serial_delta" | grep -qa "stimer3 ok=1 version=95 chan=3 match=1" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -573,6 +575,8 @@ PY
         probe_shell "pwm2" "^pwm2 ok=1 version=93 clk=1 en=1"
         # V94: GPIO26 PUP_PDN write+readback after GENET. REG1 only. No EL0.
         probe_shell "gpio3" "^gpio3 ok=1 version=94 pin=26 up=1 dn=1"
+        # V95: system timer C3 match after GENET. No GPU C0/C2. No EL0.
+        probe_shell "stimer3" "^stimer3 ok=1 version=95 chan=3 match=1"
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

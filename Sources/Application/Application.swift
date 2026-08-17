@@ -1078,6 +1078,18 @@ struct Application {
     uartPutDec(UInt64(kernel_gpio3_dn()))
     uartPuts("\n")
 
+    // Runtime V95: system timer C3 match. UART token only. No boot event emit.
+    // ARM C3 only. No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v95: system timer C3 match\n")
+    let stimer3_ok_boot = kernel_stimer3_selftest()
+    uartPuts("stimer3 ok=")
+    uartPutDec(UInt64(stimer3_ok_boot))
+    uartPuts(" version=95 chan=")
+    uartPutDec(UInt64(kernel_stimer3_chan()))
+    uartPuts(" match=")
+    uartPutDec(UInt64(kernel_stimer3_match()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
