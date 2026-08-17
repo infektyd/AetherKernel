@@ -1443,6 +1443,18 @@ struct Application {
     uartPutDec(UInt64(kernel_genet19_sync()))
     uartPuts("\n")
 
+    // Runtime V124: originate SSDP M-SEARCH. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts. Parks the ring before return.
+    uartPuts("runtime v124: GENET originate SSDP\n")
+    let genet20_ok_boot = kernel_genet20_selftest()
+    uartPuts("genet20 ok=")
+    uartPutDec(UInt64(genet20_ok_boot))
+    uartPuts(" version=124 ssdp=")
+    uartPutDec(UInt64(kernel_genet20_ssdp()))
+    uartPuts(" reply=")
+    uartPutDec(UInt64(kernel_genet20_reply()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

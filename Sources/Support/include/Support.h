@@ -1495,6 +1495,12 @@ int           kernel_genet19_ok(void);
 unsigned int  kernel_genet19_sntp(void);
 unsigned int  kernel_genet19_sync(void);
 
+// V124: originate SSDP M-SEARCH to 10.42.0.1:41252. Bounded park. No EL0.
+int           kernel_genet20_selftest(void);
+int           kernel_genet20_ok(void);
+unsigned int  kernel_genet20_ssdp(void);
+unsigned int  kernel_genet20_reply(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);

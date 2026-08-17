@@ -217,6 +217,12 @@ PY
     disown $! || true
   fi
 
+  # V124: host SSDP M-SEARCH on 10.42.0.1:41252 so boot-time originate can fail-close.
+  if ! pgrep -f 'aether-ssdp-v124' >/dev/null 2>&1; then
+    python3 "$SCRIPT_DIR/aether-ssdp-v124.py" >/tmp/aether-ssdp-v124.log 2>&1 &
+    disown $! || true
+  fi
+
   if [ -n "${AETHER_POWER_BACKEND:-}" ] && [ "${AETHER_POWER_BACKEND}" != "none" ]; then
     # Cold power-cycle via external switch — REQUIRED for the Pi bootloader to
     # re-enter netboot/TFTP mode (a warm serial reset does not re-arm it). This is
@@ -437,6 +443,8 @@ PY
       && printf '%s' "$serial_delta" | grep -qa "genet18 ok=1 version=122 http=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v123: GENET originate SNTP" \
       && printf '%s' "$serial_delta" | grep -qa "genet19 ok=1 version=123 sntp=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v124: GENET originate SSDP" \
+      && printf '%s' "$serial_delta" | grep -qa "genet20 ok=1 version=124 ssdp=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -726,6 +734,8 @@ PY
         probe_shell "genet18" "^genet18 ok=1 version=122 http="
         # V123: originate SNTP client to the TFTP host:41251. No EL0.
         probe_shell "genet19" "^genet19 ok=1 version=123 sntp="
+        # V124: originate SSDP M-SEARCH to the TFTP host:41252. No EL0.
+        probe_shell "genet20" "^genet20 ok=1 version=124 ssdp="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

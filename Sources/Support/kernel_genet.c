@@ -3586,3 +3586,277 @@ int kernel_genet19_selftest(void) {
 int          kernel_genet19_ok(void)   { return genet19_ok_val;   }
 unsigned int kernel_genet19_sntp(void) { return genet19_sntp_val; }
 unsigned int kernel_genet19_sync(void) { return genet19_sync_val; }
+
+// V124: originate SSDP M-SEARCH to 10.42.0.1:41252 (0xA124).
+// Host helper replies HTTP/1.1 200 + ST + 16-byte body. Bounded unpark/poll/park.
+// TX on a DMA NC page — not the 4 KiB core0 stack. No EL0. No boot event emit.
+int kernel_genet20_selftest(void);
+
+static int genet20_probed;
+static int genet20_ok_val;
+static unsigned int genet20_ssdp_val;
+static unsigned int genet20_reply_val;
+static unsigned long genet20_tx_pa;
+static void *genet20_tx_nc;
+
+static int genet20_tx_frame(unsigned int tx_len, unsigned int tx_prod) {
+    enum {
+        V4_TDMA_CONS = 0x08U,
+        V4_TDMA_PROD = 0x0C,
+        TX_Q16_START = 128U,
+        TX_Q16_N = 128U
+    };
+    uint64_t freq, t0, tnow, twait;
+    unsigned int tcons;
+    unsigned int tx_bd;
+    uint32_t len_stat;
+
+    if (tx_len < 60U || !genet20_tx_nc) return 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    tx_bd = TDMA_OFF + (TX_Q16_START + (tx_prod % TX_Q16_N)) * DESC_BYTES;
+    len_stat = ((uint32_t)tx_len << 16) |
+               (DMA_QTAG_MASK << DMA_TX_QTAG_SHIFT) |
+               DMA_TX_APPEND_CRC | DMA_SOP | DMA_EOP;
+    G32(tx_bd + 0U) = len_stat;
+    G32(tx_bd + 4U) = (uint32_t)genet20_tx_pa;
+    G32(tx_bd + 8U) = 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    tdma_ring16_wr(V4_TDMA_PROD, tx_prod + 1U);
+
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(t0));
+    twait = 20ULL * freq / 1000ULL;
+    do {
+        tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+        if (tcons == (tx_prod + 1U)) return 1;
+        genet_udelay(100);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(tnow));
+    } while (tnow - t0 < twait);
+    tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+    return (tcons != 0U) ? 1 : 0;
+}
+
+static unsigned int genet20_msearch_len(void) {
+    static const char req[] =
+        "M-SEARCH * HTTP/1.1\r\n"
+        "HOST: 10.42.0.1:41252\r\n"
+        "MAN: \"ssdp:discover\"\r\n"
+        "ST: urn:aether:device:v124\r\n"
+        "MX: 1\r\n"
+        "\r\n";
+    unsigned int n = 0;
+    while (req[n]) n++;
+    return n;
+}
+
+static void genet20_put_msearch(volatile uint8_t *p) {
+    static const char req[] =
+        "M-SEARCH * HTTP/1.1\r\n"
+        "HOST: 10.42.0.1:41252\r\n"
+        "MAN: \"ssdp:discover\"\r\n"
+        "ST: urn:aether:device:v124\r\n"
+        "MX: 1\r\n"
+        "\r\n";
+    unsigned int i = 0;
+    while (req[i]) {
+        p[i] = (uint8_t)req[i];
+        i++;
+    }
+}
+
+static unsigned int genet20_build_ssdp(volatile uint8_t *tx,
+                                       unsigned long mac,
+                                       unsigned long peer_mac) {
+    enum {
+        OUR_IP = 0x0a2a0002U,
+        HOST_IP = 0x0a2a0001U,
+        UDP_PORT = 0xA124U
+    };
+    unsigned int i;
+    unsigned int plen = genet20_msearch_len();
+    unsigned int udp_len = 8U + plen;
+    unsigned int ip_len = 20U + udp_len;
+    unsigned int wire = 14U + ip_len;
+    uint32_t s;
+    uint16_t ucsum;
+
+    for (i = 0; i < 6U; i++) {
+        tx[i] = (uint8_t)((peer_mac >> (40U - 8U * i)) & 0xFFUL);
+        tx[6U + i] = (uint8_t)((mac >> (40U - 8U * i)) & 0xFFUL);
+    }
+    genet9_put16(tx + 12, 0x0800U);
+    tx[14] = 0x45;
+    tx[15] = 0;
+    genet9_put16(tx + 16, (uint16_t)ip_len);
+    genet9_put16(tx + 18, UDP_PORT);
+    genet9_put16(tx + 20, 0);
+    tx[22] = 64;
+    tx[23] = 0x11U;
+    tx[24] = 0;
+    tx[25] = 0;
+    genet9_put32(tx + 26, OUR_IP);
+    genet9_put32(tx + 30, HOST_IP);
+    genet9_put16(tx + 24, genet9_csum(tx + 14, 20U));
+    genet9_put16(tx + 34, UDP_PORT);
+    genet9_put16(tx + 36, UDP_PORT);
+    genet9_put16(tx + 38, (uint16_t)udp_len);
+    tx[40] = 0;
+    tx[41] = 0;
+    genet20_put_msearch(tx + 42);
+    s = 0;
+    s += (OUR_IP >> 16) & 0xFFFFU;
+    s += OUR_IP & 0xFFFFU;
+    s += (HOST_IP >> 16) & 0xFFFFU;
+    s += HOST_IP & 0xFFFFU;
+    s += 0x11U;
+    s += udp_len;
+    for (i = 0; i + 1U < udp_len; i += 2U) s += genet9_be16(tx + 34U + i);
+    if (udp_len & 1U) s += (uint32_t)tx[34U + udp_len - 1U] << 8;
+    while (s >> 16) s = (s & 0xFFFFU) + (s >> 16);
+    ucsum = (uint16_t)~s;
+    if (ucsum == 0U) ucsum = 0xFFFFU;
+    genet9_put16(tx + 40, ucsum);
+    if (wire < 60U) {
+        for (i = wire; i < 60U; i++) tx[i] = 0;
+        return 60U;
+    }
+    return wire;
+}
+
+static int genet20_ssdp_reply(const volatile uint8_t *rx, unsigned int rx_len) {
+    enum {
+        OUR_IP = 0x0a2a0002U,
+        HOST_IP = 0x0a2a0001U,
+        UDP_PORT = 0xA124U
+    };
+    unsigned int ihl;
+    unsigned int udp_off;
+    unsigned int pay_off;
+    unsigned int udp_len;
+    unsigned int plen;
+    unsigned int i;
+    const volatile uint8_t *p;
+    static const char st[] = "urn:aether:device:v124";
+    unsigned int st_n = 0;
+    int have_st = 0;
+
+    if (rx_len < 54U) return 0;
+    if (genet9_be16(rx + 12) != 0x0800U) return 0;
+    if ((rx[14] >> 4) != 4U) return 0;
+    ihl = (unsigned int)(rx[14] & 0x0FU) * 4U;
+    if (ihl < 20U) return 0;
+    if (rx[14 + 9] != 0x11U) return 0;
+    if (genet9_be32(rx + 26) != HOST_IP) return 0;
+    if (genet9_be32(rx + 30) != OUR_IP) return 0;
+    udp_off = 14U + ihl;
+    if (rx_len < udp_off + 8U) return 0;
+    if (genet9_be16(rx + udp_off) != UDP_PORT) return 0;
+    if (genet9_be16(rx + udp_off + 2) != UDP_PORT) return 0;
+    udp_len = genet9_be16(rx + udp_off + 4);
+    if (udp_len < 28U) return 0;
+    pay_off = udp_off + 8U;
+    plen = udp_len - 8U;
+    if (pay_off + plen > rx_len) plen = rx_len - pay_off;
+    if (plen < 20U) return 0;
+    p = rx + pay_off;
+    if (p[0] != (uint8_t)'H' || p[1] != (uint8_t)'T' ||
+        p[2] != (uint8_t)'T' || p[3] != (uint8_t)'P') {
+        return 0;
+    }
+    while (st[st_n]) st_n++;
+    for (i = 0; i + st_n <= plen; i++) {
+        unsigned int j = 0;
+        while (j < st_n && p[i + j] == (uint8_t)st[j]) j++;
+        if (j == st_n) {
+            have_st = 1;
+            break;
+        }
+    }
+    if (!have_st) return 0;
+    for (i = 0; i + 20U <= plen; i++) {
+        if (p[i] == 0x0DU && p[i + 1U] == 0x0AU &&
+            p[i + 2U] == 0x0DU && p[i + 3U] == 0x0AU) {
+            if (genet9_be32(p + i + 4U) != 0xA1240001U) return 0;
+            if (genet9_be32(p + i + 8U) != 0xA1240002U) return 0;
+            if (genet9_be32(p + i + 12U) != 0xA1240003U) return 0;
+            if (genet9_be32(p + i + 16U) != 0xA1240004U) return 0;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int kernel_genet20_selftest(void) {
+    enum {
+        V4_RDMA_PROD = 0x08U,
+        V4_RDMA_CONS = 0x0C,
+        RX_Q16_N = 256U
+    };
+    unsigned long mac;
+    unsigned long peer_mac;
+    unsigned int cons;
+    unsigned int tx_prod = 0;
+    unsigned int tx_len;
+    uint64_t freq, start, now, ticks;
+
+    if (genet20_probed) return genet20_ok_val;
+    genet20_probed = 1;
+    genet20_ok_val = 0;
+    genet20_ssdp_val = 0;
+    genet20_reply_val = 0;
+
+    if (!kernel_genet19_selftest()) return 0;
+    mac = kernel_genet3_mac();
+    peer_mac = kernel_genet13_peer_mac();
+    if (!mac || !peer_mac) return 0;
+    if (!kernel_dma_alloc_nc(&genet20_tx_pa, &genet20_tx_nc)) return 0;
+    if (!genet20_tx_nc) return 0;
+    if (!genet10_unpark()) return 0;
+
+    cons = rdma_ring16(V4_RDMA_PROD) & 0xFFFFU;
+    rdma_ring16_wr(V4_RDMA_CONS, cons);
+
+    tx_len = genet20_build_ssdp((volatile uint8_t *)genet20_tx_nc, mac, peer_mac);
+    if (!genet20_tx_frame(tx_len, tx_prod)) {
+        genet10_park();
+        return 0;
+    }
+    genet20_ssdp_val = 1;
+    tx_prod++;
+
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(start));
+    ticks = 3000ULL * freq / 1000ULL;
+    do {
+        unsigned int prod = rdma_ring16(V4_RDMA_PROD) & 0xFFFFU;
+        while (cons != prod) {
+            unsigned int idx = cons & (RX_Q16_N - 1U);
+            unsigned int bd = RDMA_OFF + idx * DESC_BYTES;
+            unsigned int rx_len = (G32(bd) >> 16) & 0x0FFFU;
+            unsigned long buf_pa = (unsigned long)G32(bd + 4U);
+            void *rx_nc = 0;
+            if (rx_len >= 54U && kernel_dma_nc_from_pa(buf_pa, &rx_nc) && rx_nc) {
+                if (genet20_ssdp_reply((const volatile uint8_t *)rx_nc, rx_len)) {
+                    genet20_reply_val = 1;
+                }
+            }
+            cons = (cons + 1U) & 0xFFFFU;
+            rdma_ring16_wr(V4_RDMA_CONS, cons);
+            if (genet20_reply_val) break;
+        }
+        if (genet20_reply_val) break;
+        genet_udelay(1000);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(now));
+    } while (now - start < ticks);
+
+    genet10_park();
+    if (genet20_ssdp_val == 1U && genet20_reply_val == 1U) {
+        genet20_ok_val = 1;
+        return 1;
+    }
+    return 0;
+}
+
+int          kernel_genet20_ok(void)    { return genet20_ok_val;    }
+unsigned int kernel_genet20_ssdp(void)  { return genet20_ssdp_val;  }
+unsigned int kernel_genet20_reply(void) { return genet20_reply_val; }
