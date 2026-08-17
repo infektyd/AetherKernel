@@ -1090,6 +1090,16 @@ struct Application {
     uartPutDec(UInt64(kernel_stimer3_match()))
     uartPuts("\n")
 
+    // Runtime V96: mailbox GET_TEMPERATURE. UART token only. No boot event emit.
+    // Millidegrees. No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v96: mailbox temperature\n")
+    let mboxt_ok_boot = kernel_mboxt_selftest()
+    uartPuts("mboxt ok=")
+    uartPutDec(UInt64(mboxt_ok_boot))
+    uartPuts(" version=96 temp=")
+    uartPutDec(UInt64(kernel_mboxt_temp()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

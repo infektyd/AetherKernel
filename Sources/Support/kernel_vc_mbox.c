@@ -401,3 +401,36 @@ int kernel_vc_mbox_board_serial(unsigned long *out) {
     }
     return board_serial_ok;
 }
+
+// RPI_FIRMWARE_GET_TEMPERATURE (0x00030006). Millidegrees. Boot/shell only.
+#define TAG_GET_TEMPERATURE 0x00030006U
+
+int kernel_vc_mbox_get_temp(unsigned int *out) {
+    vc_buf[0] = 8U * 4U;
+    vc_buf[1] = MBOX_REQ;
+    vc_buf[2] = TAG_GET_TEMPERATURE;
+    vc_buf[3] = 8U;
+    vc_buf[4] = 4U;
+    vc_buf[5] = 0U;
+    vc_buf[6] = 0U;
+    vc_buf[7] = TAG_END;
+
+    if (!vc_call(32U)) {
+        if (out) {
+            *out = 0;
+        }
+        return 0;
+    }
+    if ((vc_buf[4] & MBOX_RESP_OK) == 0U) {
+        if (out) {
+            *out = 0;
+        }
+        return 0;
+    }
+
+    unsigned int temp = (unsigned int)vc_buf[6];
+    if (out) {
+        *out = temp;
+    }
+    return 1;
+}

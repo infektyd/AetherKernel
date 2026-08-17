@@ -1008,6 +1008,13 @@ int           kernel_vc_mbox_board_mac(unsigned long *out);
 // V70: GET_BOARD_SERIAL (0x00010004). Read-only. Returns 1 and writes
 // *out when firmware returns a non-zero 64-bit serial. Boot/shell only.
 int           kernel_vc_mbox_board_serial(unsigned long *out);
+// V96: GET_TEMPERATURE (0x00030006). Millidegrees. Boot/shell only.
+int           kernel_vc_mbox_get_temp(unsigned int *out);
+
+// V96: mailbox temperature after GENET. Fail-closed range. No EL0.
+int           kernel_mboxt_selftest(void);
+int           kernel_mboxt_ok(void);
+unsigned int  kernel_mboxt_temp(void);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.
