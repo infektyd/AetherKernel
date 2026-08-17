@@ -979,6 +979,9 @@ int           kernel_sdhci_fat32_create_scratch(unsigned int *name_out,
 int           kernel_sdhci_fat32_read_scratch(unsigned int *name_out,
                                               unsigned int *present_out,
                                               unsigned int *match_out);
+int           kernel_sdhci_card_status(unsigned int *state_out,
+                                       unsigned int *ready_out,
+                                       unsigned int *rca_out);
 
 // Runtime V58: VideoCore ARM->GPU property mailbox probe (firmware revision).
 int kernel_vc_mbox_probe(void);
@@ -1073,6 +1076,13 @@ int           kernel_sdrd_ok(void);
 int           kernel_sdrd_match(void);
 int           kernel_sdrd_present(void);
 unsigned int  kernel_sdrd_name(void);
+
+// V105: SDHCI CMD13 SEND_STATUS after GENET. Fail-closed TRAN+READY_FOR_DATA. No EL0.
+int           kernel_sdst_selftest(void);
+int           kernel_sdst_ok(void);
+int           kernel_sdst_ready(void);
+unsigned int  kernel_sdst_state(void);
+unsigned int  kernel_sdst_rca(void);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.

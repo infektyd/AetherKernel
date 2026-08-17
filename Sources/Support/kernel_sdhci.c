@@ -1366,3 +1366,32 @@ int kernel_sdhci_fat32_read_scratch(unsigned int *name_out,
     if (match_out) *match_out = 1u;
     return 1;
 }
+
+// V105: CMD13 SEND_STATUS after GENET. Read-only. Fail-closed unless
+// CURRENT_STATE is TRAN (4) and READY_FOR_DATA is set. No data phase.
+int kernel_sdhci_card_status(unsigned int *state_out,
+                             unsigned int *ready_out,
+                             unsigned int *rca_out) {
+    unsigned int resp[4];
+    unsigned int st;
+    unsigned int state;
+    unsigned int ready;
+
+    if (state_out) *state_out = 0u;
+    if (ready_out) *ready_out = 0u;
+    if (rca_out) *rca_out = 0u;
+
+    if (sdhci_card_rca == 0u) return 0;
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+    if (!sdhci_send_cmd(CMDTM_CMD(13, CMD_RESP_48, CMD_CRC_CHK | CMD_IXCHK_EN),
+                        sdhci_card_rca << 16, resp))
+        return 0;
+    st = resp[0];
+    state = (st >> 9) & 0xFu;
+    ready = (st >> 8) & 1u;
+    if (rca_out) *rca_out = sdhci_card_rca;
+    if (state_out) *state_out = state;
+    if (ready_out) *ready_out = ready;
+    if (state != 4u || ready != 1u) return 0;
+    return 1;
+}

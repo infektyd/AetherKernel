@@ -362,6 +362,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "sdmk ok=1 version=103 match=1 created=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v104: FAT32 scratch reread" \
       && printf '%s' "$serial_delta" | grep -qa "sdrd ok=1 version=104 match=1 present=1 name=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v105: SDHCI card status" \
+      && printf '%s' "$serial_delta" | grep -qa "sdst ok=1 version=105 state=4 ready=1 rca=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -613,6 +615,8 @@ PY
         probe_shell "sdmk" "^sdmk ok=1 version=103 match=1 created="
         # V104: re-read AETHER.TMP by name after GENET. Read-only. No EL0.
         probe_shell "sdrd" "^sdrd ok=1 version=104 match=1 present=1 name="
+        # V105: SDHCI CMD13 SEND_STATUS after GENET. TRAN + READY_FOR_DATA. No EL0.
+        probe_shell "sdst" "^sdst ok=1 version=105 state=4 ready=1 rca="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
