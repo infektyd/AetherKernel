@@ -1010,11 +1010,19 @@ int           kernel_vc_mbox_board_mac(unsigned long *out);
 int           kernel_vc_mbox_board_serial(unsigned long *out);
 // V96: GET_TEMPERATURE (0x00030006). Millidegrees. Boot/shell only.
 int           kernel_vc_mbox_get_temp(unsigned int *out);
+// V97: GET_CLOCK_RATE (0x00030002). Hz. Boot/shell only.
+int           kernel_vc_mbox_get_clock_rate(unsigned int clock_id, unsigned int *out);
 
 // V96: mailbox temperature after GENET. Fail-closed range. No EL0.
 int           kernel_mboxt_selftest(void);
 int           kernel_mboxt_ok(void);
 unsigned int  kernel_mboxt_temp(void);
+
+// V97: mailbox ARM clock rate after GENET. Fail-closed range. No EL0.
+int           kernel_mboxc_selftest(void);
+int           kernel_mboxc_ok(void);
+unsigned int  kernel_mboxc_clk(void);
+unsigned int  kernel_mboxc_hz(void);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.

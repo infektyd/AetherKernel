@@ -1100,6 +1100,18 @@ struct Application {
     uartPutDec(UInt64(kernel_mboxt_temp()))
     uartPuts("\n")
 
+    // Runtime V97: mailbox GET_CLOCK_RATE (ARM). UART token only. No boot event emit.
+    // Hz. No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v97: mailbox clock rate\n")
+    let mboxc_ok_boot = kernel_mboxc_selftest()
+    uartPuts("mboxc ok=")
+    uartPutDec(UInt64(mboxc_ok_boot))
+    uartPuts(" version=97 clk=")
+    uartPutDec(UInt64(kernel_mboxc_clk()))
+    uartPuts(" hz=")
+    uartPutDec(UInt64(kernel_mboxc_hz()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

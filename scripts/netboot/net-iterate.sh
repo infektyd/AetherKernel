@@ -346,6 +346,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "stimer3 ok=1 version=95 chan=3 match=1" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v96: mailbox temperature" \
       && printf '%s' "$serial_delta" | grep -qa "mboxt ok=1 version=96 temp=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v97: mailbox clock rate" \
+      && printf '%s' "$serial_delta" | grep -qa "mboxc ok=1 version=97 clk=3 hz=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -581,6 +583,8 @@ PY
         probe_shell "stimer3" "^stimer3 ok=1 version=95 chan=3 match=1"
         # V96: mailbox GET_TEMPERATURE after GENET. Millidegrees. No EL0.
         probe_shell "mboxt" "^mboxt ok=1 version=96 temp="
+        # V97: mailbox GET_CLOCK_RATE (ARM) after GENET. Hz. No EL0.
+        probe_shell "mboxc" "^mboxc ok=1 version=97 clk=3 hz="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
