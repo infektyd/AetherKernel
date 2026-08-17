@@ -1291,6 +1291,12 @@ unsigned int  kernel_pwm_ctl(void);
 unsigned int  kernel_pwm_sta(void);
 unsigned int  kernel_pwm_pwm1(void);
 
+// V93: PWM clock enable + CTL poke after GENET. No pin-mux. No EL0.
+int           kernel_pwm2_selftest(void);
+int           kernel_pwm2_ok(void);
+unsigned int  kernel_pwm2_clk(void);
+unsigned int  kernel_pwm2_en(void);
+
 // V82: one bounded BSC1 write to a vacant address. Honest nack=1. No boot emit.
 int           kernel_i2c2_selftest(void);
 int           kernel_i2c2_ok(void);

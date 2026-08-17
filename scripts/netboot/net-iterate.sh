@@ -338,6 +338,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "gpio2 ok=1 version=91 pin=42 set=1 clr=1" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v92: system timer C1 match" \
       && printf '%s' "$serial_delta" | grep -qa "stimer2 ok=1 version=92 chan=1 match=1" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v93: PWM clock enable" \
+      && printf '%s' "$serial_delta" | grep -qa "pwm2 ok=1 version=93 clk=1 en=1" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -565,6 +567,8 @@ PY
         probe_shell "gpio2" "^gpio2 ok=1 version=91 pin=42 set=1 clr=1"
         # V92: system timer C1 match after GENET. No GPU C0/C2. No EL0.
         probe_shell "stimer2" "^stimer2 ok=1 version=92 chan=1 match=1"
+        # V93: PWM clock enable + CTL poke after GENET. No pin-mux. No EL0.
+        probe_shell "pwm2" "^pwm2 ok=1 version=93 clk=1 en=1"
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

@@ -1052,6 +1052,18 @@ struct Application {
     uartPutDec(UInt64(kernel_stimer2_match()))
     uartPuts("\n")
 
+    // Runtime V93: PWM clock enable + CTL poke. UART token only. No boot event emit.
+    // No pin-mux. No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v93: PWM clock enable\n")
+    let pwm2_ok_boot = kernel_pwm2_selftest()
+    uartPuts("pwm2 ok=")
+    uartPutDec(UInt64(pwm2_ok_boot))
+    uartPuts(" version=93 clk=")
+    uartPutDec(UInt64(kernel_pwm2_clk()))
+    uartPuts(" en=")
+    uartPutDec(UInt64(kernel_pwm2_en()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
