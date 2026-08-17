@@ -445,6 +445,8 @@ PY
       && printf '%s' "$serial_delta" | grep -qa "genet19 ok=1 version=123 sntp=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v124: GENET originate SSDP" \
       && printf '%s' "$serial_delta" | grep -qa "genet20 ok=1 version=124 ssdp=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v125: GENET TX MIB" \
+      && printf '%s' "$serial_delta" | grep -qa "genet21 ok=1 version=125 mib=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -736,6 +738,8 @@ PY
         probe_shell "genet19" "^genet19 ok=1 version=123 sntp="
         # V124: originate SSDP M-SEARCH to the TFTP host:41252. No EL0.
         probe_shell "genet20" "^genet20 ok=1 version=124 ssdp="
+        # V125: UMAC TX MIB after one local-exp frame. No EL0.
+        probe_shell "genet21" "^genet21 ok=1 version=125 mib="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

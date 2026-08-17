@@ -122,6 +122,7 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - [x] V122 originate HTTP/1.0 GET after GENET (`genet18 ok=1 version=122 http=`). Fail-closed 200 + body of dedicated `/aether/v122.txt` on `10.42.0.1:41250`; bounded unpark/poll/park; no EL0. Does not overwrite boot files.
 - [x] V123 originate SNTP client after GENET (`genet19 ok=1 version=123 sntp=`). Fail-closed Mode=4 + originate/transmit stamps on `10.42.0.1:41251`; bounded unpark/poll/park; no EL0. Does not bind privileged NTP/DNS/DHCP.
 - [x] V124 originate SSDP M-SEARCH after GENET (`genet20 ok=1 version=124 ssdp=`). Fail-closed 200 + ST `urn:aether:device:v124` on `10.42.0.1:41252`; bounded unpark/poll/park; no EL0. Unicast helper; does not bind privileged SSDP/DHCP.
+- [x] V125 UMAC TX MIB after GENET (`genet21 ok=1 version=125 mib=`). Fail-closed `tx.pok` +1 and `tx.bytes` +>=60 after one 60-byte local-exp frame; bounded unpark/poll/park; no EL0. Not an application protocol.
 - Minimal TCP/IP: ARP, IPv4, ICMP (ping), UDP, then TCP.
 - A tiny socket API exposed as syscalls. (EL0 `sys_socket` after genet12 I-aborts `esr=0xbf000002` and watchdog-resets; deferred.)
 - *First proof:* the kernel answers an ICMP ping from the host over its OWN driver

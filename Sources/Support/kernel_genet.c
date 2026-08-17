@@ -3860,3 +3860,129 @@ int kernel_genet20_selftest(void) {
 int          kernel_genet20_ok(void)    { return genet20_ok_val;    }
 unsigned int kernel_genet20_ssdp(void)  { return genet20_ssdp_val;  }
 unsigned int kernel_genet20_reply(void) { return genet20_reply_val; }
+
+// V125: UMAC TX MIB (tx.pok at 0x4EC, tx.bytes at 0x4E8) after one 60-byte
+// local-exp frame. Not an application protocol. Bounded unpark/poll/park.
+// TX on a DMA NC page — not the 4 KiB core0 stack. No EL0. No boot event emit.
+int kernel_genet21_selftest(void);
+
+#define UMAC_MIB_TX_BYTES (UMAC_OFF + 0x4E8U)
+#define UMAC_MIB_TX_POK (UMAC_OFF + 0x4ECU)
+
+static int genet21_probed;
+static int genet21_ok_val;
+static unsigned int genet21_mib_val;
+static unsigned int genet21_delta_val;
+static unsigned long genet21_tx_pa;
+static void *genet21_tx_nc;
+
+static int genet21_tx_frame(unsigned int tx_len, unsigned int tx_prod) {
+    enum {
+        V4_TDMA_CONS = 0x08U,
+        V4_TDMA_PROD = 0x0C,
+        TX_Q16_START = 128U,
+        TX_Q16_N = 128U
+    };
+    uint64_t freq, t0, tnow, twait;
+    unsigned int tcons;
+    unsigned int tx_bd;
+    uint32_t len_stat;
+
+    if (tx_len < 60U || !genet21_tx_nc) return 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    tx_bd = TDMA_OFF + (TX_Q16_START + (tx_prod % TX_Q16_N)) * DESC_BYTES;
+    len_stat = ((uint32_t)tx_len << 16) |
+               (DMA_QTAG_MASK << DMA_TX_QTAG_SHIFT) |
+               DMA_TX_APPEND_CRC | DMA_SOP | DMA_EOP;
+    G32(tx_bd + 0U) = len_stat;
+    G32(tx_bd + 4U) = (uint32_t)genet21_tx_pa;
+    G32(tx_bd + 8U) = 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    tdma_ring16_wr(V4_TDMA_PROD, tx_prod + 1U);
+
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(t0));
+    twait = 20ULL * freq / 1000ULL;
+    do {
+        tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+        if (tcons == (tx_prod + 1U)) return 1;
+        genet_udelay(100);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(tnow));
+    } while (tnow - t0 < twait);
+    tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+    return (tcons != 0U) ? 1 : 0;
+}
+
+static unsigned int genet21_build_exp(volatile uint8_t *tx,
+                                      unsigned long mac,
+                                      unsigned long peer_mac) {
+    unsigned int i;
+    for (i = 0; i < 6U; i++) {
+        tx[i] = (uint8_t)((peer_mac >> (40U - 8U * i)) & 0xFFUL);
+        tx[6U + i] = (uint8_t)((mac >> (40U - 8U * i)) & 0xFFUL);
+    }
+    genet9_put16(tx + 12, 0x88B5U);
+    genet9_put32(tx + 14, 0xA1250001U);
+    genet9_put32(tx + 18, 0xA1250002U);
+    for (i = 22U; i < 60U; i++) tx[i] = 0;
+    return 60U;
+}
+
+int kernel_genet21_selftest(void) {
+    enum {
+        V4_RDMA_PROD = 0x08U,
+        V4_RDMA_CONS = 0x0C
+    };
+    unsigned long mac;
+    unsigned long peer_mac;
+    unsigned int cons;
+    unsigned int tx_prod = 0;
+    uint32_t pok0, pok1, bytes0, bytes1;
+
+    if (genet21_probed) return genet21_ok_val;
+    genet21_probed = 1;
+    genet21_ok_val = 0;
+    genet21_mib_val = 0;
+    genet21_delta_val = 0;
+
+    if (!kernel_genet20_selftest()) return 0;
+    mac = kernel_genet3_mac();
+    peer_mac = kernel_genet13_peer_mac();
+    if (!mac || !peer_mac) return 0;
+    if (!kernel_dma_alloc_nc(&genet21_tx_pa, &genet21_tx_nc)) return 0;
+    if (!genet21_tx_nc) return 0;
+    if (!genet10_unpark()) return 0;
+
+    cons = rdma_ring16(V4_RDMA_PROD) & 0xFFFFU;
+    rdma_ring16_wr(V4_RDMA_CONS, cons);
+
+    pok0 = G32(UMAC_MIB_TX_POK);
+    bytes0 = G32(UMAC_MIB_TX_BYTES);
+    if (pok0 == 0xFFFFFFFFU || bytes0 == 0xFFFFFFFFU) {
+        genet10_park();
+        return 0;
+    }
+    genet21_mib_val = 1;
+
+    genet21_build_exp((volatile uint8_t *)genet21_tx_nc, mac, peer_mac);
+    if (!genet21_tx_frame(60U, tx_prod)) {
+        genet10_park();
+        return 0;
+    }
+
+    pok1 = G32(UMAC_MIB_TX_POK);
+    bytes1 = G32(UMAC_MIB_TX_BYTES);
+    genet10_park();
+
+    if (pok1 == 0xFFFFFFFFU || bytes1 == 0xFFFFFFFFU) return 0;
+    if (pok1 == (pok0 + 1U) && bytes1 >= (bytes0 + 60U)) {
+        genet21_delta_val = 1;
+        genet21_ok_val = 1;
+        return 1;
+    }
+    return 0;
+}
+
+int          kernel_genet21_ok(void)    { return genet21_ok_val;    }
+unsigned int kernel_genet21_mib(void)   { return genet21_mib_val;   }
+unsigned int kernel_genet21_delta(void) { return genet21_delta_val; }
