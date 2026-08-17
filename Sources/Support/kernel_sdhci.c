@@ -645,3 +645,109 @@ int kernel_sdhci_fat32_listdir(unsigned int *files_out, unsigned int *config_out
 }
 
 unsigned int kernel_sdhci_fat32_list_other(void) { return fat32_list_other; }
+
+// V87: read one regular root file that is not CONFIG.TXT. Skip dirs (0x10).
+// Size cap 65536. Follows the FAT chain. Own out-params only.
+static int fat32_name_eq(unsigned int base, const char *name83) {
+    for (unsigned int j = 0u; j < 11u; j++) {
+        unsigned int nc = fat32_byte(sdhci_fat32_buf, base + j);
+        if (nc >= 'a' && nc <= 'z') nc -= 32u;
+        if (nc != (unsigned int)(unsigned char)name83[j]) return 0;
+    }
+    return 1;
+}
+
+static int fat32_sum_chain(unsigned int clus, unsigned int size, unsigned int *sum_out) {
+    unsigned int checksum = 0u;
+    unsigned int remaining = size;
+    for (unsigned int max_clus = 256u; remaining > 0u && max_clus > 0u; max_clus--) {
+        unsigned int lba = fat32_clus_lba(clus);
+        for (unsigned int s = 0u; s < fat32_sec_per_clus && remaining > 0u; s++) {
+            if (!sdhci_read_block_pio(lba + s, sdhci_fat32_buf)) return 0;
+            unsigned int nbytes = remaining < 512u ? remaining : 512u;
+            for (unsigned int b = 0u; b < nbytes; b++)
+                checksum += fat32_byte(sdhci_fat32_buf, b);
+            remaining -= nbytes;
+        }
+        if (remaining == 0u) break;
+        unsigned int fat_off = clus * 4u;
+        if (!sdhci_read_block_pio(fat32_fat_lba + fat_off / 512u, sdhci_fat32_buf))
+            return 0;
+        unsigned int next = fat32_u32(sdhci_fat32_buf, fat_off % 512u) & 0x0FFFFFFFu;
+        if (next >= 0x0FFFFFF8u) return 0;
+        clus = next;
+    }
+    if (remaining != 0u) return 0;
+    if (sum_out) *sum_out = checksum;
+    return 1;
+}
+
+int kernel_sdhci_fat32_read_second(unsigned int *name_out,
+                                   unsigned int *bytes_out,
+                                   unsigned int *sum_out) {
+    unsigned int pick_name = 0u;
+    unsigned int pick_clus = 0u;
+    unsigned int pick_size = 0u;
+    unsigned int pick_rank = 0u;
+    if (name_out) *name_out = 0u;
+    if (bytes_out) *bytes_out = 0u;
+    if (sum_out) *sum_out = 0u;
+    if (!sdhci_card_init_ok) return 0;
+    if (fat32_sec_per_clus == 0u) {
+        if (!kernel_sdhci_fat32_read()) return 0;
+    }
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+
+    unsigned int dir_clus = fat32_root_clus;
+    unsigned int dir_done = 0u;
+    for (unsigned int max_clus = 256u; !dir_done && max_clus > 0u; max_clus--) {
+        unsigned int dir_lba = fat32_clus_lba(dir_clus);
+        for (unsigned int s = 0u; s < fat32_sec_per_clus; s++) {
+            if (!sdhci_read_block_pio(dir_lba + s, sdhci_fat32_buf)) return 0;
+            for (unsigned int e = 0u; e < 16u; e++) {
+                unsigned int base = e * 32u;
+                unsigned int b0 = fat32_byte(sdhci_fat32_buf, base);
+                if (b0 == 0x00u) { dir_done = 1u; break; }
+                if (b0 == 0xE5u) continue;
+                unsigned int attr = fat32_byte(sdhci_fat32_buf, base + 11u);
+                if (attr == 0x0Fu) continue;
+                if (attr & 0x08u) continue;
+                if (attr & 0x10u) continue;
+                unsigned int size = fat32_u32(sdhci_fat32_buf, base + 28u);
+                if (size == 0u || size > 65536u) continue;
+                if (fat32_name_eq(base, "CONFIG  TXT")) continue;
+                unsigned int rank = 1u;
+                if (fat32_name_eq(base, "CMDLINE TXT")) rank = 3u;
+                else if (fat32_name_eq(base, "ISSUE   TXT")) rank = 2u;
+                if (rank > pick_rank) {
+                    unsigned int hi = fat32_u16(sdhci_fat32_buf, base + 20u);
+                    unsigned int lo = fat32_u16(sdhci_fat32_buf, base + 26u);
+                    pick_clus = (hi << 16) | lo;
+                    pick_size = size;
+                    pick_name =
+                        (fat32_byte(sdhci_fat32_buf, base) << 24) |
+                        (fat32_byte(sdhci_fat32_buf, base + 1u) << 16) |
+                        (fat32_byte(sdhci_fat32_buf, base + 2u) << 8) |
+                        fat32_byte(sdhci_fat32_buf, base + 3u);
+                    pick_rank = rank;
+                }
+            }
+            if (dir_done) break;
+        }
+        if (!dir_done) {
+            unsigned int fat_off = dir_clus * 4u;
+            if (!sdhci_read_block_pio(fat32_fat_lba + fat_off / 512u, sdhci_fat32_buf))
+                break;
+            unsigned int next = fat32_u32(sdhci_fat32_buf, fat_off % 512u) & 0x0FFFFFFFu;
+            if (next >= 0x0FFFFFF8u) break;
+            dir_clus = next;
+        }
+    }
+    if (pick_rank == 0u || pick_size == 0u || pick_name == 0u) return 0;
+    unsigned int sum = 0u;
+    if (!fat32_sum_chain(pick_clus, pick_size, &sum)) return 0;
+    if (name_out) *name_out = pick_name;
+    if (bytes_out) *bytes_out = pick_size;
+    if (sum_out) *sum_out = sum;
+    return 1;
+}

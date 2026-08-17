@@ -969,6 +969,20 @@ struct Application {
     uartPutHexCompact(UInt64(kernel_sdls_other()))
     uartPuts("\n")
 
+    // Runtime V87: second FAT32 file after GENET. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v87: FAT32 second file\n")
+    let sdfile_ok_boot = kernel_sdfile_selftest()
+    uartPuts("sdfile ok=")
+    uartPutDec(UInt64(sdfile_ok_boot))
+    uartPuts(" version=87 name=")
+    uartPutHexCompact(UInt64(kernel_sdfile_name()))
+    uartPuts(" bytes=")
+    uartPutDec(UInt64(kernel_sdfile_bytes()))
+    uartPuts(" checksum=")
+    uartPutHexCompact(UInt64(kernel_sdfile_sum()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
