@@ -1609,3 +1609,86 @@ int kernel_sdhci_card_bus_width(unsigned int *bits_out,
     if (mbr != 1u) return 0;
     return 1;
 }
+
+// V109: CMD18 READ_MULTIPLE_BLOCK after GENET. Two 512 B blocks from
+// LBA 0. Fail-closed MBR 0xAA55 on the first block. AUTO_CMD12 stop.
+// Restore single-block length. Shared 512 B scratch — not the 4 KiB
+// core0 stack. No FAT write. No bus-width change.
+int kernel_sdhci_card_multiblock(unsigned int *blocks_out,
+                                 unsigned int *mbr_out) {
+    unsigned int resp[4];
+    unsigned int irpt;
+    unsigned int i;
+    unsigned int w;
+    unsigned int blk;
+    unsigned int got = 0u;
+    unsigned int mbr = 0u;
+    unsigned int arg;
+    unsigned int cmd12;
+
+    if (blocks_out) *blocks_out = 0u;
+    if (mbr_out) *mbr_out = 0u;
+
+    if (sdhci_card_rca == 0u) return 0;
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+
+    arg = 0u; /* LBA 0 is 0 in both HC and byte addressing. */
+    mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (2u << 16) | 512u);
+    if (!sdhci_send_cmd(
+            CMDTM_CMD(18, CMD_RESP_48,
+                      CMD_CRC_CHK | CMD_IXCHK_EN | CMD_IS_DATA | TM_DAT_DIR_RD |
+                          TM_MULTI_BLOCK | TM_BLKCNT_EN | TM_AUTO_CMD12),
+            arg, resp)) {
+        mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 512u);
+        return 0;
+    }
+
+    for (blk = 0u; blk < 2u; blk++) {
+        irpt = 0u;
+        for (i = 0u; i < 200000u; i++) {
+            irpt = mmio_read32(EMMC2_BASE + SDHCI_INTERRUPT);
+            if (irpt & (SDHCI_INT_READ_RDY | SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))
+                break;
+            sdhci_delay_us(1);
+        }
+        if (!(irpt & SDHCI_INT_READ_RDY) || (irpt & (SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))) {
+            mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, 0xFFFFFFFFu);
+            cmd12 = (12u << 24) | (CMD_TYPE_ABORT << 22) | CMD_RESP_48B |
+                    CMD_CRC_CHK | CMD_IXCHK_EN;
+            (void)sdhci_send_cmd(cmd12, 0u, resp);
+            mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 512u);
+            if (blocks_out) *blocks_out = got;
+            if (mbr_out) *mbr_out = mbr;
+            return 0;
+        }
+        mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, SDHCI_INT_READ_RDY);
+        for (w = 0u; w < 128u; w++) {
+            sdhci_fat32_buf[w] = mmio_read32(EMMC2_BASE + SDHCI_DATA);
+        }
+        got = blk + 1u;
+        if (blk == 0u) {
+            if (((sdhci_fat32_buf[127] >> 16) & 0xFFFFu) == 0xAA55u) mbr = 1u;
+        }
+    }
+
+    irpt = 0u;
+    for (i = 0u; i < 200000u; i++) {
+        irpt = mmio_read32(EMMC2_BASE + SDHCI_INTERRUPT);
+        if (irpt & (SDHCI_INT_DATA_DONE | SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))
+            break;
+        sdhci_delay_us(1);
+    }
+    mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 512u);
+    if (blocks_out) *blocks_out = got;
+    if (mbr_out) *mbr_out = mbr;
+    if (!(irpt & SDHCI_INT_DATA_DONE) || (irpt & (SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))) {
+        mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, 0xFFFFFFFFu);
+        cmd12 = (12u << 24) | (CMD_TYPE_ABORT << 22) | CMD_RESP_48B |
+                CMD_CRC_CHK | CMD_IXCHK_EN;
+        (void)sdhci_send_cmd(cmd12, 0u, resp);
+        return 0;
+    }
+    mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, SDHCI_INT_DATA_DONE);
+    if (got != 2u || mbr != 1u) return 0;
+    return 1;
+}

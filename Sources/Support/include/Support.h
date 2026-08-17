@@ -988,6 +988,8 @@ int           kernel_sdhci_card_sd_status(unsigned int *type_out,
 int           kernel_sdhci_card_bus_width(unsigned int *bits_out,
                                           unsigned int *host_out,
                                           unsigned int *mbr_out);
+int           kernel_sdhci_card_multiblock(unsigned int *blocks_out,
+                                           unsigned int *mbr_out);
 
 // Runtime V58: VideoCore ARM->GPU property mailbox probe (firmware revision).
 int kernel_vc_mbox_probe(void);
@@ -1108,6 +1110,12 @@ int           kernel_sdbus_ok(void);
 unsigned int  kernel_sdbus_bits(void);
 unsigned int  kernel_sdbus_host(void);
 unsigned int  kernel_sdbus_mbr(void);
+
+// V109: SDHCI CMD18 multi-block read after GENET. Fail-closed 2 blocks + MBR. No EL0.
+int           kernel_sdmb_selftest(void);
+int           kernel_sdmb_ok(void);
+unsigned int  kernel_sdmb_blocks(void);
+unsigned int  kernel_sdmb_mbr(void);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.

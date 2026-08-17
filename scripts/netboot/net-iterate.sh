@@ -370,6 +370,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "sdss ok=1 version=107 type=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v108: SDHCI bus width" \
       && printf '%s' "$serial_delta" | grep -qa "sdbus ok=1 version=108 bits=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v109: SDHCI multi-block" \
+      && printf '%s' "$serial_delta" | grep -qa "sdmb ok=1 version=109 blocks=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -629,6 +631,8 @@ PY
         probe_shell "sdss" "^sdss ok=1 version=107 type="
         # V108: SDHCI ACMD6 SET_BUS_WIDTH after GENET. 4-bit + MBR. No EL0.
         probe_shell "sdbus" "^sdbus ok=1 version=108 bits="
+        # V109: SDHCI CMD18 multi-block read after GENET. 2 blocks + MBR. No EL0.
+        probe_shell "sdmb" "^sdmb ok=1 version=109 blocks="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
