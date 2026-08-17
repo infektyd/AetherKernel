@@ -1239,6 +1239,15 @@ unsigned int  kernel_genet10_tx(void);
 unsigned int  kernel_genet10_replies(void);
 unsigned int  kernel_genet10_kind(void);
 
+// V78: bounded UDP echo (port 7). Same unpark/poll/park as genet10. kind 3=udp.
+int           kernel_genet11_selftest(void);
+int           kernel_genet11_poll(void);
+int           kernel_genet11_ok(void);
+unsigned int  kernel_genet11_rx(void);
+unsigned int  kernel_genet11_tx(void);
+unsigned int  kernel_genet11_replies(void);
+unsigned int  kernel_genet11_kind(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

@@ -832,6 +832,26 @@ struct Application {
     }
     uartPuts("\n")
 
+    // Runtime V78: bounded UDP echo. UART token only. No long boot wait.
+    uartPuts("runtime v78: GENET bounded UDP echo\n")
+    let genet11_ok_boot = kernel_genet11_selftest()
+    uartPuts("genet11 ok=")
+    uartPutDec(UInt64(genet11_ok_boot))
+    uartPuts(" version=78 rx=")
+    uartPutDec(UInt64(kernel_genet11_rx()))
+    uartPuts(" tx=")
+    uartPutDec(UInt64(kernel_genet11_tx()))
+    uartPuts(" replies=")
+    uartPutDec(UInt64(kernel_genet11_replies()))
+    uartPuts(" kind=")
+    let genet11_kind_boot = kernel_genet11_kind()
+    if genet11_kind_boot == 3 {
+        uartPuts("udp")
+    } else {
+        uartPuts("none")
+    }
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

@@ -229,6 +229,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "genet9 ok=1 version=76 rx=.* tx=.* kind=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v77: GENET bounded multi-reply poll" \
       && printf '%s' "$serial_delta" | grep -q "genet10 ok=1 version=77 rx=.* tx=.* replies=.* kind=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v78: GENET bounded UDP echo" \
+      && printf '%s' "$serial_delta" | grep -q "genet11 ok=1 version=78 rx=.* tx=.* replies=.* kind=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

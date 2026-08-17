@@ -308,6 +308,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "genet9 ok=1 version=76 rx=.* tx=.* kind=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v77: GENET bounded multi-reply poll" \
       && printf '%s' "$serial_delta" | grep -qa "genet10 ok=1 version=77 rx=.* tx=.* replies=.* kind=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v78: GENET bounded UDP echo" \
+      && printf '%s' "$serial_delta" | grep -qa "genet11 ok=1 version=78 rx=.* tx=.* replies=.* kind=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -454,6 +456,33 @@ while [ "$attempt" -le "$RETRIES" ]; do
         echo "==== host ping 10.42.0.2 ===="
         cat "$ping_out" || true
         echo "==== end host ping ===="
+        # GENET11: bounded UDP echo on port 7. Host datagrams must overlap this window.
+        udp_out="${AETHER_UDP_LOG:-/tmp/aether-udp-genet11.txt}"
+        : > "$udp_out"
+        ( sleep 0.5; python3 - <<'PY' > "$udp_out" 2>&1
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.settimeout(2.0)
+ok = 0
+for _ in range(2):
+    s.sendto(b"aether", ("10.42.0.2", 7))
+    try:
+        data, addr = s.recvfrom(64)
+        print("udp_echo recv=%s from=%s" % (data.decode("ascii", "replace"), addr[0]))
+        if data == b"aether":
+            ok += 1
+    except Exception as e:
+        print("udp_echo fail=%s" % e)
+print("udp_echo ok=%d/2" % ok)
+s.close()
+PY
+        ) &
+        udp_pid=$!
+        AETHER_SERIAL_PROBE_TIMEOUT=15 probe_shell "genet11" "^genet11 ok=1 version=78 rx=.* tx=.* replies=.* kind="
+        wait "$udp_pid" || true
+        echo "==== host udp 10.42.0.2:7 ===="
+        cat "$udp_out" || true
+        echo "==== end host udp ===="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

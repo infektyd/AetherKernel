@@ -1337,3 +1337,190 @@ unsigned int kernel_genet10_rx(void)      { return genet10_rx_val;      }
 unsigned int kernel_genet10_tx(void)      { return genet10_tx_val;      }
 unsigned int kernel_genet10_replies(void) { return genet10_replies_val; }
 unsigned int kernel_genet10_kind(void)    { return genet10_kind_val;    }
+
+int kernel_genet11_selftest(void);
+
+static int genet11_inited;
+static int genet11_ok_val;
+static unsigned int genet11_rx_val;
+static unsigned int genet11_tx_val;
+static unsigned int genet11_replies_val;
+static unsigned int genet11_kind_val;
+static unsigned long genet11_tx_pa;
+static void *genet11_tx_nc;
+
+// Build UDP echo (port 7) into tx. Returns wire length, or 0. kind 3=udp.
+static unsigned int genet11_build_udp_echo(const volatile uint8_t *rx,
+                                           unsigned int rx_len,
+                                           volatile uint8_t *tx,
+                                           unsigned long mac,
+                                           unsigned int *kind_out) {
+    enum { OUR_IP = 0x0a2a0002U, ECHO_PORT = 7U };
+    unsigned int i;
+    *kind_out = 0;
+    if (rx_len < 42U) return 0;
+    if (genet9_be16(rx + 12) != 0x0800U) return 0;
+    if ((rx[14] >> 4) != 4U) return 0;
+    unsigned int ihl = (unsigned int)(rx[14] & 0x0FU) * 4U;
+    if (ihl < 20U) return 0;
+    if (rx[14 + 9] != 0x11U) return 0;
+    if (genet9_be32(rx + 14 + 16) != OUR_IP) return 0;
+    unsigned int ip_len = genet9_be16(rx + 16);
+    if (ip_len < ihl + 8U) return 0;
+    unsigned int udp_off = 14U + ihl;
+    if (rx_len < udp_off + 8U) return 0;
+    if (genet9_be16(rx + udp_off + 2) != ECHO_PORT) return 0;
+    unsigned int udp_len = genet9_be16(rx + udp_off + 4);
+    if (udp_len < 8U) return 0;
+    unsigned int wire = 14U + ihl + udp_len;
+    if (wire > 1514U || wire > rx_len) return 0;
+    for (i = 0; i < wire; i++) tx[i] = rx[i];
+    for (i = 0; i < 6U; i++) tx[i] = rx[6U + i];
+    genet9_put_mac(tx + 6, mac);
+    uint32_t src = genet9_be32(rx + 26);
+    genet9_put32(tx + 26, OUR_IP);
+    genet9_put32(tx + 30, src);
+    tx[22] = 64;
+    tx[24] = 0;
+    tx[25] = 0;
+    genet9_put16(tx + 24, genet9_csum(tx + 14, ihl));
+    uint16_t sport = genet9_be16(rx + udp_off);
+    genet9_put16(tx + udp_off, ECHO_PORT);
+    genet9_put16(tx + udp_off + 2, sport);
+    tx[udp_off + 6] = 0;
+    tx[udp_off + 7] = 0;
+    uint32_t s = 0;
+    s += (OUR_IP >> 16) & 0xFFFFU;
+    s += OUR_IP & 0xFFFFU;
+    s += (src >> 16) & 0xFFFFU;
+    s += src & 0xFFFFU;
+    s += 0x11U;
+    s += udp_len;
+    for (i = 0; i + 1U < udp_len; i += 2U) {
+        s += genet9_be16(tx + udp_off + i);
+    }
+    if (udp_len & 1U) s += (uint32_t)tx[udp_off + udp_len - 1U] << 8;
+    while (s >> 16) s = (s & 0xFFFFU) + (s >> 16);
+    uint16_t ucsum = (uint16_t)~s;
+    if (ucsum == 0U) ucsum = 0xFFFFU;
+    genet9_put16(tx + udp_off + 6, ucsum);
+    *kind_out = 3;
+    for (i = wire; i < 60U; i++) tx[i] = 0;
+    return wire < 60U ? 60U : wire;
+}
+
+// V78: re-runnable bounded UDP echo. Do not leave the 256-BD ring running.
+int kernel_genet11_selftest(void) {
+    if (genet11_inited) return genet11_ok_val;
+    genet11_inited = 1;
+    genet11_ok_val = 0;
+    genet11_rx_val = 0;
+    genet11_tx_val = 0;
+    genet11_replies_val = 0;
+    genet11_kind_val = 0;
+    if (!kernel_genet10_selftest()) return 0;
+    if (!kernel_dma_alloc_nc(&genet11_tx_pa, &genet11_tx_nc)) return 0;
+    genet11_ok_val = 1;
+    return 1;
+}
+
+int kernel_genet11_poll(void) {
+    enum {
+        V4_RDMA_PROD = 0x08U,
+        V4_TDMA_CONS = 0x08U,
+        V4_RDMA_CONS = 0x0C,
+        V4_TDMA_PROD = 0x0C,
+        TX_Q16_START = 128U,
+        TX_Q16_N = 128U,
+        RX_Q16_N = 256U
+    };
+    if (!kernel_genet11_selftest()) return 0;
+
+    genet11_rx_val = 0;
+    genet11_tx_val = 0;
+    genet11_replies_val = 0;
+    genet11_kind_val = 0;
+
+    unsigned long mac = kernel_genet3_mac();
+    if (!mac || !genet11_tx_nc) return 0;
+    if (!genet10_unpark()) return 0;
+
+    unsigned int cons = rdma_ring16(V4_RDMA_PROD) & 0xFFFFU;
+    rdma_ring16_wr(V4_RDMA_CONS, cons);
+
+    uint64_t freq, start, now, ticks;
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(start));
+    ticks = 4000ULL * freq / 1000ULL;
+    unsigned int tx_prod = 0;
+    unsigned int processed = 0;
+
+    do {
+        unsigned int prod = rdma_ring16(V4_RDMA_PROD) & 0xFFFFU;
+        while (cons != prod && processed < 16U) {
+            unsigned int idx = cons & (RX_Q16_N - 1U);
+            unsigned int bd = RDMA_OFF + idx * DESC_BYTES;
+            unsigned int rx_len = (G32(bd) >> 16) & 0x0FFFU;
+            unsigned long buf_pa = (unsigned long)G32(bd + 4U);
+            void *rx_nc = 0;
+            unsigned int kind = 0;
+            unsigned int tx_len = 0;
+            genet11_rx_val++;
+            processed++;
+            if (rx_len >= 42U && kernel_dma_nc_from_pa(buf_pa, &rx_nc) && rx_nc) {
+                unsigned int half = (tx_prod & 1U) * RX_BUF_LEN;
+                volatile uint8_t *tx = (volatile uint8_t *)genet11_tx_nc + half;
+                tx_len = genet11_build_udp_echo((const volatile uint8_t *)rx_nc,
+                                                rx_len, tx, mac, &kind);
+            }
+            cons = (cons + 1U) & 0xFFFFU;
+            rdma_ring16_wr(V4_RDMA_CONS, cons);
+            if (kind != 0U && tx_len != 0U && tx_prod < TX_Q16_N) {
+                genet11_kind_val = kind;
+                __asm__ volatile("dsb sy" ::: "memory");
+                unsigned int tx_bd = TDMA_OFF +
+                    (TX_Q16_START + (tx_prod % TX_Q16_N)) * DESC_BYTES;
+                uint32_t len_stat = ((uint32_t)tx_len << 16) |
+                                    (DMA_QTAG_MASK << DMA_TX_QTAG_SHIFT) |
+                                    DMA_TX_APPEND_CRC | DMA_SOP | DMA_EOP;
+                G32(tx_bd + 0U) = len_stat;
+                G32(tx_bd + 4U) = (uint32_t)(genet11_tx_pa +
+                    (unsigned long)((tx_prod & 1U) * RX_BUF_LEN));
+                G32(tx_bd + 8U) = 0;
+                __asm__ volatile("dsb sy" ::: "memory");
+                tx_prod++;
+                tdma_ring16_wr(V4_TDMA_PROD, tx_prod);
+
+                uint64_t t0, tnow, twait;
+                __asm__ volatile("mrs %0, cntpct_el0" : "=r"(t0));
+                twait = 20ULL * freq / 1000ULL;
+                unsigned int tcons = 0;
+                do {
+                    tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+                    if (tcons == tx_prod) break;
+                    genet_udelay(100);
+                    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(tnow));
+                } while (tnow - t0 < twait);
+                tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+                unsigned int tprod = tdma_ring16(V4_TDMA_PROD) & 0xFFFFU;
+                if (tcons != 0U || tprod != 0U) {
+                    genet11_tx_val = 1;
+                    genet11_replies_val++;
+                }
+            }
+        }
+        if (genet11_replies_val >= 2U) break;
+        genet_udelay(1000);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(now));
+    } while (now - start < ticks);
+
+    genet10_park();
+    genet11_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet11_ok(void)      { return genet11_ok_val;      }
+unsigned int kernel_genet11_rx(void)      { return genet11_rx_val;      }
+unsigned int kernel_genet11_tx(void)      { return genet11_tx_val;      }
+unsigned int kernel_genet11_replies(void) { return genet11_replies_val; }
+unsigned int kernel_genet11_kind(void)    { return genet11_kind_val;    }

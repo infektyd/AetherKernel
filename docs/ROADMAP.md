@@ -35,7 +35,7 @@ A strong **microkernel-style runtime core**, with cold-boot metal floor through 
 - **EPIC C** ✓: **BCM2711 EMMC2/SDHCI register probe** (V54) — `sdhci ok=1 version=54 host_version=2 cap=0x45ee6432`. **SD card identification** (V55) — `card ok=1 version=55 rca=0xaaaa`. **Single block read via CMD17** (V56) — `block ok=1 version=56 mbr=0xaa55`. **FAT32 file read** (V57) — walk root directory (case-insensitive, multi-cluster chain), read config.txt; `fat32 ok=1 version=57 file=config.txt bytes=558 checksum=0xb362`. Certificate v57 fat32=1. SHA 4bc4dc050d9827d33d87f62042c699e44c866871.
 - **EPIC D ✓:** V58–V60 mailbox/framebuffer/text-console. HDMI live counter + UART→HDMI mirror proven on metal: boot `console ok=1 version=60 … counter=0 display=0` then shell `counter=64` (sha256 `6d1d24b2ac950e09070b5bbd5ec49bcc4e5ef8b6127485e13a293d1a48d4f426`); later `counter=63 display=0 mirror=37674` (sha256 `5547eaac2f7e317fdff0c76e39f7b95675bbfb4689e5ff7be8a24252122b5f37`). Tick-only in CNTP; one-glyph idle paint; no blit on IRQ/secondary/hot path.
 - **EPIC E (in progress):** V61–V66 boot markers ship PCIe/VL805/xHCI capability (`pcie ok=1 version=61`, `vl805 ok=1 version=62`, `xhci ok=1 version=63`), xHCI controller init (`xhci_run ok=1 version=64 ports_connected=.*`), USB enumeration (`usb_enum ok=[01] version=65 addr=.* vendor=.* product=.* class=.* stage=.* portsc=.* portscR=.* slot_raw=.* ad_raw=`), hub downstream walk (`hubwalk ok=[01] version=66 ports=.* connected=.* hid=` — `ok=1` means ports were queried; `connected=0 hid=0` is honest with no device), and HID keyboard selftest (`kbd ok=[01] version=66 keycode=.* char=` — `ok=1` not required on unattended netboot); interactive keypress proof remains open.
-- **EPIC F (in progress):** V67–V76 GENET probe through one-shot ICMP reply (`genet9`). V77 bounded multi-BD poll after shell-ready (`genet10 ok=1 version=77 rx=.* tx=.* replies=.* kind=`). Standing free-running 256-BD ring is not used (UART stall). Host ping after shell-ready remains if `replies=0`.
+- **EPIC F (in progress):** V67–V77 GENET through ICMP ping (`genet10`). V78 bounded UDP echo on port 7 (`genet11 ok=1 version=78 rx=.* tx=.* replies=.* kind=`). Standing free-running 256-BD ring is not used (UART stall). Host UDP after shell-ready remains if `replies=0`.
 
 **The gap to the North Star** is everything that makes an OS *general-purpose*: user
 mode, processes, storage, display, input, and networking. The epics below close it.
@@ -99,7 +99,8 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - [x] V74 Linux ring-16 BD count + leftover RBUF reset + fail-closed TX CONS (`genet7 ok=1 version=74 ring=.* tx=.* cons=.* prod=.* frames=`).
 - [x] V75 v4/v5 TDMA PROD at 0x0C (`genet8 ok=1 version=75 prod=.* cons=.* tx=.* frames=`).
 - [x] V76 parse one RX ARP request or ICMP echo-request and reply (`genet9 ok=1 version=76 rx=.* tx=.* kind=`).
-- [x] V77 bounded multi-BD unpark/poll/park (`genet10 ok=1 version=77 rx=.* tx=.* replies=.* kind=`). Free-running 256-BD ring stalls UART; poll is bounded. Host `ping -c 2` after shell-ready is the first-proof target.
+- [x] V77 bounded multi-BD unpark/poll/park (`genet10 ok=1 version=77 rx=.* tx=.* replies=.* kind=`). Free-running 256-BD ring stalls UART; poll is bounded. Host `ping -c 2` after shell-ready proven.
+- [x] V78 bounded UDP echo on port 7 (`genet11 ok=1 version=78 rx=.* tx=.* replies=.* kind=`). Same unpark/poll/park. Host `SOCK_DGRAM` to `10.42.0.2:7` after shell-ready is the proof target.
 - Minimal TCP/IP: ARP, IPv4, ICMP (ping), UDP, then TCP.
 - A tiny socket API exposed as syscalls.
 - *First proof:* the kernel answers an ICMP ping from the host over its OWN driver

@@ -19,7 +19,7 @@ def test_genet10_bounded_multi_reply_poll() -> None:
     scheduler = read_repo("Sources/Support/kernel_scheduler.c")
 
     genet9 = genet.split("kernel_genet10_selftest")[0]
-    genet10 = genet.split("kernel_genet10_selftest", 1)[1]
+    genet10 = genet.split("kernel_genet10_selftest", 1)[1].split("kernel_genet11_selftest")[0]
 
     assert "int           kernel_genet10_selftest(void);" in support
     assert "int           kernel_genet10_poll(void);" in support
