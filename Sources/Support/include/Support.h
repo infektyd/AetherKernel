@@ -1207,6 +1207,13 @@ unsigned int  kernel_gpio2_pin(void);
 unsigned int  kernel_gpio2_set(void);
 unsigned int  kernel_gpio2_clr(void);
 
+// V94: GPIO26 PUP_PDN write+readback after GENET. REG1 only. No EL0.
+int           kernel_gpio3_selftest(void);
+int           kernel_gpio3_ok(void);
+unsigned int  kernel_gpio3_pin(void);
+unsigned int  kernel_gpio3_up(void);
+unsigned int  kernel_gpio3_dn(void);
+
 // System DMA NC page. Returns ARM PA (not PCIe phys+0x400000000).
 int           kernel_dma_alloc_nc(unsigned long *pa_out, void **nc_out);
 int           kernel_dma_nc_from_pa(unsigned long pa, void **nc_out);

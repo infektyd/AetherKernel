@@ -261,6 +261,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "stimer2 ok=1 version=92 chan=1 match=1" \
       && printf '%s' "$serial_delta" | grep -q "runtime v93: PWM clock enable" \
       && printf '%s' "$serial_delta" | grep -q "pwm2 ok=1 version=93 clk=1 en=1" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v94: GPIO PUP readback" \
+      && printf '%s' "$serial_delta" | grep -q "gpio3 ok=1 version=94 pin=26 up=1 dn=1" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

@@ -1064,6 +1064,20 @@ struct Application {
     uartPutDec(UInt64(kernel_pwm2_en()))
     uartPuts("\n")
 
+    // Runtime V94: GPIO26 PUP_PDN write+readback. UART token only. No boot event emit.
+    // REG1 only. No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v94: GPIO PUP readback\n")
+    let gpio3_ok_boot = kernel_gpio3_selftest()
+    uartPuts("gpio3 ok=")
+    uartPutDec(UInt64(gpio3_ok_boot))
+    uartPuts(" version=94 pin=")
+    uartPutDec(UInt64(kernel_gpio3_pin()))
+    uartPuts(" up=")
+    uartPutDec(UInt64(kernel_gpio3_up()))
+    uartPuts(" dn=")
+    uartPutDec(UInt64(kernel_gpio3_dn()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
