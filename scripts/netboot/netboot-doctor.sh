@@ -285,6 +285,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "sdrd ok=1 version=104 match=1 present=1 name=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v105: SDHCI card status" \
       && printf '%s' "$serial_delta" | grep -q "sdst ok=1 version=105 state=4 ready=1 rca=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v106: SDHCI send SCR" \
+      && printf '%s' "$serial_delta" | grep -q "sdscr ok=1 version=106 spec=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

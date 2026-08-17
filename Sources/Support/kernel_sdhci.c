@@ -1395,3 +1395,82 @@ int kernel_sdhci_card_status(unsigned int *state_out,
     if (state != 4u || ready != 1u) return 0;
     return 1;
 }
+
+// V106: ACMD51 SEND_SCR after GENET. 8-byte ADTC. Restore 512-byte
+// block length. Fail-closed unless SCR_STRUCTURE is 0 and 4-bit bus
+// is advertised. No FAT write.
+int kernel_sdhci_card_scr(unsigned int *spec_out, unsigned int *bus_out) {
+    unsigned int resp[4];
+    unsigned int w0;
+    unsigned int w1;
+    unsigned int structure;
+    unsigned int spec;
+    unsigned int bus;
+    unsigned int irpt;
+    unsigned int i;
+
+    if (spec_out) *spec_out = 0u;
+    if (bus_out) *bus_out = 0u;
+
+    if (sdhci_card_rca == 0u) return 0;
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+    if (!sdhci_send_cmd(CMDTM_CMD(55, CMD_RESP_48, CMD_CRC_CHK | CMD_IXCHK_EN),
+                        sdhci_card_rca << 16, resp))
+        return 0;
+
+    mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 8u);
+    if (!sdhci_send_cmd(
+            CMDTM_CMD(51, CMD_RESP_48, CMD_CRC_CHK | CMD_IXCHK_EN | CMD_IS_DATA | TM_DAT_DIR_RD),
+            0, resp)) {
+        mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 512u);
+        return 0;
+    }
+
+    irpt = 0u;
+    for (i = 0u; i < 200000u; i++) {
+        irpt = mmio_read32(EMMC2_BASE + SDHCI_INTERRUPT);
+        if (irpt & (SDHCI_INT_READ_RDY | SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))
+            break;
+        sdhci_delay_us(1);
+    }
+    if (!(irpt & SDHCI_INT_READ_RDY) || (irpt & (SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))) {
+        mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, 0xFFFFFFFFu);
+        mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 512u);
+        return 0;
+    }
+    mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, SDHCI_INT_READ_RDY);
+    w0 = mmio_read32(EMMC2_BASE + SDHCI_DATA);
+    w1 = mmio_read32(EMMC2_BASE + SDHCI_DATA);
+    (void)w1;
+
+    irpt = 0u;
+    for (i = 0u; i < 200000u; i++) {
+        irpt = mmio_read32(EMMC2_BASE + SDHCI_INTERRUPT);
+        if (irpt & (SDHCI_INT_DATA_DONE | SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))
+            break;
+        sdhci_delay_us(1);
+    }
+    mmio_write32(EMMC2_BASE + SDHCI_BLKSIZECNT, (1u << 16) | 512u);
+    if (!(irpt & SDHCI_INT_DATA_DONE) || (irpt & (SDHCI_INT_ERROR | SDHCI_INT_ERR_MASK))) {
+        mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, 0xFFFFFFFFu);
+        return 0;
+    }
+    mmio_write32(EMMC2_BASE + SDHCI_INTERRUPT, SDHCI_INT_DATA_DONE);
+
+    structure = (w0 >> 28) & 0xFu;
+    spec = (w0 >> 24) & 0xFu;
+    bus = (w0 >> 16) & 0xFu;
+    if (structure != 0u) {
+        w0 = ((w0 & 0xFFu) << 24) | ((w0 & 0xFF00u) << 8) |
+             ((w0 >> 8) & 0xFF00u) | (w0 >> 24);
+        structure = (w0 >> 28) & 0xFu;
+        spec = (w0 >> 24) & 0xFu;
+        bus = (w0 >> 16) & 0xFu;
+    }
+    if (spec_out) *spec_out = spec;
+    if (bus_out) *bus_out = bus;
+    if (structure != 0u) return 0;
+    if (spec > 3u) return 0;
+    if ((bus & 4u) == 0u) return 0;
+    return 1;
+}

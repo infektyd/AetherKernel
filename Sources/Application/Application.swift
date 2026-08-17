@@ -1221,6 +1221,18 @@ struct Application {
     uartPutDec(UInt64(kernel_sdst_rca()))
     uartPuts("\n")
 
+    // Runtime V106: SDHCI ACMD51 SEND_SCR. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts.
+    uartPuts("runtime v106: SDHCI send SCR\n")
+    let sdscr_ok_boot = kernel_sdscr_selftest()
+    uartPuts("sdscr ok=")
+    uartPutDec(UInt64(sdscr_ok_boot))
+    uartPuts(" version=106 spec=")
+    uartPutDec(UInt64(kernel_sdscr_spec()))
+    uartPuts(" bus=")
+    uartPutDec(UInt64(kernel_sdscr_bus()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
