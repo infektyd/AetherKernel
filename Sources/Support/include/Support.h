@@ -1457,6 +1457,13 @@ int           kernel_genet13_selftest(void);
 int           kernel_genet13_ok(void);
 unsigned int  kernel_genet13_arp(void);
 unsigned int  kernel_genet13_echo(void);
+unsigned long kernel_genet13_peer_mac(void);
+
+// V118: originate UDP echo to 10.42.0.1:41240. Bounded park. No EL0.
+int           kernel_genet14_selftest(void);
+int           kernel_genet14_ok(void);
+unsigned int  kernel_genet14_udp(void);
+unsigned int  kernel_genet14_echo(void);
 
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);

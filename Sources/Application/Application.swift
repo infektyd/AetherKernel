@@ -1371,6 +1371,18 @@ struct Application {
     uartPutDec(UInt64(kernel_genet13_echo()))
     uartPuts("\n")
 
+    // Runtime V118: originate UDP echo. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts. Parks the ring before return.
+    uartPuts("runtime v118: GENET originate UDP\n")
+    let genet14_ok_boot = kernel_genet14_selftest()
+    uartPuts("genet14 ok=")
+    uartPutDec(UInt64(genet14_ok_boot))
+    uartPuts(" version=118 udp=")
+    uartPutDec(UInt64(kernel_genet14_udp()))
+    uartPuts(" echo=")
+    uartPutDec(UInt64(kernel_genet14_echo()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
