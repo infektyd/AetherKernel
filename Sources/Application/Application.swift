@@ -704,6 +704,19 @@ struct Application {
     uartPutHexCompact(UInt64(kernel_genet3_umac()))
     uartPuts("\n")
 
+    // Runtime V70: firmware board serial via mailbox. No UMAC write, no DMA.
+    uartPuts("runtime v70: GENET mailbox board serial\n")
+    let genet4_ok_boot = kernel_genet4_selftest()
+    uartPuts("genet4 ok=")
+    uartPutDec(UInt64(genet4_ok_boot))
+    uartPuts(" version=70 serial=")
+    uartPutHexCompact(UInt64(kernel_genet4_serial()))
+    uartPuts(" mbox=")
+    uartPutDec(UInt64(kernel_genet4_mbox()))
+    uartPuts(" mac=")
+    uartPutHexCompact(UInt64(kernel_genet4_mac()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

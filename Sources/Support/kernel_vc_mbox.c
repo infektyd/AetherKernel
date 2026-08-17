@@ -357,3 +357,47 @@ int kernel_vc_mbox_board_mac(unsigned long *out) {
     }
     return board_mac_ok;
 }
+
+// RPI_FIRMWARE_GET_BOARD_SERIAL (0x00010004). Eight bytes, little-endian.
+// Boot/shell only — shares vc_buf with the other property calls; not IRQ-safe.
+#define TAG_GET_BOARD_SERIAL 0x00010004U
+
+static int board_serial_probed;
+static int board_serial_ok;
+static unsigned long board_serial_val;
+
+int kernel_vc_mbox_board_serial(unsigned long *out) {
+    if (board_serial_probed) {
+        if (out) {
+            *out = board_serial_val;
+        }
+        return board_serial_ok;
+    }
+    board_serial_probed = 1;
+    board_serial_ok = 0;
+    board_serial_val = 0;
+
+    vc_buf[0] = 8U * 4U;
+    vc_buf[1] = MBOX_REQ;
+    vc_buf[2] = TAG_GET_BOARD_SERIAL;
+    vc_buf[3] = 8U;
+    vc_buf[4] = 0U;
+    vc_buf[5] = 0U;
+    vc_buf[6] = 0U;
+    vc_buf[7] = TAG_END;
+
+    if (!vc_call(32U)) {
+        if (out) {
+            *out = 0;
+        }
+        return 0;
+    }
+
+    unsigned long serial = ((unsigned long)vc_buf[6] << 32) | (unsigned long)vc_buf[5];
+    board_serial_val = serial;
+    board_serial_ok = (serial != 0UL) ? 1 : 0;
+    if (out) {
+        *out = serial;
+    }
+    return board_serial_ok;
+}

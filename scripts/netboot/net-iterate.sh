@@ -287,6 +287,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "genet2 ok=1 version=68 mac=.* rx=.* frames=.* bytes=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v69: GENET mailbox station MAC" \
       && printf '%s' "$serial_delta" | grep -qa "genet3 ok=1 version=69 mac=.* mbox=.* umac=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v70: GENET mailbox board serial" \
+      && printf '%s' "$serial_delta" | grep -qa "genet4 ok=1 version=70 serial=.* mbox=.* mac=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -408,6 +410,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "genet2" "^genet2 ok=1 version=68 mac=.* rx=.* frames=.* bytes="
         # GENET3: ok=1 is a non-zero firmware MAC. umac=0 is honest (no UMAC write).
         probe_shell "genet3" "^genet3 ok=1 version=69 mac=.* mbox=1 umac="
+        # GENET4: ok=1 is a non-zero firmware serial. Prefer mailbox over MDIO.
+        probe_shell "genet4" "^genet4 ok=1 version=70 serial=.* mbox=1 mac="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

@@ -187,3 +187,39 @@ int           kernel_genet3_ok(void)   { return genet3_ok_val;   }
 unsigned long kernel_genet3_mac(void)  { return genet3_mac_val;  }
 unsigned int  kernel_genet3_mbox(void) { return genet3_mbox_val; }
 unsigned long kernel_genet3_umac(void) { return genet3_umac_val; }
+
+static int genet4_probed;
+static int genet4_ok_val;
+static unsigned long genet4_serial_val;
+static unsigned int genet4_mbox_val;
+static unsigned long genet4_mac_val;
+
+// V70: mailbox board serial. Do not write UMAC_MAC0/1. Do not touch CMD_RX_EN.
+int kernel_genet4_selftest(void) {
+    if (genet4_probed) return genet4_ok_val;
+    genet4_probed = 1;
+    genet4_ok_val = 0;
+    genet4_serial_val = 0;
+    genet4_mbox_val = 0;
+    genet4_mac_val = 0;
+
+    if (!kernel_genet3_selftest()) return 0;
+    genet4_mac_val = kernel_genet3_mac();
+
+    unsigned long serial = 0;
+    if (kernel_vc_mbox_board_serial(&serial)) {
+        genet4_mbox_val = 1;
+        genet4_serial_val = serial;
+    }
+
+    // ok=1 is a non-zero firmware serial. Mailbox path; no MDIO.
+    if (genet4_mbox_val == 0U || genet4_serial_val == 0UL) return 0;
+
+    genet4_ok_val = 1;
+    return 1;
+}
+
+int           kernel_genet4_ok(void)     { return genet4_ok_val;     }
+unsigned long kernel_genet4_serial(void) { return genet4_serial_val; }
+unsigned int  kernel_genet4_mbox(void)   { return genet4_mbox_val;   }
+unsigned long kernel_genet4_mac(void)    { return genet4_mac_val;    }

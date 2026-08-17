@@ -213,6 +213,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "genet2 ok=1 version=68 mac=.* rx=.* frames=.* bytes=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v69: GENET mailbox station MAC" \
       && printf '%s' "$serial_delta" | grep -q "genet3 ok=1 version=69 mac=.* mbox=.* umac=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v70: GENET mailbox board serial" \
+      && printf '%s' "$serial_delta" | grep -q "genet4 ok=1 version=70 serial=.* mbox=.* mac=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \
