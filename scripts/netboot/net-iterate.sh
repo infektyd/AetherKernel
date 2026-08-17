@@ -297,6 +297,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "genet6 ok=1 version=73 mac=.* tx=.* frames=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v74: GENET Linux ring-16 and TX CONS" \
       && printf '%s' "$serial_delta" | grep -qa "genet7 ok=1 version=74 ring=.* tx=.* cons=.* prod=.* frames=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v75: GENET v4 TDMA PROD doorbell" \
+      && printf '%s' "$serial_delta" | grep -qa "genet8 ok=1 version=75 prod=.* cons=.* tx=.* frames=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -428,6 +430,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
         probe_shell "genet6" "^genet6 ok=1 version=73 mac=1 tx=1 frames="
         # GENET7: Linux ring-16 geometry. tx=1 only if TDMA CONS moved. frames=0 is honest.
         probe_shell "genet7" "^genet7 ok=1 version=74 ring=1 tx=.* cons=.* prod=.* frames="
+        # GENET8: v4 TDMA PROD at 0x0C. tx=1 only if CONS moved or PROD latched.
+        probe_shell "genet8" "^genet8 ok=1 version=75 prod=.* cons=.* tx=.* frames="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

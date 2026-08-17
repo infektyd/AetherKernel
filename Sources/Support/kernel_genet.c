@@ -774,3 +774,133 @@ unsigned int kernel_genet7_tx(void)     { return genet7_tx_val;     }
 unsigned int kernel_genet7_cons(void)   { return genet7_cons_val;   }
 unsigned int kernel_genet7_prod(void)   { return genet7_prod_val;   }
 unsigned int kernel_genet7_frames(void) { return genet7_frames_val; }
+
+static int genet8_probed;
+static int genet8_ok_val;
+static unsigned int genet8_prod_val;
+static unsigned int genet8_cons_val;
+static unsigned int genet8_tx_val;
+static unsigned int genet8_frames_val;
+
+// V75: GENET v4/v5 ring map — TDMA PROD is 0x0C, CONS is 0x08.
+int kernel_genet8_selftest(void) {
+    enum {
+        V4_TDMA_READ = 0x00U,
+        V4_READ_HI = 0x04U,
+        V4_TDMA_CONS = 0x08U,
+        V4_TDMA_PROD = 0x0C,
+        V4_START_HI = 0x18U,
+        V4_END_HI = 0x20U,
+        V4_TDMA_WRITE = 0x2CU,
+        V4_WRITE_HI = 0x30U,
+        TBUF_OFF = 0x0600U,
+        TX_Q16_START = 128U
+    };
+    if (genet8_probed) return genet8_ok_val;
+    genet8_probed = 1;
+    genet8_ok_val = 0;
+    genet8_prod_val = 0;
+    genet8_cons_val = 0;
+    genet8_tx_val = 0;
+    genet8_frames_val = 0;
+
+    if (!kernel_genet7_selftest()) return 0;
+    if (!kernel_genet7_ring()) return 0;
+
+    unsigned long mac = kernel_genet3_mac();
+    if (!mac) return 0;
+
+    // genet7 parked DMA. Stay disabled, leftover-flush, then v4 doorbell.
+    rdma_common_wr(DMA_CTRL_OFF, 0);
+    tdma_common_wr(DMA_CTRL_OFF, 0);
+    if (!genet_wait_us(2000, rdma_is_disabled)) return 0;
+    if (!genet_wait_us(2000, tdma_is_disabled)) return 0;
+    genet_pulse32(UMAC_TX_FLUSH, 1, 0);
+
+    uint32_t tbuf = G32(TBUF_OFF);
+    if (tbuf != 0xFFFFFFFFU && tbuf != 0xDEADDEADU && (tbuf & RBUF_64B_EN)) {
+        genet_wr32(TBUF_OFF, tbuf & ~RBUF_64B_EN);
+    }
+
+    unsigned long tx_pa = 0;
+    void *tx_nc = 0;
+    if (!kernel_dma_alloc_nc(&tx_pa, &tx_nc)) return 0;
+    genet_write_arp((volatile uint8_t *)tx_nc, mac);
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    unsigned int tx_bd = TDMA_OFF + TX_Q16_START * DESC_BYTES;
+    uint32_t len_stat = ((uint32_t)TX_FRAME_LEN << 16) |
+                        (DMA_QTAG_MASK << DMA_TX_QTAG_SHIFT) |
+                        DMA_TX_APPEND_CRC | DMA_SOP | DMA_EOP;
+    G32(tx_bd + 0U) = len_stat;
+    G32(tx_bd + 4U) = (uint32_t)tx_pa;
+    G32(tx_bd + 8U) = 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    uint32_t tx_start = TX_Q16_START * DESC_WORDS;
+    rdma_ring16_wr(V4_READ_HI, 0);
+    rdma_ring16_wr(V4_START_HI, 0);
+    rdma_ring16_wr(V4_END_HI, 0);
+    rdma_ring16_wr(V4_WRITE_HI, 0);
+    tdma_ring16_wr(V4_TDMA_READ, tx_start);
+    tdma_ring16_wr(V4_READ_HI, 0);
+    tdma_ring16_wr(V4_START_HI, 0);
+    tdma_ring16_wr(V4_END_HI, 0);
+    tdma_ring16_wr(V4_TDMA_WRITE, tx_start);
+    tdma_ring16_wr(V4_WRITE_HI, 0);
+    tdma_ring16_wr(V4_TDMA_CONS, 0);
+    tdma_ring16_wr(V4_TDMA_PROD, 0);
+
+    rdma_common_wr(DMA_RING_CFG_OFF, (1U << DESC_INDEX));
+    tdma_common_wr(DMA_RING_CFG_OFF, (1U << DESC_INDEX));
+    rdma_common_wr(DMA_CTRL_OFF, DMA_EN | DMA_RING16_EN);
+    tdma_common_wr(DMA_CTRL_OFF, DMA_EN | DMA_RING16_EN);
+
+    uint32_t cmd = G32(UMAC_CMD);
+    genet_wr32(UMAC_CMD, cmd | CMD_TX_EN | CMD_RX_EN | CMD_PROMISC);
+    if ((G32(UMAC_CMD) & CMD_TX_EN) == 0U) return 0;
+
+    tdma_ring16_wr(V4_TDMA_PROD, 1);
+    genet8_prod_val = tdma_ring16(V4_TDMA_PROD) & 0xFFFFU;
+
+    uint64_t freq, start, now, ticks;
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(start));
+    ticks = 50ULL * freq / 1000ULL;
+    do {
+        genet8_cons_val = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+        genet8_prod_val = tdma_ring16(V4_TDMA_PROD) & 0xFFFFU;
+        if (genet8_cons_val != 0U) break;
+        genet_udelay(100);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(now));
+    } while (now - start < ticks);
+    genet8_cons_val = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+    genet8_prod_val = tdma_ring16(V4_TDMA_PROD) & 0xFFFFU;
+    if (genet8_cons_val != 0U || genet8_prod_val != 0U) genet8_tx_val = 1;
+
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(start));
+    ticks = 1000ULL * freq / 1000ULL;
+    do {
+        uint32_t rxprod = rdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+        genet8_frames_val = rxprod;
+        if (rxprod != 0U) break;
+        genet_udelay(1000);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(now));
+    } while (now - start < ticks);
+
+    cmd = G32(UMAC_CMD);
+    genet_wr32(UMAC_CMD, cmd & ~(CMD_RX_EN | CMD_TX_EN));
+    rdma_common_wr(DMA_CTRL_OFF, 0);
+    tdma_common_wr(DMA_CTRL_OFF, 0);
+    genet_wait_us(2000, rdma_is_disabled);
+    genet_wait_us(2000, tdma_is_disabled);
+
+    genet8_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet8_ok(void)     { return genet8_ok_val;     }
+unsigned int kernel_genet8_prod(void)   { return genet8_prod_val;   }
+unsigned int kernel_genet8_cons(void)   { return genet8_cons_val;   }
+unsigned int kernel_genet8_tx(void)     { return genet8_tx_val;     }
+unsigned int kernel_genet8_frames(void) { return genet8_frames_val; }

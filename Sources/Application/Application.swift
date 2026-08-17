@@ -775,6 +775,21 @@ struct Application {
     uartPutDec(UInt64(kernel_genet7_frames()))
     uartPuts("\n")
 
+    // Runtime V75: v4 TDMA PROD doorbell. UART token only.
+    uartPuts("runtime v75: GENET v4 TDMA PROD doorbell\n")
+    let genet8_ok_boot = kernel_genet8_selftest()
+    uartPuts("genet8 ok=")
+    uartPutDec(UInt64(genet8_ok_boot))
+    uartPuts(" version=75 prod=")
+    uartPutDec(UInt64(kernel_genet8_prod()))
+    uartPuts(" cons=")
+    uartPutDec(UInt64(kernel_genet8_cons()))
+    uartPuts(" tx=")
+    uartPutDec(UInt64(kernel_genet8_tx()))
+    uartPuts(" frames=")
+    uartPutDec(UInt64(kernel_genet8_frames()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
