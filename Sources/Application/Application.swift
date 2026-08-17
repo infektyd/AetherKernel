@@ -1599,6 +1599,18 @@ struct Application {
     uartPutDec(UInt64(kernel_genet32_zero()))
     uartPuts("\n")
 
+    // Runtime V137: SYS rbuf/tbuf flush pulse. UART token only.
+    // No boot event emit. No DMA / unpark. No EL0 enter after GENET.
+    uartPuts("runtime v137: GENET SYS flush\n")
+    let genet33_ok_boot = kernel_genet33_selftest()
+    uartPuts("genet33 ok=")
+    uartPutDec(UInt64(genet33_ok_boot))
+    uartPuts(" version=137 rflush=")
+    uartPutDec(UInt64(kernel_genet33_rflush()))
+    uartPuts(" tflush=")
+    uartPutDec(UInt64(kernel_genet33_tflush()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

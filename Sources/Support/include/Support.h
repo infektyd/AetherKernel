@@ -1573,6 +1573,12 @@ int           kernel_genet32_ok(void);
 unsigned int  kernel_genet32_rst(void);
 unsigned int  kernel_genet32_zero(void);
 
+// V137: SYS rbuf/tbuf flush pulse. No DMA. No EL0.
+int           kernel_genet33_selftest(void);
+int           kernel_genet33_ok(void);
+unsigned int  kernel_genet33_rflush(void);
+unsigned int  kernel_genet33_tflush(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);

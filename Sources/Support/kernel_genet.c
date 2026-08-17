@@ -4989,3 +4989,62 @@ int kernel_genet32_selftest(void) {
 int          kernel_genet32_ok(void)   { return genet32_ok_val;   }
 unsigned int kernel_genet32_rst(void)  { return genet32_rst_val;  }
 unsigned int kernel_genet32_zero(void) { return genet32_zero_val; }
+
+// V137: SYS rbuf/tbuf flush pulse (Linux SYS_RBUF_FLUSH_CTRL /
+// SYS_TBUF_FLUSH_CTRL). Require readable leftover, pulse bit 0,
+// then leftover restored with flush bit clear. No DMA. No EL0.
+// UART token only.
+#define SYS_RBUF_FLUSH_CTRL 0x08U
+#define SYS_TBUF_FLUSH_CTRL 0x0CU
+#define SYS_FLUSH_BIT 0x1U
+
+int kernel_genet33_selftest(void);
+
+static int genet33_probed;
+static int genet33_ok_val;
+static unsigned int genet33_rflush_val;
+static unsigned int genet33_tflush_val;
+
+int kernel_genet33_selftest(void) {
+    uint32_t r0, t0, got;
+
+    if (genet33_probed) return genet33_ok_val;
+    genet33_probed = 1;
+    genet33_ok_val = 0;
+    genet33_rflush_val = 0;
+    genet33_tflush_val = 0;
+
+    if (!kernel_genet32_selftest()) return 0;
+
+    r0 = G32(SYS_RBUF_FLUSH_CTRL);
+    t0 = G32(SYS_TBUF_FLUSH_CTRL);
+    if (r0 == 0xDEADDEADU || r0 == 0xFFFFFFFFU) return 0;
+    if (t0 == 0xDEADDEADU || t0 == 0xFFFFFFFFU) return 0;
+
+    genet_wr32(SYS_RBUF_FLUSH_CTRL, r0 | SYS_FLUSH_BIT);
+    genet_udelay(10);
+    genet_wr32(SYS_RBUF_FLUSH_CTRL, r0 & ~SYS_FLUSH_BIT);
+    genet_udelay(10);
+    got = G32(SYS_RBUF_FLUSH_CTRL);
+    if (got == 0xDEADDEADU || got == 0xFFFFFFFFU) return 0;
+    if ((got & SYS_FLUSH_BIT) != 0U) return 0;
+    if (got != (r0 & ~SYS_FLUSH_BIT)) return 0;
+    genet33_rflush_val = 1;
+
+    genet_wr32(SYS_TBUF_FLUSH_CTRL, t0 | SYS_FLUSH_BIT);
+    genet_udelay(10);
+    genet_wr32(SYS_TBUF_FLUSH_CTRL, t0 & ~SYS_FLUSH_BIT);
+    genet_udelay(10);
+    got = G32(SYS_TBUF_FLUSH_CTRL);
+    if (got == 0xDEADDEADU || got == 0xFFFFFFFFU) return 0;
+    if ((got & SYS_FLUSH_BIT) != 0U) return 0;
+    if (got != (t0 & ~SYS_FLUSH_BIT)) return 0;
+    genet33_tflush_val = 1;
+
+    genet33_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet33_ok(void)     { return genet33_ok_val;     }
+unsigned int kernel_genet33_rflush(void) { return genet33_rflush_val; }
+unsigned int kernel_genet33_tflush(void) { return genet33_tflush_val; }
