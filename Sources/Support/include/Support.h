@@ -1278,6 +1278,13 @@ unsigned int  kernel_i2c2_nack(void);
 unsigned int  kernel_i2c2_addr(void);
 unsigned int  kernel_i2c2_sta(void);
 
+// V83: one bounded SPI0 byte. DONE is success. loop=1 only on RX==TX. No boot emit.
+int           kernel_spi2_selftest(void);
+int           kernel_spi2_ok(void);
+unsigned int  kernel_spi2_done(void);
+unsigned int  kernel_spi2_loop(void);
+unsigned int  kernel_spi2_rx(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

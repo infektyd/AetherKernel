@@ -318,6 +318,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "pwm ok=1 version=81 ctl=.* sta=.* pwm1=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v82: I2C no-ACK transfer" \
       && printf '%s' "$serial_delta" | grep -qa "i2c2 ok=1 version=82 nack=1 addr=.* sta=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v83: SPI0 bounded transfer" \
+      && printf '%s' "$serial_delta" | grep -qa "spi2 ok=1 version=83 done=1 loop=.* rx=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -525,6 +527,8 @@ PY
         probe_shell "pwm" "^pwm ok=1 version=81 ctl=.* sta=.* pwm1=1"
         # V82: bounded BSC1 write to vacant 0x7F. Honest NACK. No extra hardware.
         probe_shell "i2c2" "^i2c2 ok=1 version=82 nack=1 addr=0x7f sta="
+        # V83: one SPI0 byte. DONE required. loop=1 only with MOSI-MISO jumper.
+        probe_shell "spi2" "^spi2 ok=1 version=83 done=1 loop=.* rx="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

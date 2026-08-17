@@ -913,6 +913,20 @@ struct Application {
     uartPutHexCompact(UInt64(kernel_i2c2_sta()))
     uartPuts("\n")
 
+    // Runtime V83: bounded SPI0 byte. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v83: SPI0 bounded transfer\n")
+    let spi2_ok_boot = kernel_spi2_selftest()
+    uartPuts("spi2 ok=")
+    uartPutDec(UInt64(spi2_ok_boot))
+    uartPuts(" version=83 done=")
+    uartPutDec(UInt64(kernel_spi2_done()))
+    uartPuts(" loop=")
+    uartPutDec(UInt64(kernel_spi2_loop()))
+    uartPuts(" rx=")
+    uartPutHexCompact(UInt64(kernel_spi2_rx()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

@@ -100,7 +100,7 @@ func uartPutShellBufferSlice(_ start: UInt32, _ len: UInt32) {
 }
 
 let SHELL_COMMAND_LIST =
-  "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,handlecheck,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci,genet,genet2,genet3,genet4,gpio,genet5,genet6,genet7,genet8,genet9,genet10,genet11,genet12,i2c,pwm,i2c2"
+  "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,handlecheck,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci,genet,genet2,genet3,genet4,gpio,genet5,genet6,genet7,genet8,genet9,genet10,genet11,genet12,i2c,pwm,i2c2,spi2"
 
 func printShellReady() {
   uartPuts("shell ready \(SHELL_COMMAND_LIST)\n")
@@ -2422,6 +2422,19 @@ func printI2c2() {
   uartPuts("\n")
 }
 
+func printSpi2() {
+  _ = kernel_spi2_selftest()
+  uartPuts("spi2 ok=")
+  uartPutDec(UInt64(kernel_spi2_ok()))
+  uartPuts(" version=83 done=")
+  uartPutDec(UInt64(kernel_spi2_done()))
+  uartPuts(" loop=")
+  uartPutDec(UInt64(kernel_spi2_loop()))
+  uartPuts(" rx=")
+  uartPutHexCompact(UInt64(kernel_spi2_rx()))
+  uartPuts("\n")
+}
+
 func printPoolName(_ pool: UInt32) {
   var i: UInt32 = 0
   let n = kernel_pool_name_len(pool)
@@ -3326,6 +3339,8 @@ func dispatchShellCommand(_ commandStart: UInt32, _ commandLen: UInt32, _ reques
     printPwm()
   } else if shellBufferSliceEquals(commandStart, commandLen, "i2c2") {
     printI2c2()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "spi2") {
+    printSpi2()
   } else if shellBufferSliceEquals(commandStart, commandLen, "pools") {
     printPools()
   } else if shellBufferSliceEquals(commandStart, commandLen, "poolcheck") {
