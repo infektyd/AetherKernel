@@ -1513,6 +1513,12 @@ int           kernel_genet22_ok(void);
 unsigned int  kernel_genet22_live(void);
 unsigned int  kernel_genet22_indep(void);
 
+// V127: INTRL2 TXDMA_DONE after one frame. Bounded park. No EL0.
+int           kernel_genet23_selftest(void);
+int           kernel_genet23_ok(void);
+unsigned int  kernel_genet23_irq(void);
+unsigned int  kernel_genet23_done(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);

@@ -4297,3 +4297,145 @@ int kernel_genet22_selftest(void) {
 int          kernel_genet22_ok(void)    { return genet22_ok_val;    }
 unsigned int kernel_genet22_live(void)  { return genet22_live_val;  }
 unsigned int kernel_genet22_indep(void) { return genet22_indep_val; }
+
+// V127: INTRL2_0 TXDMA_DONE (bit 16) after one 60-byte local-exp frame.
+// Poll the L2 status register only — do not enable a GIC line.
+// Requires genet13 (peer MAC) only. Bounded unpark/poll/park.
+// TX on a DMA NC page — not the 4 KiB core0 stack. No EL0. No boot event.
+int kernel_genet23_selftest(void);
+
+#define INTRL2_0_OFF 0x0200U
+#define INTRL2_CPU_STAT (INTRL2_0_OFF + 0x00U)
+#define INTRL2_CPU_CLEAR (INTRL2_0_OFF + 0x08U)
+#define INTRL2_CPU_MASK_SET (INTRL2_0_OFF + 0x10U)
+#define INTRL2_CPU_MASK_CLEAR (INTRL2_0_OFF + 0x14U)
+#define UMAC_IRQ_TXDMA_DONE (1U << 16)
+
+static int genet23_probed;
+static int genet23_ok_val;
+static unsigned int genet23_irq_val;
+static unsigned int genet23_done_val;
+static unsigned long genet23_tx_pa;
+static void *genet23_tx_nc;
+
+static int genet23_tx_frame(unsigned int tx_len, unsigned int tx_prod) {
+    enum {
+        V4_TDMA_CONS = 0x08U,
+        V4_TDMA_PROD = 0x0C,
+        TX_Q16_START = 128U,
+        TX_Q16_N = 128U
+    };
+    uint64_t freq, t0, tnow, twait;
+    unsigned int tcons;
+    unsigned int tx_bd;
+    uint32_t len_stat;
+
+    if (tx_len < 60U || !genet23_tx_nc) return 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    tx_bd = TDMA_OFF + (TX_Q16_START + (tx_prod % TX_Q16_N)) * DESC_BYTES;
+    len_stat = ((uint32_t)tx_len << 16) |
+               (DMA_QTAG_MASK << DMA_TX_QTAG_SHIFT) |
+               DMA_TX_APPEND_CRC | DMA_SOP | DMA_EOP;
+    G32(tx_bd + 0U) = len_stat;
+    G32(tx_bd + 4U) = (uint32_t)genet23_tx_pa;
+    G32(tx_bd + 8U) = 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    tdma_ring16_wr(V4_TDMA_PROD, tx_prod + 1U);
+
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(t0));
+    twait = 20ULL * freq / 1000ULL;
+    do {
+        tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+        if (tcons == (tx_prod + 1U)) return 1;
+        genet_udelay(100);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(tnow));
+    } while (tnow - t0 < twait);
+    tcons = tdma_ring16(V4_TDMA_CONS) & 0xFFFFU;
+    return (tcons != 0U) ? 1 : 0;
+}
+
+static unsigned int genet23_build_exp(volatile uint8_t *tx,
+                                      unsigned long mac,
+                                      unsigned long peer_mac) {
+    unsigned int i;
+    for (i = 0; i < 6U; i++) {
+        tx[i] = (uint8_t)((peer_mac >> (40U - 8U * i)) & 0xFFUL);
+        tx[6U + i] = (uint8_t)((mac >> (40U - 8U * i)) & 0xFFUL);
+    }
+    genet9_put16(tx + 12, 0x88B5U);
+    genet9_put32(tx + 14, 0xA1270001U);
+    genet9_put32(tx + 18, 0xA1270002U);
+    for (i = 22U; i < 60U; i++) tx[i] = 0;
+    return 60U;
+}
+
+int kernel_genet23_selftest(void) {
+    enum {
+        V4_RDMA_PROD = 0x08U,
+        V4_RDMA_CONS = 0x0C
+    };
+    unsigned long mac;
+    unsigned long peer_mac;
+    unsigned int cons;
+    unsigned int tx_prod = 0;
+    uint32_t stat0, stat1;
+
+    if (genet23_probed) return genet23_ok_val;
+    genet23_probed = 1;
+    genet23_ok_val = 0;
+    genet23_irq_val = 0;
+    genet23_done_val = 0;
+
+    if (!kernel_genet13_selftest()) return 0;
+    mac = kernel_genet3_mac();
+    peer_mac = kernel_genet13_peer_mac();
+    if (!mac || !peer_mac) return 0;
+    if (!kernel_dma_alloc_nc(&genet23_tx_pa, &genet23_tx_nc)) return 0;
+    if (!genet23_tx_nc) return 0;
+    if (!genet10_unpark()) return 0;
+
+    cons = rdma_ring16(V4_RDMA_PROD) & 0xFFFFU;
+    rdma_ring16_wr(V4_RDMA_CONS, cons);
+    tdma_ring16_wr(DMA_MBUF_DONE, 1);
+
+    stat0 = G32(INTRL2_CPU_STAT);
+    if (stat0 == 0xFFFFFFFFU) {
+        genet10_park();
+        return 0;
+    }
+    genet23_irq_val = 1;
+    G32(INTRL2_CPU_CLEAR) = UMAC_IRQ_TXDMA_DONE;
+    G32(INTRL2_CPU_MASK_CLEAR) = UMAC_IRQ_TXDMA_DONE;
+    G32(INTRL2_CPU_CLEAR) = UMAC_IRQ_TXDMA_DONE;
+    stat0 = G32(INTRL2_CPU_STAT);
+    if (stat0 == 0xFFFFFFFFU || (stat0 & UMAC_IRQ_TXDMA_DONE) != 0U) {
+        G32(INTRL2_CPU_MASK_SET) = UMAC_IRQ_TXDMA_DONE;
+        genet10_park();
+        return 0;
+    }
+
+    genet23_build_exp((volatile uint8_t *)genet23_tx_nc, mac, peer_mac);
+    if (!genet23_tx_frame(60U, tx_prod)) {
+        G32(INTRL2_CPU_MASK_SET) = UMAC_IRQ_TXDMA_DONE;
+        genet10_park();
+        return 0;
+    }
+
+    stat1 = G32(INTRL2_CPU_STAT);
+    G32(INTRL2_CPU_CLEAR) = UMAC_IRQ_TXDMA_DONE;
+    G32(INTRL2_CPU_MASK_SET) = UMAC_IRQ_TXDMA_DONE;
+    genet10_park();
+
+    if (stat1 == 0xFFFFFFFFU) return 0;
+    if ((stat1 & UMAC_IRQ_TXDMA_DONE) != 0U) {
+        genet23_done_val = 1;
+        genet23_ok_val = 1;
+        return 1;
+    }
+    return 0;
+}
+
+int          kernel_genet23_ok(void)    { return genet23_ok_val;    }
+unsigned int kernel_genet23_irq(void)   { return genet23_irq_val;   }
+unsigned int kernel_genet23_done(void)  { return genet23_done_val;  }

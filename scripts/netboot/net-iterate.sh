@@ -467,6 +467,8 @@ PY
       && printf '%s' "$serial_delta" | grep -qa "genet21 ok=1 version=125 mib=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v126: GENET TCP helper liveness" \
       && printf '%s' "$serial_delta" | grep -qa "genet22 ok=1 version=126 live=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v127: GENET INTRL2 TX done" \
+      && printf '%s' "$serial_delta" | grep -qa "genet23 ok=1 version=127 irq=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -762,6 +764,8 @@ PY
         probe_shell "genet21" "^genet21 ok=1 version=125 mib="
         # V126: TCP helper liveness on existing :41241. No EL0.
         probe_shell "genet22" "^genet22 ok=1 version=126 live="
+        # V127: INTRL2 TXDMA_DONE after one local-exp frame. No EL0.
+        probe_shell "genet23" "^genet23 ok=1 version=127 irq="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
