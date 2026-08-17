@@ -1283,6 +1283,20 @@ struct Application {
     uartPutDec(UInt64(kernel_sdsw_grp1()))
     uartPuts("\n")
 
+    // Runtime V111: SDHCI CMD25 multi-block write. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts.
+    uartPuts("runtime v111: SDHCI multi-block write\n")
+    let sdmw_ok_boot = kernel_sdmw_selftest()
+    uartPuts("sdmw ok=")
+    uartPutDec(UInt64(sdmw_ok_boot))
+    uartPuts(" version=111 match=")
+    uartPutDec(UInt64(kernel_sdmw_match()))
+    uartPuts(" blocks=")
+    uartPutDec(UInt64(kernel_sdmw_blocks()))
+    uartPuts(" clus=")
+    uartPutDec(UInt64(kernel_sdmw_clus()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
