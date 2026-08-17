@@ -872,6 +872,19 @@ struct Application {
     }
     uartPuts("\n")
 
+    // Runtime V80: BSC1 + SPI0 probe. UART token only. No boot event emit.
+    uartPuts("runtime v80: I2C and SPI register probe\n")
+    let i2c_ok_boot = kernel_i2c_selftest()
+    uartPuts("i2c ok=")
+    uartPutDec(UInt64(i2c_ok_boot))
+    uartPuts(" version=80 bsc=")
+    uartPutDec(UInt64(kernel_i2c_bsc()))
+    uartPuts(" div=")
+    uartPutHexCompact(UInt64(kernel_i2c_div()))
+    uartPuts(" spi=")
+    uartPutDec(UInt64(kernel_i2c_spi()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

@@ -1257,6 +1257,13 @@ unsigned int  kernel_genet12_tx(void);
 unsigned int  kernel_genet12_replies(void);
 unsigned int  kernel_genet12_kind(void);
 
+// V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
+int           kernel_i2c_selftest(void);
+int           kernel_i2c_ok(void);
+unsigned int  kernel_i2c_bsc(void);
+unsigned int  kernel_i2c_div(void);
+unsigned int  kernel_i2c_spi(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.
