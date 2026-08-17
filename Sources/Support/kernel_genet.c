@@ -386,3 +386,190 @@ unsigned int kernel_genet5_stop(void)   { return genet5_stop_val;   }
 unsigned int kernel_genet5_ring(void)   { return genet5_ring_val;   }
 unsigned int kernel_genet5_rx(void)     { return genet5_rx_val;     }
 unsigned int kernel_genet5_frames(void) { return genet5_frames_val; }
+
+#define TDMA_OFF 0x4000U
+#define TDMA_REG_OFF (TDMA_OFF + TOTAL_DESC * DESC_BYTES)
+#define HFB_REG_OFF 0xFC00U
+#define HFB_CTRL 0x00U
+#define HFB_FLT_ENABLE 0x04U
+#define RBUF_OFF 0x0300U
+#define RBUF_CTRL 0x00U
+#define RBUF_64B_EN (1U << 0)
+#define UMAC_MAX_FRAME_LEN (UMAC_OFF + 0x014U)
+#define DMA_SOP 0x2000U
+#define DMA_EOP 0x4000U
+#define DMA_TX_APPEND_CRC 0x0040U
+#define DMA_TX_QTAG_SHIFT 7U
+#define DMA_QTAG_MASK 0x3FU
+#define DMA_MBUF_DONE 0x24U
+#define DMA_INDEX2RING0 0x70U
+#define TX_RING_N 4U
+#define TX_FRAME_LEN 60U
+
+static int genet6_probed;
+static int genet6_ok_val;
+static unsigned int genet6_mac_val;
+static unsigned int genet6_tx_val;
+static unsigned int genet6_frames_val;
+
+static uint32_t tdma_common(unsigned int off) {
+    return G32(TDMA_REG_OFF + DMA_RINGS_SIZE + off);
+}
+
+static void tdma_common_wr(unsigned int off, uint32_t v) {
+    G32(TDMA_REG_OFF + DMA_RINGS_SIZE + off) = v;
+    __asm__ volatile("dsb sy" ::: "memory");
+}
+
+static uint32_t tdma_ring16(unsigned int off) {
+    return G32(TDMA_REG_OFF + DMA_RING_SIZE * DESC_INDEX + off);
+}
+
+static void tdma_ring16_wr(unsigned int off, uint32_t v) {
+    G32(TDMA_REG_OFF + DMA_RING_SIZE * DESC_INDEX + off) = v;
+    __asm__ volatile("dsb sy" ::: "memory");
+}
+
+static int tdma_is_disabled(void) {
+    return (tdma_common(DMA_STATUS_OFF) & DMA_DISABLED) ? 1 : 0;
+}
+
+static void genet_write_arp(volatile uint8_t *p, unsigned long mac) {
+    unsigned int i;
+    for (i = 0; i < 6U; i++) p[i] = 0xFFU;
+    p[6]  = (uint8_t)((mac >> 40) & 0xFFUL);
+    p[7]  = (uint8_t)((mac >> 32) & 0xFFUL);
+    p[8]  = (uint8_t)((mac >> 24) & 0xFFUL);
+    p[9]  = (uint8_t)((mac >> 16) & 0xFFUL);
+    p[10] = (uint8_t)((mac >> 8) & 0xFFUL);
+    p[11] = (uint8_t)(mac & 0xFFUL);
+    p[12] = 0x08U;
+    p[13] = 0x06U;
+    p[14] = 0x00U;
+    p[15] = 0x01U;
+    p[16] = 0x08U;
+    p[17] = 0x00U;
+    p[18] = 0x06U;
+    p[19] = 0x04U;
+    p[20] = 0x00U;
+    p[21] = 0x01U;
+    for (i = 0; i < 6U; i++) p[22U + i] = p[6U + i];
+    p[28] = 10U;
+    p[29] = 42U;
+    p[30] = 0U;
+    p[31] = 2U;
+    for (i = 0; i < 6U; i++) p[32U + i] = 0U;
+    p[38] = 10U;
+    p[39] = 42U;
+    p[40] = 0U;
+    p[41] = 1U;
+    for (i = 42U; i < TX_FRAME_LEN; i++) p[i] = 0U;
+}
+
+// V73: write mailbox MAC into UMAC, own TX ring, one ARP, longer RX poll.
+int kernel_genet6_selftest(void) {
+    if (genet6_probed) return genet6_ok_val;
+    genet6_probed = 1;
+    genet6_ok_val = 0;
+    genet6_mac_val = 0;
+    genet6_tx_val = 0;
+    genet6_frames_val = 0;
+
+    if (!kernel_genet5_selftest()) return 0;
+
+    unsigned long mac = kernel_genet3_mac();
+    if (!mac) return 0;
+    uint32_t mac0 = (uint32_t)(mac >> 16);
+    uint32_t mac1 = (uint32_t)(mac & 0xFFFFUL);
+    G32(UMAC_MAC0) = mac0;
+    G32(UMAC_MAC1) = mac1;
+    __asm__ volatile("dsb sy" ::: "memory");
+    if (G32(UMAC_MAC0) != mac0) return 0;
+    if ((G32(UMAC_MAC1) & 0xFFFFU) != mac1) return 0;
+    genet6_mac_val = 1;
+
+    G32(HFB_REG_OFF + HFB_CTRL) = 0;
+    G32(HFB_REG_OFF + HFB_FLT_ENABLE) = 0;
+    G32(HFB_REG_OFF + HFB_FLT_ENABLE + 4U) = 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+    unsigned int i;
+    for (i = 0; i < 8U; i++) {
+        rdma_common_wr(DMA_INDEX2RING0 + i * 4U, 0);
+    }
+    uint32_t rbuf = G32(RBUF_OFF + RBUF_CTRL);
+    if (rbuf != 0xFFFFFFFFU && rbuf != 0xDEADDEADU && (rbuf & RBUF_64B_EN)) {
+        G32(RBUF_OFF + RBUF_CTRL) = rbuf & ~RBUF_64B_EN;
+        __asm__ volatile("dsb sy" ::: "memory");
+    }
+    G32(UMAC_MAX_FRAME_LEN) = 1536U;
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    unsigned long tx_pa = 0;
+    void *tx_nc = 0;
+    if (!kernel_dma_alloc_nc(&tx_pa, &tx_nc)) return 0;
+    genet_write_arp((volatile uint8_t *)tx_nc, mac);
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    uint32_t tctrl = tdma_common(DMA_CTRL_OFF);
+    tdma_common_wr(DMA_CTRL_OFF, tctrl & ~DMA_EN);
+    if (!genet_wait_us(5000, tdma_is_disabled)) return 0;
+
+    for (i = 0; i < TX_RING_N; i++) {
+        unsigned int bd = TDMA_OFF + i * DESC_BYTES;
+        G32(bd + 4U) = (uint32_t)tx_pa;
+        G32(bd + 8U) = 0;
+        G32(bd + 0U) = 0;
+    }
+    uint32_t len_stat = ((uint32_t)TX_FRAME_LEN << 16) |
+                        (DMA_QTAG_MASK << DMA_TX_QTAG_SHIFT) |
+                        DMA_TX_APPEND_CRC | DMA_SOP | DMA_EOP;
+    G32(TDMA_OFF + 0U) = len_stat;
+    G32(TDMA_OFF + 4U) = (uint32_t)tx_pa;
+    G32(TDMA_OFF + 8U) = 0;
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    tdma_ring16_wr(RR_PROD_INDEX, 0);
+    tdma_ring16_wr(RR_CONS_INDEX, 0);
+    tdma_ring16_wr(RR_BUF_SIZE, (TX_RING_N << 16) | RX_BUF_LEN);
+    tdma_ring16_wr(DMA_MBUF_DONE, 1);
+    tdma_ring16_wr(RR_XON_XOFF, 0);
+    tdma_ring16_wr(RR_START, 0);
+    tdma_ring16_wr(RR_READ_PTR, 0);
+    tdma_ring16_wr(RR_WRITE_PTR, 0);
+    tdma_ring16_wr(RR_END, TX_RING_N * DESC_WORDS - 1U);
+
+    if (tdma_ring16(RR_START) != 0U) return 0;
+    if (tdma_ring16(RR_END) != (TX_RING_N * DESC_WORDS - 1U)) return 0;
+    if (G32(TDMA_OFF + 4U) != (uint32_t)tx_pa) return 0;
+
+    tdma_common_wr(DMA_RING_CFG_OFF, (1U << DESC_INDEX));
+    tdma_common_wr(DMA_CTRL_OFF, DMA_EN | DMA_RING16_EN);
+
+    uint32_t cmd = G32(UMAC_CMD);
+    G32(UMAC_CMD) = cmd | CMD_TX_EN | CMD_RX_EN | CMD_PROMISC;
+    __asm__ volatile("dsb sy" ::: "memory");
+    if ((G32(UMAC_CMD) & CMD_TX_EN) == 0U) return 0;
+
+    tdma_ring16_wr(RR_PROD_INDEX, 1);
+    genet6_tx_val = 1;
+
+    uint64_t freq, start, now, ticks;
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+    __asm__ volatile("mrs %0, cntpct_el0" : "=r"(start));
+    ticks = 1500ULL * freq / 1000ULL;
+    do {
+        uint32_t prod = rdma_ring16(RR_PROD_INDEX) & 0xFFFFU;
+        genet6_frames_val = prod;
+        if (prod != 0U) break;
+        genet_udelay(1000);
+        __asm__ volatile("mrs %0, cntpct_el0" : "=r"(now));
+    } while (now - start < ticks);
+
+    genet6_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet6_ok(void)     { return genet6_ok_val;     }
+unsigned int kernel_genet6_mac(void)    { return genet6_mac_val;    }
+unsigned int kernel_genet6_tx(void)     { return genet6_tx_val;     }
+unsigned int kernel_genet6_frames(void) { return genet6_frames_val; }

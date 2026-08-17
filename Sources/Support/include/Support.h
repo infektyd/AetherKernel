@@ -1198,6 +1198,13 @@ unsigned int  kernel_genet5_ring(void);
 unsigned int  kernel_genet5_rx(void);
 unsigned int  kernel_genet5_frames(void);
 
+// V73: mailbox MAC into UMAC + own TX ring + one ARP. UART token only.
+int           kernel_genet6_selftest(void);
+int           kernel_genet6_ok(void);
+unsigned int  kernel_genet6_mac(void);
+unsigned int  kernel_genet6_tx(void);
+unsigned int  kernel_genet6_frames(void);
+
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);
 // disable cancels a pending reset.

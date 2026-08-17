@@ -745,6 +745,19 @@ struct Application {
     uartPutDec(UInt64(kernel_genet5_frames()))
     uartPuts("\n")
 
+    // Runtime V73: mailbox MAC into UMAC + own TX ARP. UART token only.
+    uartPuts("runtime v73: GENET UMAC MAC and TX ARP\n")
+    let genet6_ok_boot = kernel_genet6_selftest()
+    uartPuts("genet6 ok=")
+    uartPutDec(UInt64(genet6_ok_boot))
+    uartPuts(" version=73 mac=")
+    uartPutDec(UInt64(kernel_genet6_mac()))
+    uartPuts(" tx=")
+    uartPutDec(UInt64(kernel_genet6_tx()))
+    uartPuts(" frames=")
+    uartPutDec(UInt64(kernel_genet6_frames()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

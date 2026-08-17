@@ -40,7 +40,8 @@ def test_genet4_is_read_only_mailbox_serial() -> None:
     assert "sched12" in iterate
     assert "kernel_genet4_selftest" not in scheduler
     assert "200000" not in genet
-    # DMA / RX-enable stay parked. MDIO PHYID is not this slice.
-    assert "alloc_dma" not in genet
+    # DMA / RX-enable stay parked on the genet4 path. genet5+ owns system DMA.
+    assert "kernel_dma_alloc_nc" not in genet4
+    assert "static unsigned long alloc_dma" not in genet
     assert "CMD_RX_EN)" in genet  # leftover read in V68 only
     assert "PHYID" not in genet

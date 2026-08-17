@@ -40,6 +40,7 @@ def test_genet3_is_read_only_mailbox_mac() -> None:
     assert "sched12" in iterate
     assert "kernel_genet3_selftest" not in scheduler
     assert "200000" not in genet
-    # DMA / RX-enable stay parked.
-    assert "alloc_dma" not in genet
+    # DMA / RX-enable stay parked on the genet3 path. genet5+ owns system DMA.
+    assert "kernel_dma_alloc_nc" not in genet3
+    assert "static unsigned long alloc_dma" not in genet
     assert "CMD_RX_EN)" in genet  # leftover read in V68 only

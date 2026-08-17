@@ -41,6 +41,6 @@ def test_genet5_is_system_nc_rx_dma() -> None:
     assert "kernel_genet5_selftest" not in scheduler
     # System DMA, not the xHCI PCIe window. xHCI keeps its own alloc_dma.
     assert "0x400000000" not in genet
-    assert "alloc_dma" not in genet
+    assert "static unsigned long alloc_dma" not in genet
     assert "DMA_TO_BUS" not in genet
     assert "static unsigned long alloc_dma" in xhci
