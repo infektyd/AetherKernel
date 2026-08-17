@@ -1548,3 +1548,64 @@ int kernel_sdhci_card_sd_status(unsigned int *type_out, unsigned int *class_out)
     if (type > 1u) return 0;
     return 1;
 }
+
+// V108: ACMD6 SET_BUS_WIDTH after GENET. Switch card+host to 4-bit,
+// fail-closed MBR 0xAA55 via CMD17, restore 1-bit. Shared 512 B scratch
+// — not the 4 KiB core0 stack. No FAT write. No status ACMD.
+int kernel_sdhci_card_bus_width(unsigned int *bits_out,
+                                unsigned int *host_out,
+                                unsigned int *mbr_out) {
+    unsigned int resp[4];
+    unsigned int c0;
+    unsigned int host = 0u;
+    unsigned int mbr = 0u;
+    unsigned int magic;
+
+    if (bits_out) *bits_out = 0u;
+    if (host_out) *host_out = 0u;
+    if (mbr_out) *mbr_out = 0u;
+
+    if (sdhci_card_rca == 0u) return 0;
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+    if (!sdhci_send_cmd(CMDTM_CMD(55, CMD_RESP_48, CMD_CRC_CHK | CMD_IXCHK_EN),
+                        sdhci_card_rca << 16, resp))
+        return 0;
+    if (!sdhci_send_cmd(CMDTM_CMD(6, CMD_RESP_48, CMD_CRC_CHK | CMD_IXCHK_EN),
+                        2u, resp))
+        return 0;
+
+    c0 = mmio_read32(EMMC2_BASE + SDHCI_CONTROL0);
+    c0 |= SDHCI_C0_HCTL_DWIDTH;
+    mmio_write32(EMMC2_BASE + SDHCI_CONTROL0, c0);
+    c0 = mmio_read32(EMMC2_BASE + SDHCI_CONTROL0);
+    host = (c0 & SDHCI_C0_HCTL_DWIDTH) ? 4u : 1u;
+    if (bits_out) *bits_out = 4u;
+    if (host_out) *host_out = host;
+    if (host != 4u) {
+        c0 &= ~SDHCI_C0_HCTL_DWIDTH;
+        mmio_write32(EMMC2_BASE + SDHCI_CONTROL0, c0);
+        return 0;
+    }
+
+    if (sdhci_read_block_pio(0, sdhci_fat32_buf)) {
+        magic = (sdhci_fat32_buf[127] >> 16) & 0xFFFFu;
+        if (magic == 0xAA55u) mbr = 1u;
+    }
+    if (mbr_out) *mbr_out = mbr;
+
+    if (sdhci_send_cmd(CMDTM_CMD(55, CMD_RESP_48, CMD_CRC_CHK | CMD_IXCHK_EN),
+                       sdhci_card_rca << 16, resp) &&
+        sdhci_send_cmd(CMDTM_CMD(6, CMD_RESP_48, CMD_CRC_CHK | CMD_IXCHK_EN),
+                       0u, resp)) {
+        c0 = mmio_read32(EMMC2_BASE + SDHCI_CONTROL0);
+        c0 &= ~SDHCI_C0_HCTL_DWIDTH;
+        mmio_write32(EMMC2_BASE + SDHCI_CONTROL0, c0);
+    }
+    c0 = mmio_read32(EMMC2_BASE + SDHCI_CONTROL0);
+    if (c0 & SDHCI_C0_HCTL_DWIDTH) {
+        /* Keep host matching a card still in 4-bit if restore ACMD6 failed. */
+        return 0;
+    }
+    if (mbr != 1u) return 0;
+    return 1;
+}

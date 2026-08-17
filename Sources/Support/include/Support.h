@@ -985,6 +985,9 @@ int           kernel_sdhci_card_status(unsigned int *state_out,
 int           kernel_sdhci_card_scr(unsigned int *spec_out, unsigned int *bus_out);
 int           kernel_sdhci_card_sd_status(unsigned int *type_out,
                                           unsigned int *class_out);
+int           kernel_sdhci_card_bus_width(unsigned int *bits_out,
+                                          unsigned int *host_out,
+                                          unsigned int *mbr_out);
 
 // Runtime V58: VideoCore ARM->GPU property mailbox probe (firmware revision).
 int kernel_vc_mbox_probe(void);
@@ -1098,6 +1101,13 @@ int           kernel_sdss_selftest(void);
 int           kernel_sdss_ok(void);
 unsigned int  kernel_sdss_type(void);
 unsigned int  kernel_sdss_class(void);
+
+// V108: SDHCI ACMD6 SET_BUS_WIDTH after GENET. Fail-closed 4-bit + MBR. No EL0.
+int           kernel_sdbus_selftest(void);
+int           kernel_sdbus_ok(void);
+unsigned int  kernel_sdbus_bits(void);
+unsigned int  kernel_sdbus_host(void);
+unsigned int  kernel_sdbus_mbr(void);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.

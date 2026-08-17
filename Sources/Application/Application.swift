@@ -1245,6 +1245,20 @@ struct Application {
     uartPutDec(UInt64(kernel_sdss_class()))
     uartPuts("\n")
 
+    // Runtime V108: SDHCI ACMD6 SET_BUS_WIDTH. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts.
+    uartPuts("runtime v108: SDHCI bus width\n")
+    let sdbus_ok_boot = kernel_sdbus_selftest()
+    uartPuts("sdbus ok=")
+    uartPutDec(UInt64(sdbus_ok_boot))
+    uartPuts(" version=108 bits=")
+    uartPutDec(UInt64(kernel_sdbus_bits()))
+    uartPuts(" host=")
+    uartPutDec(UInt64(kernel_sdbus_host()))
+    uartPuts(" mbr=")
+    uartPutDec(UInt64(kernel_sdbus_mbr()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
