@@ -958,6 +958,8 @@ int kernel_sdhci_fat32_selftest(void);
 unsigned long kernel_sdhci_fat32_bytes(void);
 unsigned long kernel_sdhci_fat32_checksum(void);
 unsigned long kernel_sdhci_fat32_step(void);
+int           kernel_sdhci_fat32_listdir(unsigned int *files_out, unsigned int *config_out);
+unsigned int  kernel_sdhci_fat32_list_other(void);
 
 // Runtime V58: VideoCore ARM->GPU property mailbox probe (firmware revision).
 int kernel_vc_mbox_probe(void);
@@ -1298,6 +1300,13 @@ int           kernel_sdload_ok(void);
 unsigned int  kernel_sdload_match(void);
 unsigned int  kernel_sdload_bytes(void);
 unsigned int  kernel_sdload_sum(void);
+
+// V86: list FAT32 root after GENET. files>=2 + CONFIG.TXT. No EL0. No boot emit.
+int           kernel_sdls_selftest(void);
+int           kernel_sdls_ok(void);
+unsigned int  kernel_sdls_files(void);
+unsigned int  kernel_sdls_config(void);
+unsigned int  kernel_sdls_other(void);
 
 // BCM2711 watchdog / PM reset (Sources/Support/watchdog.c). reset_now reboots the
 // board immediately; arm/pet give a hang-detector (auto-reboot if not re-armed);

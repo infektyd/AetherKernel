@@ -578,3 +578,70 @@ int kernel_sdhci_fat32_selftest(void)           { return fat32_ok; }
 unsigned long kernel_sdhci_fat32_bytes(void)    { return (unsigned long)fat32_file_bytes; }
 unsigned long kernel_sdhci_fat32_checksum(void) { return (unsigned long)fat32_checksum; }
 unsigned long kernel_sdhci_fat32_step(void)     { return (unsigned long)fat32_last_step; }
+
+// V86: count root 8.3 entries. Does not write fat32_ok / fat32_file_bytes.
+static unsigned int fat32_list_other;
+
+int kernel_sdhci_fat32_listdir(unsigned int *files_out, unsigned int *config_out) {
+    unsigned int files = 0u;
+    unsigned int config = 0u;
+    fat32_list_other = 0u;
+    if (files_out) *files_out = 0u;
+    if (config_out) *config_out = 0u;
+    if (!sdhci_card_init_ok) return 0;
+    if (fat32_sec_per_clus == 0u) {
+        if (!kernel_sdhci_fat32_read()) return 0;
+    }
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+
+    unsigned int dir_clus = fat32_root_clus;
+    unsigned int dir_done = 0u;
+    for (unsigned int max_clus = 256u; !dir_done && max_clus > 0u; max_clus--) {
+        unsigned int dir_lba = fat32_clus_lba(dir_clus);
+        for (unsigned int s = 0u; s < fat32_sec_per_clus; s++) {
+            if (!sdhci_read_block_pio(dir_lba + s, sdhci_fat32_buf)) return 0;
+            for (unsigned int e = 0u; e < 16u; e++) {
+                unsigned int base = e * 32u;
+                unsigned int b0 = fat32_byte(sdhci_fat32_buf, base);
+                if (b0 == 0x00u) { dir_done = 1u; break; }
+                if (b0 == 0xE5u) continue;
+                unsigned int attr = fat32_byte(sdhci_fat32_buf, base + 11u);
+                if (attr == 0x0Fu) continue;
+                if (attr & 0x08u) continue;
+                files++;
+                int match = 1;
+                for (unsigned int j = 0u; j < 11u; j++) {
+                    unsigned int nc = fat32_byte(sdhci_fat32_buf, base + j);
+                    if (nc >= 'a' && nc <= 'z') nc -= 32u;
+                    if (nc != (unsigned int)(unsigned char)("CONFIG  TXT"[j])) {
+                        match = 0;
+                        break;
+                    }
+                }
+                if (match) {
+                    config = 1u;
+                } else if (fat32_list_other == 0u) {
+                    fat32_list_other =
+                        (fat32_byte(sdhci_fat32_buf, base) << 24) |
+                        (fat32_byte(sdhci_fat32_buf, base + 1u) << 16) |
+                        (fat32_byte(sdhci_fat32_buf, base + 2u) << 8) |
+                        fat32_byte(sdhci_fat32_buf, base + 3u);
+                }
+            }
+            if (dir_done) break;
+        }
+        if (!dir_done) {
+            unsigned int fat_off = dir_clus * 4u;
+            if (!sdhci_read_block_pio(fat32_fat_lba + fat_off / 512u, sdhci_fat32_buf))
+                break;
+            unsigned int next = fat32_u32(sdhci_fat32_buf, fat_off % 512u) & 0x0FFFFFFFu;
+            if (next >= 0x0FFFFFF8u) break;
+            dir_clus = next;
+        }
+    }
+    if (files_out) *files_out = files;
+    if (config_out) *config_out = config;
+    return (files >= 2u && config == 1u && fat32_list_other != 0u) ? 1 : 0;
+}
+
+unsigned int kernel_sdhci_fat32_list_other(void) { return fat32_list_other; }
