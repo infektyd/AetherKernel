@@ -378,6 +378,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "sdmw ok=1 version=111 match=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v112: SDHCI set block count" \
       && printf '%s' "$serial_delta" | grep -qa "sdbc ok=1 version=112 count=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v113: FAT32 FSInfo" \
+      && printf '%s' "$serial_delta" | grep -qa "sdfi ok=1 version=113 lead=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -645,6 +647,8 @@ PY
         probe_shell "sdmw" "^sdmw ok=1 version=111 match="
         # V112: SDHCI CMD23 SET_BLOCK_COUNT after GENET. 2 blocks + MBR. No EL0.
         probe_shell "sdbc" "^sdbc ok=1 version=112 count="
+        # V113: FAT32 FSInfo sector after GENET. Lead+struct. No EL0.
+        probe_shell "sdfi" "^sdfi ok=1 version=113 lead="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

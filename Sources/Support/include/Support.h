@@ -997,6 +997,9 @@ int           kernel_sdhci_card_multiwrite(unsigned int *blocks_out,
                                            unsigned int *clus_out);
 int           kernel_sdhci_card_blockcount(unsigned int *count_out,
                                            unsigned int *mbr_out);
+int           kernel_sdhci_fat32_fsinfo(unsigned int *lead_out,
+                                        unsigned int *struct_out,
+                                        unsigned int *free_out);
 
 // Runtime V58: VideoCore ARM->GPU property mailbox probe (firmware revision).
 int kernel_vc_mbox_probe(void);
@@ -1142,6 +1145,13 @@ int           kernel_sdbc_selftest(void);
 int           kernel_sdbc_ok(void);
 unsigned int  kernel_sdbc_count(void);
 unsigned int  kernel_sdbc_mbr(void);
+
+// V113: FAT32 FSInfo sector after GENET. Fail-closed lead+struct. No EL0.
+int           kernel_sdfi_selftest(void);
+int           kernel_sdfi_ok(void);
+unsigned int  kernel_sdfi_lead(void);
+unsigned int  kernel_sdfi_struct(void);
+unsigned int  kernel_sdfi_free(void);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.

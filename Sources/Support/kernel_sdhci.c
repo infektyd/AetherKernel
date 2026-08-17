@@ -1995,3 +1995,62 @@ int kernel_sdhci_card_blockcount(unsigned int *count_out,
     if (got != 2u || mbr != 1u) return 0;
     return 1;
 }
+
+// V113: FAT32 FSInfo sector after GENET. Reserved-area metadata
+// (Microsoft FAT spec), not a new SDHCI command — CMD17 via the
+// existing sdhci_read_block_pio helper. Independent MBR/VBR walk
+// so earlier mount latches stay untouched. Fail-closed lead
+// 0x41615252, struct 0x61417272, trail 0xAA55. Reports
+// FSI_Free_Count honestly (0xFFFFFFFF = unknown). Shared 512 B
+// scratch — not the 4 KiB core0 stack. No FAT write. No named
+// boot file. No bus-width change.
+int kernel_sdhci_fat32_fsinfo(unsigned int *lead_out,
+                              unsigned int *struct_out,
+                              unsigned int *free_out) {
+    unsigned int part_lba = 0u;
+    unsigned int found = 0u;
+    unsigned int i;
+    unsigned int rsvd;
+    unsigned int fsinfo_sec;
+    unsigned int lead = 0u;
+    unsigned int st = 0u;
+    unsigned int free_cnt = 0u;
+    unsigned int trail;
+
+    if (lead_out) *lead_out = 0u;
+    if (struct_out) *struct_out = 0u;
+    if (free_out) *free_out = 0u;
+
+    if (sdhci_card_rca == 0u) return 0;
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+
+    if (!sdhci_read_block_pio(0, sdhci_fat32_buf)) return 0;
+    if (((sdhci_fat32_buf[127] >> 16) & 0xFFFFu) != 0xAA55u) return 0;
+    for (i = 0u; i < 4u && !found; i++) {
+        unsigned int base = 446u + i * 16u;
+        unsigned int ptype = fat32_byte(sdhci_fat32_buf, base + 4u);
+        if (ptype == 0x0Bu || ptype == 0x0Cu) {
+            part_lba = fat32_u32(sdhci_fat32_buf, base + 8u);
+            found = 1u;
+        }
+    }
+    if (!found) return 0;
+
+    if (!sdhci_read_block_pio(part_lba, sdhci_fat32_buf)) return 0;
+    if (fat32_u16(sdhci_fat32_buf, 510u) != 0xAA55u) return 0;
+    rsvd = fat32_u16(sdhci_fat32_buf, 14u);
+    fsinfo_sec = fat32_u16(sdhci_fat32_buf, 48u);
+    if (fsinfo_sec == 0u || fsinfo_sec >= rsvd) return 0;
+
+    if (!sdhci_read_block_pio(part_lba + fsinfo_sec, sdhci_fat32_buf)) return 0;
+    lead = fat32_u32(sdhci_fat32_buf, 0u);
+    st = fat32_u32(sdhci_fat32_buf, 484u);
+    free_cnt = fat32_u32(sdhci_fat32_buf, 488u);
+    trail = fat32_u16(sdhci_fat32_buf, 510u);
+
+    if (lead_out) *lead_out = (lead == 0x41615252u) ? 1u : 0u;
+    if (struct_out) *struct_out = (st == 0x61417272u) ? 1u : 0u;
+    if (free_out) *free_out = free_cnt;
+    if (lead != 0x41615252u || st != 0x61417272u || trail != 0xAA55u) return 0;
+    return 1;
+}

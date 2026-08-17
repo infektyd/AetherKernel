@@ -299,6 +299,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "sdmw ok=1 version=111 match=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v112: SDHCI set block count" \
       && printf '%s' "$serial_delta" | grep -q "sdbc ok=1 version=112 count=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v113: FAT32 FSInfo" \
+      && printf '%s' "$serial_delta" | grep -q "sdfi ok=1 version=113 lead=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \
