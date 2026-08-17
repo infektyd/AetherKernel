@@ -1032,6 +1032,12 @@ int           kernel_mboxv_ok(void);
 unsigned int  kernel_mboxv_id(void);
 unsigned int  kernel_mboxv_uv(void);
 
+// V100: BCM2711 RNG200 word after GENET. Fail-closed fifo ready. No EL0.
+int           kernel_rng_selftest(void);
+int           kernel_rng_ok(void);
+int           kernel_rng_ready(void);
+unsigned int  kernel_rng_data(void);
+
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.
 int          kernel_vc_console_selftest(void);

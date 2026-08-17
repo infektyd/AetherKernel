@@ -1139,6 +1139,18 @@ struct Application {
     uartPutDec(UInt64(kernel_mboxv_uv()))
     uartPuts("\n")
 
+    // Runtime V100: BCM2711 RNG200 word. UART token only. No boot event emit.
+    // FIFO ready + one word. No EL0 enter: after GENET DMA that I-aborts.
+    uartPuts("runtime v100: RNG200 word\n")
+    let rng_ok_boot = kernel_rng_selftest()
+    uartPuts("rng ok=")
+    uartPutDec(UInt64(rng_ok_boot))
+    uartPuts(" version=100 ready=")
+    uartPutDec(UInt64(kernel_rng_ready()))
+    uartPuts(" data=")
+    uartPutDec(UInt64(kernel_rng_data()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
