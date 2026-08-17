@@ -334,6 +334,8 @@ while [ "$attempt" -le "$RETRIES" ]; do
       && printf '%s' "$serial_delta" | grep -qa "sdovf ok=1 version=89 name=.* bytes=.* checksum=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v90: FAT32 issue.txt" \
       && printf '%s' "$serial_delta" | grep -qa "sdiss ok=[01] version=90 present=[01] name=.* bytes=.* checksum=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v91: GPIO output readback" \
+      && printf '%s' "$serial_delta" | grep -qa "gpio2 ok=1 version=91 pin=42 set=1 clr=1" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -557,6 +559,8 @@ PY
         probe_shell "sdovf" "^sdovf ok=1 version=89 name=.* bytes=.* checksum="
         # V90: load issue.txt by name after GENET. Fail-closed if missing. No EL0.
         probe_shell "sdiss" "^sdiss ok=[01] version=90 present=[01] name=.* bytes=.* checksum="
+        # V91: GPIO42 SET/CLR + GPLEV after GENET. No jumper. No EL0.
+        probe_shell "gpio2" "^gpio2 ok=1 version=91 pin=42 set=1 clr=1"
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

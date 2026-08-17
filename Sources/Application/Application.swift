@@ -1026,6 +1026,20 @@ struct Application {
     uartPutHexCompact(UInt64(kernel_sdiss_sum()))
     uartPuts("\n")
 
+    // Runtime V91: GPIO42 SET/CLR + GPLEV. UART token only. No boot event emit.
+    // No EL0 enter: after GENET DMA that I-aborts (esr=0xbf000002).
+    uartPuts("runtime v91: GPIO output readback\n")
+    let gpio2_ok_boot = kernel_gpio2_selftest()
+    uartPuts("gpio2 ok=")
+    uartPutDec(UInt64(gpio2_ok_boot))
+    uartPuts(" version=91 pin=")
+    uartPutDec(UInt64(kernel_gpio2_pin()))
+    uartPuts(" set=")
+    uartPutDec(UInt64(kernel_gpio2_set()))
+    uartPuts(" clr=")
+    uartPutDec(UInt64(kernel_gpio2_clr()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

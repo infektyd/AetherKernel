@@ -1200,6 +1200,13 @@ unsigned int  kernel_gpio_fsel(void);
 unsigned int  kernel_gpio_pup(void);
 unsigned int  kernel_gpio_uart(void);
 
+// V91: GPIO42 output + GPLEV readback after GENET. Restore FSEL. No EL0.
+int           kernel_gpio2_selftest(void);
+int           kernel_gpio2_ok(void);
+unsigned int  kernel_gpio2_pin(void);
+unsigned int  kernel_gpio2_set(void);
+unsigned int  kernel_gpio2_clr(void);
+
 // System DMA NC page. Returns ARM PA (not PCIe phys+0x400000000).
 int           kernel_dma_alloc_nc(unsigned long *pa_out, void **nc_out);
 int           kernel_dma_nc_from_pa(unsigned long pa, void **nc_out);
