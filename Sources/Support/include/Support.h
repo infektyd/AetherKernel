@@ -976,6 +976,9 @@ int           kernel_sdhci_fat32_write_free(unsigned int *clus_out,
 int           kernel_sdhci_fat32_create_scratch(unsigned int *name_out,
                                                 unsigned int *created_out,
                                                 unsigned int *match_out);
+int           kernel_sdhci_fat32_read_scratch(unsigned int *name_out,
+                                              unsigned int *present_out,
+                                              unsigned int *match_out);
 
 // Runtime V58: VideoCore ARM->GPU property mailbox probe (firmware revision).
 int kernel_vc_mbox_probe(void);
@@ -1063,6 +1066,13 @@ int           kernel_sdmk_ok(void);
 int           kernel_sdmk_match(void);
 int           kernel_sdmk_created(void);
 unsigned int  kernel_sdmk_name(void);
+
+// V104: re-read AETHER.TMP by name after GENET. Read-only. Fail-closed if missing/foreign. No EL0.
+int           kernel_sdrd_selftest(void);
+int           kernel_sdrd_ok(void);
+int           kernel_sdrd_match(void);
+int           kernel_sdrd_present(void);
+unsigned int  kernel_sdrd_name(void);
 
 // Runtime V60: 8x8 text console blit (Sources/Support/kernel_vc_console.c).
 // selftest blits "AetherKernel v60" and verifies readback; ok() returns the result.

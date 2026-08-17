@@ -1306,3 +1306,63 @@ static int fat32_scratch_data_match(unsigned int clus) {
     }
     return 1;
 }
+
+// V104: re-read dedicated scratch by name. Read-only. Fail-closed if
+// missing or foreign. Does not execute bytes.
+int kernel_sdhci_fat32_read_scratch(unsigned int *name_out,
+                                    unsigned int *present_out,
+                                    unsigned int *match_out) {
+    unsigned int exist_clus = 0u;
+    unsigned int exist_size = 0u;
+    unsigned int dir_clus;
+    unsigned int dir_done = 0u;
+    const char *nm = "AETHER  TMP";
+
+    if (name_out) *name_out = 0u;
+    if (present_out) *present_out = 0u;
+    if (match_out) *match_out = 0u;
+
+    if (fat32_sec_per_clus == 0u) {
+        if (!kernel_sdhci_fat32_read()) return 0;
+    }
+    if (!sdhci_card_selected && !sdhci_card_select()) return 0;
+
+    dir_clus = fat32_root_clus;
+    for (unsigned int max_clus = 256u; !dir_done && max_clus > 0u; max_clus--) {
+        unsigned int dir_lba = fat32_clus_lba(dir_clus);
+        for (unsigned int s = 0u; s < fat32_sec_per_clus; s++) {
+            if (!sdhci_read_block_pio(dir_lba + s, sdhci_fat32_buf)) return 0;
+            for (unsigned int e = 0u; e < 16u; e++) {
+                unsigned int base = e * 32u;
+                unsigned int b0 = fat32_byte(sdhci_fat32_buf, base);
+                if (b0 == 0x00u) {
+                    dir_done = 1u;
+                    break;
+                }
+                if (b0 == 0xE5u) continue;
+                if (fat32_name_eq(base, nm)) {
+                    unsigned int hi = fat32_u16(sdhci_fat32_buf, base + 20u);
+                    unsigned int lo = fat32_u16(sdhci_fat32_buf, base + 26u);
+                    exist_clus = (hi << 16) | lo;
+                    exist_size = fat32_u32(sdhci_fat32_buf, base + 28u);
+                    dir_done = 1u;
+                    break;
+                }
+            }
+            if (dir_done) break;
+        }
+        if (!dir_done) {
+            unsigned int next = fat32_next_clus(dir_clus);
+            if (next >= 0x0FFFFFF8u) break;
+            dir_clus = next;
+        }
+    }
+
+    if (exist_clus == 0u) return 0;
+    if (present_out) *present_out = 1u;
+    if (name_out) *name_out = 0x41455448u;
+    if (exist_size != 512u || exist_clus < 2u) return 0;
+    if (!fat32_scratch_data_match(exist_clus)) return 0;
+    if (match_out) *match_out = 1u;
+    return 1;
+}

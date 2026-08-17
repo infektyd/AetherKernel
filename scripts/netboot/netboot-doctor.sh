@@ -281,6 +281,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "sdwr ok=1 version=102 match=1 bytes=512 clus=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v103: FAT32 scratch create" \
       && printf '%s' "$serial_delta" | grep -q "sdmk ok=1 version=103 match=1 created=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v104: FAT32 scratch reread" \
+      && printf '%s' "$serial_delta" | grep -q "sdrd ok=1 version=104 match=1 present=1 name=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \
