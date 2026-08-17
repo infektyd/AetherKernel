@@ -1165,6 +1165,20 @@ struct Application {
     uartPutDec(UInt64(kernel_dma2_bytes()))
     uartPuts("\n")
 
+    // Runtime V102: SDHCI CMD24 free-cluster write. UART token only. No boot event emit.
+    // FAT/dir unchanged. No EL0 enter: after GENET DMA that I-aborts.
+    uartPuts("runtime v102: SD free-cluster write\n")
+    let sdwr_ok_boot = kernel_sdwr_selftest()
+    uartPuts("sdwr ok=")
+    uartPutDec(UInt64(sdwr_ok_boot))
+    uartPuts(" version=102 match=")
+    uartPutDec(UInt64(kernel_sdwr_match()))
+    uartPuts(" bytes=")
+    uartPutDec(UInt64(kernel_sdwr_bytes()))
+    uartPuts(" clus=")
+    uartPutDec(UInt64(kernel_sdwr_clus()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
