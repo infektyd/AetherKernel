@@ -152,6 +152,7 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - [x] V92 system timer C1 match after GENET (`stimer2 ok=1 version=92 chan=1 match=1`). ARM C1 only; no C0/C2 writes; park after match; no EL0.
 - [x] V93 PWM clock enable + CTL poke after GENET (`pwm2 ok=1 version=93 clk=1 en=1`). CM_PWM OSC + PWM0 PWEN1 readback; restore; no pin-mux; no output claim; no EL0.
 - [x] V139 PWM GPIO12 ALT0 pin-mux after GENET (`pwm3 ok=1 version=139 pin=12 alt=1 restore=1`). Fail-closed `GPFSEL1` ALT0 readback + leftover restore; UART GPIO14/15 FSEL bits unchanged; no pull writes; no output claim; no EL0.
+- [x] V140 GPIO42 rising-edge detect after GENET (`gpio4 ok=1 version=140 pin=42 rise=1 restore=1`). Fail-closed `GPREN1`/`GPEDS1` after a SET edge; leftover restore; no UART; no ALT0; no EL0.
 - [x] V94 GPIO26 PUP_PDN write+readback after GENET (`gpio3 ok=1 version=94 pin=26 up=1 dn=1`). REG1 only; restore; no UART; no EL0.
 - [x] V95 system timer C3 match after GENET (`stimer3 ok=1 version=95 chan=3 match=1`). ARM C3 only; no C0/C1/C2 writes; park after match; no EL0.
 - [x] V96 mailbox GET_TEMPERATURE after GENET (`mboxt ok=1 version=96 temp=`). Millidegrees; fail-closed range; no EL0.

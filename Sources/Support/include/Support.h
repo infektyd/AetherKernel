@@ -1382,6 +1382,13 @@ unsigned int  kernel_gpio3_pin(void);
 unsigned int  kernel_gpio3_up(void);
 unsigned int  kernel_gpio3_dn(void);
 
+// V140: GPIO42 rising-edge detect after GENET. Fail-closed GPEDS. No EL0.
+int           kernel_gpio4_selftest(void);
+int           kernel_gpio4_ok(void);
+unsigned int  kernel_gpio4_pin(void);
+unsigned int  kernel_gpio4_rise(void);
+unsigned int  kernel_gpio4_restore(void);
+
 // System DMA NC page. Returns ARM PA (not PCIe phys+0x400000000).
 int           kernel_dma_alloc_nc(unsigned long *pa_out, void **nc_out);
 int           kernel_dma_nc_from_pa(unsigned long pa, void **nc_out);

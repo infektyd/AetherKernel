@@ -1638,6 +1638,21 @@ struct Application {
     uartPutDec(UInt64(kernel_pwm3_restore()))
     uartPuts("\n")
 
+    // Runtime V140: GPIO42 rising-edge detect. UART token only.
+    // Fail-closed GPREN1/GPEDS1. No ALT0. No boot event emit.
+    // No EL0 enter after GENET.
+    uartPuts("runtime v140: GPIO rising-edge detect\n")
+    let gpio4_ok_boot = kernel_gpio4_selftest()
+    uartPuts("gpio4 ok=")
+    uartPutDec(UInt64(gpio4_ok_boot))
+    uartPuts(" version=140 pin=")
+    uartPutDec(UInt64(kernel_gpio4_pin()))
+    uartPuts(" rise=")
+    uartPutDec(UInt64(kernel_gpio4_rise()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_gpio4_restore()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
