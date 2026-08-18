@@ -1668,6 +1668,22 @@ struct Application {
     uartPutDec(UInt64(kernel_pwm4_restore()))
     uartPuts("\n")
 
+    // Runtime V142: PCM/I2S clock + CS enable. UART token only.
+    // Fail-closed CM_PCM + PCM_CS EN readback + leftover restore.
+    // No pin-mux. No FIFO. No output claim. No boot event emit.
+    // No EL0 enter after GENET.
+    uartPuts("runtime v142: PCM enable\n")
+    let pcm_ok_boot = kernel_pcm_selftest()
+    uartPuts("pcm ok=")
+    uartPutDec(UInt64(pcm_ok_boot))
+    uartPuts(" version=142 clk=")
+    uartPutDec(UInt64(kernel_pcm_clk()))
+    uartPuts(" en=")
+    uartPutDec(UInt64(kernel_pcm_en()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_pcm_restore()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

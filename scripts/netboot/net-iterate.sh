@@ -497,6 +497,8 @@ PY
       && printf '%s' "$serial_delta" | grep -qa "gpio4 ok=1 version=140 pin=42 rise=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v141: PWM1 program" \
       && printf '%s' "$serial_delta" | grep -qa "pwm4 ok=1 version=141 pwm1=1 en=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v142: PCM enable" \
+      && printf '%s' "$serial_delta" | grep -qa "pcm ok=1 version=142 clk=1 en=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -822,6 +824,8 @@ PY
         probe_shell "gpio4" "^gpio4 ok=1 version=140 pin=42 rise="
         # V141: PWM1 channel-1 program. Fail-closed readback. No EL0.
         probe_shell "pwm4" "^pwm4 ok=1 version=141 pwm1=1 en="
+        # V142: PCM/I2S clock + CS enable. Fail-closed readback. No EL0.
+        probe_shell "pcm" "^pcm ok=1 version=142 clk=1 en="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

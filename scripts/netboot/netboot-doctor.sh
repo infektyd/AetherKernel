@@ -357,6 +357,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "gpio4 ok=1 version=140 pin=42 rise=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v141: PWM1 program" \
       && printf '%s' "$serial_delta" | grep -q "pwm4 ok=1 version=141 pwm1=1 en=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v142: PCM enable" \
+      && printf '%s' "$serial_delta" | grep -q "pcm ok=1 version=142 clk=1 en=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

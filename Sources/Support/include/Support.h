@@ -1640,6 +1640,13 @@ unsigned int  kernel_pwm4_pwm1(void);
 unsigned int  kernel_pwm4_en(void);
 unsigned int  kernel_pwm4_restore(void);
 
+// V142: PCM/I2S clock + CS enable after GENET. Fail-closed readback. No EL0.
+int           kernel_pcm_selftest(void);
+int           kernel_pcm_ok(void);
+unsigned int  kernel_pcm_clk(void);
+unsigned int  kernel_pcm_en(void);
+unsigned int  kernel_pcm_restore(void);
+
 // V84: system timer CLO/CHI + four compare slots. Read-only. No boot emit.
 int           kernel_stimer_selftest(void);
 int           kernel_stimer_ok(void);
