@@ -351,6 +351,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "genet33 ok=1 version=137 rflush=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v138: GENET EXT OOB" \
       && printf '%s' "$serial_delta" | grep -q "genet34 ok=1 version=138 oob=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v139: PWM pin-mux" \
+      && printf '%s' "$serial_delta" | grep -q "pwm3 ok=1 version=139 pin=12 alt=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

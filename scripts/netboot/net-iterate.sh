@@ -491,6 +491,8 @@ PY
       && printf '%s' "$serial_delta" | grep -qa "genet33 ok=1 version=137 rflush=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v138: GENET EXT OOB" \
       && printf '%s' "$serial_delta" | grep -qa "genet34 ok=1 version=138 oob=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v139: PWM pin-mux" \
+      && printf '%s' "$serial_delta" | grep -qa "pwm3 ok=1 version=139 pin=12 alt=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -810,6 +812,8 @@ PY
         probe_shell "genet33" "^genet33 ok=1 version=137 rflush="
         # V138: EXT RGMII OOB_DISABLE writeback. No DMA. No EL0.
         probe_shell "genet34" "^genet34 ok=1 version=138 oob="
+        # V139: PWM GPIO12 ALT0 pin-mux. Fail-closed FSEL. No EL0.
+        probe_shell "pwm3" "^pwm3 ok=1 version=139 pin=12 alt="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

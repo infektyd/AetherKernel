@@ -1605,6 +1605,13 @@ int           kernel_pwm2_ok(void);
 unsigned int  kernel_pwm2_clk(void);
 unsigned int  kernel_pwm2_en(void);
 
+// V139: PWM GPIO12 ALT0 pin-mux after GENET. Fail-closed FSEL. No EL0.
+int           kernel_pwm3_selftest(void);
+int           kernel_pwm3_ok(void);
+unsigned int  kernel_pwm3_pin(void);
+unsigned int  kernel_pwm3_alt(void);
+unsigned int  kernel_pwm3_restore(void);
+
 // V82: one bounded BSC1 write to a vacant address. Honest nack=1. No boot emit.
 int           kernel_i2c2_selftest(void);
 int           kernel_i2c2_ok(void);
