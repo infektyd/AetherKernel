@@ -1712,6 +1712,20 @@ struct Application {
     uartPutDec(UInt64(kernel_gpclk_restore()))
     uartPuts("\n")
 
+    // Runtime V146: GPCLK1 clock enable. UART token only.
+    // Fail-closed CM_GP1 OSC+ENAB + leftover restore.
+    // No pin-mux. No output claim. No SMI. No UART2. No BSC0. No SPI0 TA.
+    // No boot event emit. No EL0 enter after GENET.
+    uartPuts("runtime v146: GPCLK1 probe\n")
+    let gpclk1_ok_boot = kernel_gpclk1_selftest()
+    uartPuts("gpclk1 ok=")
+    uartPutDec(UInt64(gpclk1_ok_boot))
+    uartPuts(" version=146 clk=")
+    uartPutDec(UInt64(kernel_gpclk1_clk()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_gpclk1_restore()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

@@ -1659,6 +1659,12 @@ int           kernel_gpclk_ok(void);
 unsigned int  kernel_gpclk_clk(void);
 unsigned int  kernel_gpclk_restore(void);
 
+// V146: GPCLK1 enable after GENET. Fail-closed CM_GP1 readback. No EL0.
+int           kernel_gpclk1_selftest(void);
+int           kernel_gpclk1_ok(void);
+unsigned int  kernel_gpclk1_clk(void);
+unsigned int  kernel_gpclk1_restore(void);
+
 // V84: system timer CLO/CHI + four compare slots. Read-only. No boot emit.
 int           kernel_stimer_selftest(void);
 int           kernel_stimer_ok(void);
