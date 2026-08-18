@@ -1653,6 +1653,21 @@ struct Application {
     uartPutDec(UInt64(kernel_gpio4_restore()))
     uartPuts("\n")
 
+    // Runtime V141: PWM1 channel-1 program. UART token only.
+    // Fail-closed PWM1 readback + leftover restore. No pin-mux.
+    // No output claim. No boot event emit. No EL0 enter after GENET.
+    uartPuts("runtime v141: PWM1 program\n")
+    let pwm4_ok_boot = kernel_pwm4_selftest()
+    uartPuts("pwm4 ok=")
+    uartPutDec(UInt64(pwm4_ok_boot))
+    uartPuts(" version=141 pwm1=")
+    uartPutDec(UInt64(kernel_pwm4_pwm1()))
+    uartPuts(" en=")
+    uartPutDec(UInt64(kernel_pwm4_en()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_pwm4_restore()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

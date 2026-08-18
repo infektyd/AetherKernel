@@ -1633,6 +1633,13 @@ unsigned int  kernel_spi2_done(void);
 unsigned int  kernel_spi2_loop(void);
 unsigned int  kernel_spi2_rx(void);
 
+// V141: PWM1 channel-1 program after GENET. Fail-closed readback. No EL0.
+int           kernel_pwm4_selftest(void);
+int           kernel_pwm4_ok(void);
+unsigned int  kernel_pwm4_pwm1(void);
+unsigned int  kernel_pwm4_en(void);
+unsigned int  kernel_pwm4_restore(void);
+
 // V84: system timer CLO/CHI + four compare slots. Read-only. No boot emit.
 int           kernel_stimer_selftest(void);
 int           kernel_stimer_ok(void);
