@@ -4,6 +4,7 @@
 // UART2  after GENET hung AXI/UART — do not retry UART2-5.
 // Do not probe BSC0 after GENET (AXI hang, UART dies).
 // Do not assert SPI0 TA after GENET (hung boot).
+// CM_SMI 0xFE1010B0 after GENET hung AXI/UART (4.9W) — do not retry CM_SMI or SMI CS.
 // No EL0 enter (I-abort esr=0xbf000002 elr=0x100002000 after GENET DMA).
 // No boot event emit.
 
