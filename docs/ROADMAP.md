@@ -155,6 +155,7 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - [x] V140 GPIO42 rising-edge detect after GENET (`gpio4 ok=1 version=140 pin=42 rise=1 restore=1`). Fail-closed `GPREN1`/`GPEDS1` after a SET edge; leftover restore; no UART; no ALT0; no EL0.
 - [x] V141 PWM1 channel-1 program after GENET (`pwm4 ok=1 version=141 pwm1=1 en=1 restore=1`). Fail-closed `PWM1` RNG1/DAT1/PWEN1 write+readback + leftover restore; no pin-mux; no output claim; no EL0.
 - [x] V142 PCM/I2S enable after GENET (`pcm ok=1 version=142 clk=1 en=1 restore=1`). Fail-closed `CM_PCM` OSC + `PCM_CS` EN write+readback + leftover restore; no pin-mux; no TX/RX/FIFO; no output/audio claim; no EL0.
+- [x] V143 AUX SPI1 enable after GENET (`auxspi1 ok=1 version=143 en=1 restore=1`). Fail-closed `AUXENB` SPI1 bit + leftover restore; no pin-mux; no transfer; no mini-UART change. BSC0 `0xFE205000` after GENET hung AXI/UART — do not retry. No EL0.
 - [x] V94 GPIO26 PUP_PDN write+readback after GENET (`gpio3 ok=1 version=94 pin=26 up=1 dn=1`). REG1 only; restore; no UART; no EL0.
 - [x] V95 system timer C3 match after GENET (`stimer3 ok=1 version=95 chan=3 match=1`). ARM C3 only; no C0/C1/C2 writes; park after match; no EL0.
 - [x] V96 mailbox GET_TEMPERATURE after GENET (`mboxt ok=1 version=96 temp=`). Millidegrees; fail-closed range; no EL0.

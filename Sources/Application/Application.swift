@@ -1684,6 +1684,20 @@ struct Application {
     uartPutDec(UInt64(kernel_pcm_restore()))
     uartPuts("\n")
 
+    // Runtime V143: AUX SPI1 enable. UART token only.
+    // Fail-closed AUXENB SPI1 bit + leftover restore.
+    // No pin-mux. No transfer. No mini-UART change. No BSC0. No SPI0 TA.
+    // No boot event emit. No EL0 enter after GENET.
+    uartPuts("runtime v143: AUX SPI1 probe\n")
+    let auxspi1_ok_boot = kernel_auxspi1_selftest()
+    uartPuts("auxspi1 ok=")
+    uartPutDec(UInt64(auxspi1_ok_boot))
+    uartPuts(" version=143 en=")
+    uartPutDec(UInt64(kernel_auxspi1_en()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_auxspi1_restore()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

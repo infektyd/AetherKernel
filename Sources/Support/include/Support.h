@@ -1647,6 +1647,12 @@ unsigned int  kernel_pcm_clk(void);
 unsigned int  kernel_pcm_en(void);
 unsigned int  kernel_pcm_restore(void);
 
+// V143: AUX SPI1 enable after GENET. Fail-closed AUXENB readback. No EL0.
+int           kernel_auxspi1_selftest(void);
+int           kernel_auxspi1_ok(void);
+unsigned int  kernel_auxspi1_en(void);
+unsigned int  kernel_auxspi1_restore(void);
+
 // V84: system timer CLO/CHI + four compare slots. Read-only. No boot emit.
 int           kernel_stimer_selftest(void);
 int           kernel_stimer_ok(void);
