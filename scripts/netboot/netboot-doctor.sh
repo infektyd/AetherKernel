@@ -361,6 +361,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "pcm ok=1 version=142 clk=1 en=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v143: AUX SPI1 probe" \
       && printf '%s' "$serial_delta" | grep -q "auxspi1 ok=1 version=143 en=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v144: GPCLK probe" \
+      && printf '%s' "$serial_delta" | grep -q "gpclk ok=1 version=144 clk=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

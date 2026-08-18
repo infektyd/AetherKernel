@@ -501,6 +501,8 @@ PY
       && printf '%s' "$serial_delta" | grep -qa "pcm ok=1 version=142 clk=1 en=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v143: AUX SPI1 probe" \
       && printf '%s' "$serial_delta" | grep -qa "auxspi1 ok=1 version=143 en=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v144: GPCLK probe" \
+      && printf '%s' "$serial_delta" | grep -qa "gpclk ok=1 version=144 clk=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -830,6 +832,8 @@ PY
         probe_shell "pcm" "^pcm ok=1 version=142 clk=1 en="
         # V143: AUX SPI1 enable. Fail-closed AUXENB readback. No EL0.
         probe_shell "auxspi1" "^auxspi1 ok=1 version=143 en="
+        # V144: GPCLK0 clock enable. Fail-closed CM_GP0 readback. No EL0.
+        probe_shell "gpclk" "^gpclk ok=1 version=144 clk="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest

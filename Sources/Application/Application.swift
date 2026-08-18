@@ -1698,6 +1698,20 @@ struct Application {
     uartPutDec(UInt64(kernel_auxspi1_restore()))
     uartPuts("\n")
 
+    // Runtime V144: GPCLK0 clock enable. UART token only.
+    // Fail-closed CM_GP0 OSC+ENAB + leftover restore.
+    // No pin-mux. No output claim. No UART2. No BSC0. No SPI0 TA.
+    // No boot event emit. No EL0 enter after GENET.
+    uartPuts("runtime v144: GPCLK probe\n")
+    let gpclk_ok_boot = kernel_gpclk_selftest()
+    uartPuts("gpclk ok=")
+    uartPutDec(UInt64(gpclk_ok_boot))
+    uartPuts(" version=144 clk=")
+    uartPutDec(UInt64(kernel_gpclk_clk()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_gpclk_restore()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))

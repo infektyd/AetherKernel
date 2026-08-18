@@ -1653,6 +1653,12 @@ int           kernel_auxspi1_ok(void);
 unsigned int  kernel_auxspi1_en(void);
 unsigned int  kernel_auxspi1_restore(void);
 
+// V144: GPCLK0 enable after GENET. Fail-closed CM_GP0 readback. No EL0.
+int           kernel_gpclk_selftest(void);
+int           kernel_gpclk_ok(void);
+unsigned int  kernel_gpclk_clk(void);
+unsigned int  kernel_gpclk_restore(void);
+
 // V84: system timer CLO/CHI + four compare slots. Read-only. No boot emit.
 int           kernel_stimer_selftest(void);
 int           kernel_stimer_ok(void);
