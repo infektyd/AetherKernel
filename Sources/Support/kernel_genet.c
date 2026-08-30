@@ -18,6 +18,7 @@
 #define EXT_OFF 0x0080U
 #define EXT_RGMII_OOB_CTRL (EXT_OFF + 0x000CU)
 #define RGMII_LINK (1U << 4)
+#define OOB_DISABLE (1U << 5)
 
 #define UMAC_OFF 0x0800U
 #define UMAC_CMD (UMAC_OFF + 0x008U)
@@ -4932,3 +4933,168 @@ int kernel_genet31_selftest(void) {
 int          kernel_genet31_ok(void)      { return genet31_ok_val;      }
 unsigned int kernel_genet31_hfb(void)     { return genet31_hfb_val;     }
 unsigned int kernel_genet31_restore(void) { return genet31_restore_val; }
+
+// V136: UMAC TX MIB reset. Pulse UMAC_MIB_CTRL UMAC_MIB_RESET_TX
+// (Linux bcmgenet_mib_init), require leftover tx.pok/tx.bytes
+// non-zero (non-vacuous), then counters == 0 after reset+clear.
+// Unused MIB control — not an RBUF/TBUF/HFB enable writeback,
+// not TX csum / 64B status blocks. No DMA. No EL0. UART token only.
+#define UMAC_MIB_CTRL (UMAC_OFF + 0x580U)
+#define UMAC_MIB_RESET_TX 0x4U
+
+int kernel_genet32_selftest(void);
+
+static int genet32_probed;
+static int genet32_ok_val;
+static unsigned int genet32_rst_val;
+static unsigned int genet32_zero_val;
+
+int kernel_genet32_selftest(void) {
+    uint32_t pok0;
+    uint32_t bytes0;
+    uint32_t pok1;
+    uint32_t bytes1;
+    uint32_t saved;
+
+    if (genet32_probed) return genet32_ok_val;
+    genet32_probed = 1;
+    genet32_ok_val = 0;
+    genet32_rst_val = 0;
+    genet32_zero_val = 0;
+
+    if (!kernel_genet_selftest()) return 0;
+
+    pok0 = G32(UMAC_MIB_TX_POK);
+    bytes0 = G32(UMAC_MIB_TX_BYTES);
+    if (pok0 == 0xDEADDEADU || pok0 == 0xFFFFFFFFU) return 0;
+    if (bytes0 == 0xDEADDEADU || bytes0 == 0xFFFFFFFFU) return 0;
+    // Non-vacuity: leftover TX MIB must show prior work (V125+).
+    if (pok0 == 0U && bytes0 == 0U) return 0;
+
+    saved = G32(UMAC_MIB_CTRL);
+    if (saved == 0xDEADDEADU || saved == 0xFFFFFFFFU) return 0;
+
+    genet_wr32(UMAC_MIB_CTRL, saved | UMAC_MIB_RESET_TX);
+    genet_wr32(UMAC_MIB_CTRL, saved & ~UMAC_MIB_RESET_TX);
+    if (G32(UMAC_MIB_CTRL) != (saved & ~UMAC_MIB_RESET_TX)) return 0;
+    genet32_rst_val = 1;
+
+    pok1 = G32(UMAC_MIB_TX_POK);
+    bytes1 = G32(UMAC_MIB_TX_BYTES);
+    if (pok1 != 0U || bytes1 != 0U) return 0;
+    genet32_zero_val = 1;
+    genet32_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet32_ok(void)   { return genet32_ok_val;   }
+unsigned int kernel_genet32_rst(void)  { return genet32_rst_val;  }
+unsigned int kernel_genet32_zero(void) { return genet32_zero_val; }
+
+// V137: SYS rbuf/tbuf flush pulse (Linux SYS_RBUF_FLUSH_CTRL /
+// SYS_TBUF_FLUSH_CTRL). Require readable leftover, pulse bit 0,
+// then leftover restored with flush bit clear. No DMA. No EL0.
+// UART token only.
+#define SYS_RBUF_FLUSH_CTRL 0x08U
+#define SYS_TBUF_FLUSH_CTRL 0x0CU
+#define SYS_FLUSH_BIT 0x1U
+
+int kernel_genet33_selftest(void);
+
+static int genet33_probed;
+static int genet33_ok_val;
+static unsigned int genet33_rflush_val;
+static unsigned int genet33_tflush_val;
+
+int kernel_genet33_selftest(void) {
+    uint32_t r0, t0, got;
+
+    if (genet33_probed) return genet33_ok_val;
+    genet33_probed = 1;
+    genet33_ok_val = 0;
+    genet33_rflush_val = 0;
+    genet33_tflush_val = 0;
+
+    if (!kernel_genet32_selftest()) return 0;
+
+    r0 = G32(SYS_RBUF_FLUSH_CTRL);
+    t0 = G32(SYS_TBUF_FLUSH_CTRL);
+    if (r0 == 0xDEADDEADU || r0 == 0xFFFFFFFFU) return 0;
+    if (t0 == 0xDEADDEADU || t0 == 0xFFFFFFFFU) return 0;
+
+    genet_wr32(SYS_RBUF_FLUSH_CTRL, r0 | SYS_FLUSH_BIT);
+    genet_udelay(10);
+    genet_wr32(SYS_RBUF_FLUSH_CTRL, r0 & ~SYS_FLUSH_BIT);
+    genet_udelay(10);
+    got = G32(SYS_RBUF_FLUSH_CTRL);
+    if (got == 0xDEADDEADU || got == 0xFFFFFFFFU) return 0;
+    if ((got & SYS_FLUSH_BIT) != 0U) return 0;
+    if (got != (r0 & ~SYS_FLUSH_BIT)) return 0;
+    genet33_rflush_val = 1;
+
+    genet_wr32(SYS_TBUF_FLUSH_CTRL, t0 | SYS_FLUSH_BIT);
+    genet_udelay(10);
+    genet_wr32(SYS_TBUF_FLUSH_CTRL, t0 & ~SYS_FLUSH_BIT);
+    genet_udelay(10);
+    got = G32(SYS_TBUF_FLUSH_CTRL);
+    if (got == 0xDEADDEADU || got == 0xFFFFFFFFU) return 0;
+    if ((got & SYS_FLUSH_BIT) != 0U) return 0;
+    if (got != (t0 & ~SYS_FLUSH_BIT)) return 0;
+    genet33_tflush_val = 1;
+
+    genet33_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet33_ok(void)     { return genet33_ok_val;     }
+unsigned int kernel_genet33_rflush(void) { return genet33_rflush_val; }
+unsigned int kernel_genet33_tflush(void) { return genet33_tflush_val; }
+
+// V138: EXT RGMII OOB_DISABLE writeback (Linux EXT_RGMII_OOB_CTRL).
+// Unused EXT-block mechanism — not a UMAC/RBUF/TBUF/HFB/MIB/SYS-flush
+// clone, not BMSR/link MDIO, not TX csum / 64B descriptors, not
+// local loopback. Clear then set bit 5, restore leftover. No DMA.
+// No EL0. UART token only.
+int kernel_genet34_selftest(void);
+
+static int genet34_probed;
+static int genet34_ok_val;
+static unsigned int genet34_oob_val;
+static unsigned int genet34_restore_val;
+
+int kernel_genet34_selftest(void) {
+    uint32_t saved;
+    uint32_t got;
+
+    if (genet34_probed) return genet34_ok_val;
+    genet34_probed = 1;
+    genet34_ok_val = 0;
+    genet34_oob_val = 0;
+    genet34_restore_val = 0;
+
+    if (!kernel_genet33_selftest()) return 0;
+
+    saved = G32(EXT_RGMII_OOB_CTRL);
+    if (saved == 0xDEADDEADU || saved == 0xFFFFFFFFU) return 0;
+
+    genet_wr32(EXT_RGMII_OOB_CTRL, saved & ~OOB_DISABLE);
+    got = G32(EXT_RGMII_OOB_CTRL);
+    if (got == 0xDEADDEADU || got == 0xFFFFFFFFU) return 0;
+    if ((got & OOB_DISABLE) != 0U) return 0;
+
+    genet_wr32(EXT_RGMII_OOB_CTRL, saved | OOB_DISABLE);
+    got = G32(EXT_RGMII_OOB_CTRL);
+    if (got == 0xDEADDEADU || got == 0xFFFFFFFFU) return 0;
+    if ((got & OOB_DISABLE) == 0U) return 0;
+    genet34_oob_val = 1;
+
+    genet_wr32(EXT_RGMII_OOB_CTRL, saved);
+    if (G32(EXT_RGMII_OOB_CTRL) != saved) return 0;
+    genet34_restore_val = 1;
+    genet34_ok_val = 1;
+    return 1;
+}
+
+int          kernel_genet34_ok(void)      { return genet34_ok_val;      }
+unsigned int kernel_genet34_oob(void)     { return genet34_oob_val;     }
+unsigned int kernel_genet34_restore(void) { return genet34_restore_val; }

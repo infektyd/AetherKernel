@@ -1382,6 +1382,13 @@ unsigned int  kernel_gpio3_pin(void);
 unsigned int  kernel_gpio3_up(void);
 unsigned int  kernel_gpio3_dn(void);
 
+// V140: GPIO42 rising-edge detect after GENET. Fail-closed GPEDS. No EL0.
+int           kernel_gpio4_selftest(void);
+int           kernel_gpio4_ok(void);
+unsigned int  kernel_gpio4_pin(void);
+unsigned int  kernel_gpio4_rise(void);
+unsigned int  kernel_gpio4_restore(void);
+
 // System DMA NC page. Returns ARM PA (not PCIe phys+0x400000000).
 int           kernel_dma_alloc_nc(unsigned long *pa_out, void **nc_out);
 int           kernel_dma_nc_from_pa(unsigned long pa, void **nc_out);
@@ -1567,6 +1574,24 @@ int           kernel_genet31_ok(void);
 unsigned int  kernel_genet31_hfb(void);
 unsigned int  kernel_genet31_restore(void);
 
+// V136: UMAC_MIB_CTRL TX reset + zeroed counters. No DMA. No EL0.
+int           kernel_genet32_selftest(void);
+int           kernel_genet32_ok(void);
+unsigned int  kernel_genet32_rst(void);
+unsigned int  kernel_genet32_zero(void);
+
+// V137: SYS rbuf/tbuf flush pulse. No DMA. No EL0.
+int           kernel_genet33_selftest(void);
+int           kernel_genet33_ok(void);
+unsigned int  kernel_genet33_rflush(void);
+unsigned int  kernel_genet33_tflush(void);
+
+// V138: EXT RGMII OOB_DISABLE writeback. No DMA. No EL0.
+int           kernel_genet34_selftest(void);
+int           kernel_genet34_ok(void);
+unsigned int  kernel_genet34_oob(void);
+unsigned int  kernel_genet34_restore(void);
+
 // V80: BSC1 + SPI0 register probe. Read-only. No boot event emit.
 int           kernel_i2c_selftest(void);
 int           kernel_i2c_ok(void);
@@ -1587,6 +1612,13 @@ int           kernel_pwm2_ok(void);
 unsigned int  kernel_pwm2_clk(void);
 unsigned int  kernel_pwm2_en(void);
 
+// V139: PWM GPIO12 ALT0 pin-mux after GENET. Fail-closed FSEL. No EL0.
+int           kernel_pwm3_selftest(void);
+int           kernel_pwm3_ok(void);
+unsigned int  kernel_pwm3_pin(void);
+unsigned int  kernel_pwm3_alt(void);
+unsigned int  kernel_pwm3_restore(void);
+
 // V82: one bounded BSC1 write to a vacant address. Honest nack=1. No boot emit.
 int           kernel_i2c2_selftest(void);
 int           kernel_i2c2_ok(void);
@@ -1600,6 +1632,38 @@ int           kernel_spi2_ok(void);
 unsigned int  kernel_spi2_done(void);
 unsigned int  kernel_spi2_loop(void);
 unsigned int  kernel_spi2_rx(void);
+
+// V141: PWM1 channel-1 program after GENET. Fail-closed readback. No EL0.
+int           kernel_pwm4_selftest(void);
+int           kernel_pwm4_ok(void);
+unsigned int  kernel_pwm4_pwm1(void);
+unsigned int  kernel_pwm4_en(void);
+unsigned int  kernel_pwm4_restore(void);
+
+// V142: PCM/I2S clock + CS enable after GENET. Fail-closed readback. No EL0.
+int           kernel_pcm_selftest(void);
+int           kernel_pcm_ok(void);
+unsigned int  kernel_pcm_clk(void);
+unsigned int  kernel_pcm_en(void);
+unsigned int  kernel_pcm_restore(void);
+
+// V143: AUX SPI1 enable after GENET. Fail-closed AUXENB readback. No EL0.
+int           kernel_auxspi1_selftest(void);
+int           kernel_auxspi1_ok(void);
+unsigned int  kernel_auxspi1_en(void);
+unsigned int  kernel_auxspi1_restore(void);
+
+// V144: GPCLK0 enable after GENET. Fail-closed CM_GP0 readback. No EL0.
+int           kernel_gpclk_selftest(void);
+int           kernel_gpclk_ok(void);
+unsigned int  kernel_gpclk_clk(void);
+unsigned int  kernel_gpclk_restore(void);
+
+// V146: GPCLK1 enable after GENET. Fail-closed CM_GP1 readback. No EL0.
+int           kernel_gpclk1_selftest(void);
+int           kernel_gpclk1_ok(void);
+unsigned int  kernel_gpclk1_clk(void);
+unsigned int  kernel_gpclk1_restore(void);
 
 // V84: system timer CLO/CHI + four compare slots. Read-only. No boot emit.
 int           kernel_stimer_selftest(void);

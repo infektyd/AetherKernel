@@ -133,6 +133,9 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - [x] V133 RBUF RXCHK after GENET (`genet29 ok=1 version=133 rxchk=`). Fail-closed `RBUF_CHK_CTRL` bit-0 clear/set + leftover restore; no DMA; no EL0. Not a UMAC poke or TX csum / 64B-descriptor clone.
 - [x] V134 TBUF EEE after GENET (`genet30 ok=1 version=134 eee=`). Fail-closed `TBUF_ENERGY_CTRL` bit-0 clear/set + leftover restore; no DMA; no EL0. Not an RBUF/UMAC poke or TX csum / 64B-descriptor clone.
 - [x] V135 HFB filter-0 enable after GENET (`genet31 ok=1 version=135 hfb=`). Fail-closed `HFB_FLT_ENABLE` bit-0 clear/set + leftover restore; does not set `RBUF_HFB_EN`; no DMA; no EL0. Not an RBUF/TBUF/UMAC poke or TX csum / 64B-descriptor clone.
+- [x] V136 UMAC TX MIB reset after GENET (`genet32 ok=1 version=136 rst=1 zero=1`). Fail-closed leftover `tx.pok`/`tx.bytes` non-zero, `UMAC_MIB_CTRL` `UMAC_MIB_RESET_TX` pulse, counters == 0; no DMA; no EL0. Not an RBUF/TBUF/HFB-enable writeback or TX csum / 64B-descriptor clone.
+- [x] V137 SYS RBUF/TBUF flush after GENET (`genet33 ok=1 version=137 rflush=1 tflush=1`). Fail-closed `SYS_RBUF_FLUSH_CTRL` + `SYS_TBUF_FLUSH_CTRL` bit-0 pulse + leftover restore; no DMA; no EL0. Not a UMAC/RBUF/TBUF/HFB/MIB enable writeback or TX csum / 64B-descriptor clone.
+- [x] V138 EXT RGMII OOB after GENET (`genet34 ok=1 version=138 oob=1 restore=1`). Fail-closed `EXT_RGMII_OOB_CTRL` `OOB_DISABLE` clear/set + leftover restore; no DMA; no EL0. Not a UMAC/RBUF/TBUF/HFB/MIB/SYS-flush writeback, BMSR/link MDIO, loopback, or TX csum / 64B-descriptor clone.
 - Minimal TCP/IP: ARP, IPv4, ICMP (ping), UDP, then TCP.
 - A tiny socket API exposed as syscalls. (EL0 `sys_socket` after genet12 I-aborts `esr=0xbf000002` and watchdog-resets; deferred.)
 - *First proof:* the kernel answers an ICMP ping from the host over its OWN driver
@@ -148,6 +151,14 @@ Turn the static identity-map MMU into a real virtual-memory system and run code 
 - [x] V91 GPIO42 output + GPLEV readback after GENET (`gpio2 ok=1 version=91 pin=42 set=1 clr=1`). Kernel ACT LED; restore FSEL; no jumper; no EL0.
 - [x] V92 system timer C1 match after GENET (`stimer2 ok=1 version=92 chan=1 match=1`). ARM C1 only; no C0/C2 writes; park after match; no EL0.
 - [x] V93 PWM clock enable + CTL poke after GENET (`pwm2 ok=1 version=93 clk=1 en=1`). CM_PWM OSC + PWM0 PWEN1 readback; restore; no pin-mux; no output claim; no EL0.
+- [x] V139 PWM GPIO12 ALT0 pin-mux after GENET (`pwm3 ok=1 version=139 pin=12 alt=1 restore=1`). Fail-closed `GPFSEL1` ALT0 readback + leftover restore; UART GPIO14/15 FSEL bits unchanged; no pull writes; no output claim; no EL0.
+- [x] V140 GPIO42 rising-edge detect after GENET (`gpio4 ok=1 version=140 pin=42 rise=1 restore=1`). Fail-closed `GPREN1`/`GPEDS1` after a SET edge; leftover restore; no UART; no ALT0; no EL0.
+- [x] V141 PWM1 channel-1 program after GENET (`pwm4 ok=1 version=141 pwm1=1 en=1 restore=1`). Fail-closed `PWM1` RNG1/DAT1/PWEN1 write+readback + leftover restore; no pin-mux; no output claim; no EL0.
+- [x] V142 PCM/I2S enable after GENET (`pcm ok=1 version=142 clk=1 en=1 restore=1`). Fail-closed `CM_PCM` OSC + `PCM_CS` EN write+readback + leftover restore; no pin-mux; no TX/RX/FIFO; no output/audio claim; no EL0.
+- [x] V143 AUX SPI1 enable after GENET (`auxspi1 ok=1 version=143 en=1 restore=1`). Fail-closed `AUXENB` SPI1 bit + leftover restore; no pin-mux; no transfer; no mini-UART change. BSC0 `0xFE205000` after GENET hung AXI/UART — do not retry. No EL0.
+- [x] V144 GPCLK0 enable after GENET (`gpclk ok=1 version=144 clk=1 restore=1`). Fail-closed `CM_GP0CTL` OSC+ENAB write+readback + leftover restore; no pin-mux; no output claim. UART2 `0xFE201400` after GENET hung AXI/UART — do not retry UART2–5. No EL0.
+- [ ] V145 SMI clock enable — blocked. `CM_SMICTL` `0xFE1010B0` after GENET hung AXI/UART (4.9W, silent UART after `v120.bin` complete). Do not retry CM_SMI or SMI CS `0xFE600000`. UART2–5 / BSC0 / SPI0 TA also hung — do not retry. No EL0.
+- [x] V146 GPCLK1 enable after GENET (`gpclk1 ok=1 version=146 clk=1 restore=1`). Fail-closed `CM_GP1CTL` OSC+ENAB write+readback + leftover restore; no pin-mux; no output claim. Image past `0x100000` overlapped spare and hung GENET — `KERNEL_IMAGE_MMU_LIMIT`/`KERNEL_SPARE_BASE` raised to `0x120000`. SMI / UART2–5 / BSC0 / SPI0 TA hung after GENET — do not retry. No EL0.
 - [x] V94 GPIO26 PUP_PDN write+readback after GENET (`gpio3 ok=1 version=94 pin=26 up=1 dn=1`). REG1 only; restore; no UART; no EL0.
 - [x] V95 system timer C3 match after GENET (`stimer3 ok=1 version=95 chan=3 match=1`). ARM C3 only; no C0/C1/C2 writes; park after match; no EL0.
 - [x] V96 mailbox GET_TEMPERATURE after GENET (`mboxt ok=1 version=96 temp=`). Millidegrees; fail-closed range; no EL0.

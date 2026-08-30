@@ -485,6 +485,26 @@ PY
       && printf '%s' "$serial_delta" | grep -qa "genet30 ok=1 version=134 eee=" \
       && printf '%s' "$serial_delta" | grep -qa "runtime v135: GENET HFB enable" \
       && printf '%s' "$serial_delta" | grep -qa "genet31 ok=1 version=135 hfb=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v136: GENET UMAC MIB reset" \
+      && printf '%s' "$serial_delta" | grep -qa "genet32 ok=1 version=136 rst=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v137: GENET SYS flush" \
+      && printf '%s' "$serial_delta" | grep -qa "genet33 ok=1 version=137 rflush=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v138: GENET EXT OOB" \
+      && printf '%s' "$serial_delta" | grep -qa "genet34 ok=1 version=138 oob=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v139: PWM pin-mux" \
+      && printf '%s' "$serial_delta" | grep -qa "pwm3 ok=1 version=139 pin=12 alt=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v140: GPIO rising-edge detect" \
+      && printf '%s' "$serial_delta" | grep -qa "gpio4 ok=1 version=140 pin=42 rise=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v141: PWM1 program" \
+      && printf '%s' "$serial_delta" | grep -qa "pwm4 ok=1 version=141 pwm1=1 en=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v142: PCM enable" \
+      && printf '%s' "$serial_delta" | grep -qa "pcm ok=1 version=142 clk=1 en=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v143: AUX SPI1 probe" \
+      && printf '%s' "$serial_delta" | grep -qa "auxspi1 ok=1 version=143 en=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v144: GPCLK probe" \
+      && printf '%s' "$serial_delta" | grep -qa "gpclk ok=1 version=144 clk=" \
+      && printf '%s' "$serial_delta" | grep -qa "runtime v146: GPCLK1 probe" \
+      && printf '%s' "$serial_delta" | grep -qa "gpclk1 ok=1 version=146 clk=" \
       && printf '%s' "$serial_delta" | grep -qa "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -qa "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -qa "el0 ok=1 version=47" \
@@ -798,6 +818,26 @@ PY
         probe_shell "genet30" "^genet30 ok=1 version=134 eee="
         # V135: HFB enable program+readback. No DMA. No EL0.
         probe_shell "genet31" "^genet31 ok=1 version=135 hfb="
+        # V136: UMAC TX MIB reset. No DMA. No EL0.
+        probe_shell "genet32" "^genet32 ok=1 version=136 rst="
+        # V137: SYS rbuf/tbuf flush pulse. No DMA. No EL0.
+        probe_shell "genet33" "^genet33 ok=1 version=137 rflush="
+        # V138: EXT RGMII OOB_DISABLE writeback. No DMA. No EL0.
+        probe_shell "genet34" "^genet34 ok=1 version=138 oob="
+        # V139: PWM GPIO12 ALT0 pin-mux. Fail-closed FSEL. No EL0.
+        probe_shell "pwm3" "^pwm3 ok=1 version=139 pin=12 alt="
+        # V140: GPIO42 rising-edge detect. Fail-closed GPEDS. No EL0.
+        probe_shell "gpio4" "^gpio4 ok=1 version=140 pin=42 rise="
+        # V141: PWM1 channel-1 program. Fail-closed readback. No EL0.
+        probe_shell "pwm4" "^pwm4 ok=1 version=141 pwm1=1 en="
+        # V142: PCM/I2S clock + CS enable. Fail-closed readback. No EL0.
+        probe_shell "pcm" "^pcm ok=1 version=142 clk=1 en="
+        # V143: AUX SPI1 enable. Fail-closed AUXENB readback. No EL0.
+        probe_shell "auxspi1" "^auxspi1 ok=1 version=143 en="
+        # V144: GPCLK0 clock enable. Fail-closed CM_GP0 readback. No EL0.
+        probe_shell "gpclk" "^gpclk ok=1 version=144 clk="
+        # V146: GPCLK1 clock enable. Fail-closed CM_GP1 readback. No EL0.
+        probe_shell "gpclk1" "^gpclk1 ok=1 version=146 clk="
         # probe shell: req-status
         probe_shell "req id=25 cmd=status" "^resp id=25 ok=1 cmd=status end"
         # probe shell: canceltest
