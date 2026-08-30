@@ -345,6 +345,26 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       && printf '%s' "$serial_delta" | grep -q "genet30 ok=1 version=134 eee=" \
       && printf '%s' "$serial_delta" | grep -q "runtime v135: GENET HFB enable" \
       && printf '%s' "$serial_delta" | grep -q "genet31 ok=1 version=135 hfb=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v136: GENET UMAC MIB reset" \
+      && printf '%s' "$serial_delta" | grep -q "genet32 ok=1 version=136 rst=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v137: GENET SYS flush" \
+      && printf '%s' "$serial_delta" | grep -q "genet33 ok=1 version=137 rflush=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v138: GENET EXT OOB" \
+      && printf '%s' "$serial_delta" | grep -q "genet34 ok=1 version=138 oob=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v139: PWM pin-mux" \
+      && printf '%s' "$serial_delta" | grep -q "pwm3 ok=1 version=139 pin=12 alt=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v140: GPIO rising-edge detect" \
+      && printf '%s' "$serial_delta" | grep -q "gpio4 ok=1 version=140 pin=42 rise=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v141: PWM1 program" \
+      && printf '%s' "$serial_delta" | grep -q "pwm4 ok=1 version=141 pwm1=1 en=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v142: PCM enable" \
+      && printf '%s' "$serial_delta" | grep -q "pcm ok=1 version=142 clk=1 en=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v143: AUX SPI1 probe" \
+      && printf '%s' "$serial_delta" | grep -q "auxspi1 ok=1 version=143 en=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v144: GPCLK probe" \
+      && printf '%s' "$serial_delta" | grep -q "gpclk ok=1 version=144 clk=" \
+      && printf '%s' "$serial_delta" | grep -q "runtime v146: GPCLK1 probe" \
+      && printf '%s' "$serial_delta" | grep -q "gpclk1 ok=1 version=146 clk=" \
       && printf '%s' "$serial_delta" | grep -q "vmmcheck ok=1" \
       && printf '%s' "$serial_delta" | grep -q "asplit ok=1 version=46" \
       && printf '%s' "$serial_delta" | grep -q "el0 ok=1 version=47" \

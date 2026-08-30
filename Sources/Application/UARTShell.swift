@@ -100,7 +100,7 @@ func uartPutShellBufferSlice(_ start: UInt32, _ len: UInt32) {
 }
 
 let SHELL_COMMAND_LIST =
-  "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,handlecheck,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci,genet,genet2,genet3,genet4,gpio,genet5,genet6,genet7,genet8,genet9,genet10,genet11,genet12,i2c,pwm,i2c2,spi2,stimer,sdload,sdls,sdfile,sdovl,sdovf,sdiss,gpio2,stimer2,pwm2,gpio3,stimer3,mboxt,mboxc,wdog2,mboxv,rng,dma2,sdwr,sdmk,sdrd,sdst,sdscr,sdss,sdbus,sdmb,sdsw,sdmw,sdbc,sdfi,sdfb,sdfm,sdrm,genet13,genet14,genet15,genet16,genet17,genet18,genet19,genet20,genet21,genet22,genet23,genet24,genet25,genet26,genet27,genet28,genet29,genet30,genet31"
+  "commands=help,protocol,status,heap,queues,tasks,tasks2,kobjects,drivers,drivercheck,mailboxes,sendtest,supervisor,health,handlecheck,capcheck,events,runtime,agent,certificate,sched,sched2,sched3,sched4,sched5,sched6,sched7,sched8,sched9,sched10,sched11,sched12,cores,locks,runqueues,diag,irqs,timers,memcheck,faults,retained,retained-clear,memmap,mmu,pools,poolcheck,heapfrag,poolstats,frames,heapcheck,framecheck,stress,frameprobe,bootcert,canceltest,taskcheck,channeltest,bootcheck,soak,heap-invalid-free-test,heap-double-free-test,panic-test,fault-test,reboot,vmm,asplit,el0,syscall,uaccess,usermode,process,loader,multiprocess,sdhci,card,block,fat32,mailbox,framebuf,console,pcie,vl805,xhci,genet,genet2,genet3,genet4,gpio,genet5,genet6,genet7,genet8,genet9,genet10,genet11,genet12,i2c,pwm,i2c2,spi2,stimer,sdload,sdls,sdfile,sdovl,sdovf,sdiss,gpio2,stimer2,pwm2,gpio3,stimer3,mboxt,mboxc,wdog2,mboxv,rng,dma2,sdwr,sdmk,sdrd,sdst,sdscr,sdss,sdbus,sdmb,sdsw,sdmw,sdbc,sdfi,sdfb,sdfm,sdrm,genet13,genet14,genet15,genet16,genet17,genet18,genet19,genet20,genet21,genet22,genet23,genet24,genet25,genet26,genet27,genet28,genet29,genet30,genet31,genet32,genet33,genet34,pwm3,gpio4,pwm4,pcm,auxspi1,gpclk,gpclk1"
 
 func printShellReady() {
   uartPuts("shell ready \(SHELL_COMMAND_LIST)\n")
@@ -3042,6 +3042,124 @@ func printGenet31() {
   uartPuts("\n")
 }
 
+func printGenet32() {
+  _ = kernel_genet32_selftest()
+  uartPuts("genet32 ok=")
+  uartPutDec(UInt64(kernel_genet32_ok()))
+  uartPuts(" version=136 rst=")
+  uartPutDec(UInt64(kernel_genet32_rst()))
+  uartPuts(" zero=")
+  uartPutDec(UInt64(kernel_genet32_zero()))
+  uartPuts("\n")
+}
+
+func printGenet33() {
+  _ = kernel_genet33_selftest()
+  uartPuts("genet33 ok=")
+  uartPutDec(UInt64(kernel_genet33_ok()))
+  uartPuts(" version=137 rflush=")
+  uartPutDec(UInt64(kernel_genet33_rflush()))
+  uartPuts(" tflush=")
+  uartPutDec(UInt64(kernel_genet33_tflush()))
+  uartPuts("\n")
+}
+
+func printGenet34() {
+  _ = kernel_genet34_selftest()
+  uartPuts("genet34 ok=")
+  uartPutDec(UInt64(kernel_genet34_ok()))
+  uartPuts(" version=138 oob=")
+  uartPutDec(UInt64(kernel_genet34_oob()))
+  uartPuts(" restore=")
+  uartPutDec(UInt64(kernel_genet34_restore()))
+  uartPuts("\n")
+}
+
+func printPwm3() {
+  _ = kernel_pwm3_selftest()
+  uartPuts("pwm3 ok=")
+  uartPutDec(UInt64(kernel_pwm3_ok()))
+  uartPuts(" version=139 pin=")
+  uartPutDec(UInt64(kernel_pwm3_pin()))
+  uartPuts(" alt=")
+  uartPutDec(UInt64(kernel_pwm3_alt()))
+  uartPuts(" restore=")
+  uartPutDec(UInt64(kernel_pwm3_restore()))
+  uartPuts("\n")
+}
+
+func printGpio4() {
+  _ = kernel_gpio4_selftest()
+  uartPuts("gpio4 ok=")
+  uartPutDec(UInt64(kernel_gpio4_ok()))
+  uartPuts(" version=140 pin=")
+  uartPutDec(UInt64(kernel_gpio4_pin()))
+  uartPuts(" rise=")
+  uartPutDec(UInt64(kernel_gpio4_rise()))
+  uartPuts(" restore=")
+  uartPutDec(UInt64(kernel_gpio4_restore()))
+  uartPuts("\n")
+}
+
+func printPwm4() {
+  _ = kernel_pwm4_selftest()
+  uartPuts("pwm4 ok=")
+  uartPutDec(UInt64(kernel_pwm4_ok()))
+  uartPuts(" version=141 pwm1=")
+  uartPutDec(UInt64(kernel_pwm4_pwm1()))
+  uartPuts(" en=")
+  uartPutDec(UInt64(kernel_pwm4_en()))
+  uartPuts(" restore=")
+  uartPutDec(UInt64(kernel_pwm4_restore()))
+  uartPuts("\n")
+}
+
+func printPcm() {
+  _ = kernel_pcm_selftest()
+  uartPuts("pcm ok=")
+  uartPutDec(UInt64(kernel_pcm_ok()))
+  uartPuts(" version=142 clk=")
+  uartPutDec(UInt64(kernel_pcm_clk()))
+  uartPuts(" en=")
+  uartPutDec(UInt64(kernel_pcm_en()))
+  uartPuts(" restore=")
+  uartPutDec(UInt64(kernel_pcm_restore()))
+  uartPuts("\n")
+}
+
+func printAuxspi1() {
+  _ = kernel_auxspi1_selftest()
+  uartPuts("auxspi1 ok=")
+  uartPutDec(UInt64(kernel_auxspi1_ok()))
+  uartPuts(" version=143 en=")
+  uartPutDec(UInt64(kernel_auxspi1_en()))
+  uartPuts(" restore=")
+  uartPutDec(UInt64(kernel_auxspi1_restore()))
+  uartPuts("\n")
+}
+
+func printGpclk() {
+  _ = kernel_gpclk_selftest()
+  uartPuts("gpclk ok=")
+  uartPutDec(UInt64(kernel_gpclk_ok()))
+  uartPuts(" version=144 clk=")
+  uartPutDec(UInt64(kernel_gpclk_clk()))
+  uartPuts(" restore=")
+  uartPutDec(UInt64(kernel_gpclk_restore()))
+  uartPuts("\n")
+}
+
+func printGpclk1() {
+  _ = kernel_gpclk1_selftest()
+  uartPuts("gpclk1 ok=")
+  uartPutDec(UInt64(kernel_gpclk1_ok()))
+  uartPuts(" version=146 clk=")
+  uartPutDec(UInt64(kernel_gpclk1_clk()))
+  uartPuts(" restore=")
+  uartPutDec(UInt64(kernel_gpclk1_restore()))
+  uartPuts("\n")
+}
+
 func printPoolName(_ pool: UInt32) {
   var i: UInt32 = 0
   let n = kernel_pool_name_len(pool)
@@ -4052,6 +4170,26 @@ func dispatchShellCommand(_ commandStart: UInt32, _ commandLen: UInt32, _ reques
     printGenet30()
   } else if shellBufferSliceEquals(commandStart, commandLen, "genet31") {
     printGenet31()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "genet32") {
+    printGenet32()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "genet33") {
+    printGenet33()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "genet34") {
+    printGenet34()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "pwm3") {
+    printPwm3()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "gpio4") {
+    printGpio4()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "pwm4") {
+    printPwm4()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "pcm") {
+    printPcm()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "auxspi1") {
+    printAuxspi1()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "gpclk") {
+    printGpclk()
+  } else if shellBufferSliceEquals(commandStart, commandLen, "gpclk1") {
+    printGpclk1()
   } else if shellBufferSliceEquals(commandStart, commandLen, "pools") {
     printPools()
   } else if shellBufferSliceEquals(commandStart, commandLen, "poolcheck") {

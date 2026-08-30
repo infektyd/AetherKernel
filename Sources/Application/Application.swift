@@ -1587,6 +1587,145 @@ struct Application {
     uartPutDec(UInt64(kernel_genet31_restore()))
     uartPuts("\n")
 
+    // Runtime V136: UMAC TX MIB reset. UART token only.
+    // No boot event emit. No DMA / unpark. No EL0 enter after GENET.
+    uartPuts("runtime v136: GENET UMAC MIB reset\n")
+    let genet32_ok_boot = kernel_genet32_selftest()
+    uartPuts("genet32 ok=")
+    uartPutDec(UInt64(genet32_ok_boot))
+    uartPuts(" version=136 rst=")
+    uartPutDec(UInt64(kernel_genet32_rst()))
+    uartPuts(" zero=")
+    uartPutDec(UInt64(kernel_genet32_zero()))
+    uartPuts("\n")
+
+    // Runtime V137: SYS rbuf/tbuf flush pulse. UART token only.
+    // No boot event emit. No DMA / unpark. No EL0 enter after GENET.
+    uartPuts("runtime v137: GENET SYS flush\n")
+    let genet33_ok_boot = kernel_genet33_selftest()
+    uartPuts("genet33 ok=")
+    uartPutDec(UInt64(genet33_ok_boot))
+    uartPuts(" version=137 rflush=")
+    uartPutDec(UInt64(kernel_genet33_rflush()))
+    uartPuts(" tflush=")
+    uartPutDec(UInt64(kernel_genet33_tflush()))
+    uartPuts("\n")
+
+    // Runtime V138: EXT RGMII OOB_DISABLE writeback. UART token only.
+    // No boot event emit. No DMA / unpark. No EL0 enter after GENET.
+    uartPuts("runtime v138: GENET EXT OOB\n")
+    let genet34_ok_boot = kernel_genet34_selftest()
+    uartPuts("genet34 ok=")
+    uartPutDec(UInt64(genet34_ok_boot))
+    uartPuts(" version=138 oob=")
+    uartPutDec(UInt64(kernel_genet34_oob()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_genet34_restore()))
+    uartPuts("\n")
+
+    // Runtime V139: PWM GPIO12 ALT0 pin-mux. UART token only.
+    // Fail-closed FSEL readback. No output claim. No boot event emit.
+    // No EL0 enter after GENET.
+    uartPuts("runtime v139: PWM pin-mux\n")
+    let pwm3_ok_boot = kernel_pwm3_selftest()
+    uartPuts("pwm3 ok=")
+    uartPutDec(UInt64(pwm3_ok_boot))
+    uartPuts(" version=139 pin=")
+    uartPutDec(UInt64(kernel_pwm3_pin()))
+    uartPuts(" alt=")
+    uartPutDec(UInt64(kernel_pwm3_alt()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_pwm3_restore()))
+    uartPuts("\n")
+
+    // Runtime V140: GPIO42 rising-edge detect. UART token only.
+    // Fail-closed GPREN1/GPEDS1. No ALT0. No boot event emit.
+    // No EL0 enter after GENET.
+    uartPuts("runtime v140: GPIO rising-edge detect\n")
+    let gpio4_ok_boot = kernel_gpio4_selftest()
+    uartPuts("gpio4 ok=")
+    uartPutDec(UInt64(gpio4_ok_boot))
+    uartPuts(" version=140 pin=")
+    uartPutDec(UInt64(kernel_gpio4_pin()))
+    uartPuts(" rise=")
+    uartPutDec(UInt64(kernel_gpio4_rise()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_gpio4_restore()))
+    uartPuts("\n")
+
+    // Runtime V141: PWM1 channel-1 program. UART token only.
+    // Fail-closed PWM1 readback + leftover restore. No pin-mux.
+    // No output claim. No boot event emit. No EL0 enter after GENET.
+    uartPuts("runtime v141: PWM1 program\n")
+    let pwm4_ok_boot = kernel_pwm4_selftest()
+    uartPuts("pwm4 ok=")
+    uartPutDec(UInt64(pwm4_ok_boot))
+    uartPuts(" version=141 pwm1=")
+    uartPutDec(UInt64(kernel_pwm4_pwm1()))
+    uartPuts(" en=")
+    uartPutDec(UInt64(kernel_pwm4_en()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_pwm4_restore()))
+    uartPuts("\n")
+
+    // Runtime V142: PCM/I2S clock + CS enable. UART token only.
+    // Fail-closed CM_PCM + PCM_CS EN readback + leftover restore.
+    // No pin-mux. No FIFO. No output claim. No boot event emit.
+    // No EL0 enter after GENET.
+    uartPuts("runtime v142: PCM enable\n")
+    let pcm_ok_boot = kernel_pcm_selftest()
+    uartPuts("pcm ok=")
+    uartPutDec(UInt64(pcm_ok_boot))
+    uartPuts(" version=142 clk=")
+    uartPutDec(UInt64(kernel_pcm_clk()))
+    uartPuts(" en=")
+    uartPutDec(UInt64(kernel_pcm_en()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_pcm_restore()))
+    uartPuts("\n")
+
+    // Runtime V143: AUX SPI1 enable. UART token only.
+    // Fail-closed AUXENB SPI1 bit + leftover restore.
+    // No pin-mux. No transfer. No mini-UART change. No BSC0. No SPI0 TA.
+    // No boot event emit. No EL0 enter after GENET.
+    uartPuts("runtime v143: AUX SPI1 probe\n")
+    let auxspi1_ok_boot = kernel_auxspi1_selftest()
+    uartPuts("auxspi1 ok=")
+    uartPutDec(UInt64(auxspi1_ok_boot))
+    uartPuts(" version=143 en=")
+    uartPutDec(UInt64(kernel_auxspi1_en()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_auxspi1_restore()))
+    uartPuts("\n")
+
+    // Runtime V144: GPCLK0 clock enable. UART token only.
+    // Fail-closed CM_GP0 OSC+ENAB + leftover restore.
+    // No pin-mux. No output claim. No UART2. No BSC0. No SPI0 TA.
+    // No boot event emit. No EL0 enter after GENET.
+    uartPuts("runtime v144: GPCLK probe\n")
+    let gpclk_ok_boot = kernel_gpclk_selftest()
+    uartPuts("gpclk ok=")
+    uartPutDec(UInt64(gpclk_ok_boot))
+    uartPuts(" version=144 clk=")
+    uartPutDec(UInt64(kernel_gpclk_clk()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_gpclk_restore()))
+    uartPuts("\n")
+
+    // Runtime V146: GPCLK1 clock enable. UART token only.
+    // Fail-closed CM_GP1 OSC+ENAB + leftover restore.
+    // No pin-mux. No output claim. No SMI. No UART2. No BSC0. No SPI0 TA.
+    // No boot event emit. No EL0 enter after GENET.
+    uartPuts("runtime v146: GPCLK1 probe\n")
+    let gpclk1_ok_boot = kernel_gpclk1_selftest()
+    uartPuts("gpclk1 ok=")
+    uartPutDec(UInt64(gpclk1_ok_boot))
+    uartPuts(" version=146 clk=")
+    uartPutDec(UInt64(kernel_gpclk1_clk()))
+    uartPuts(" restore=")
+    uartPutDec(UInt64(kernel_gpclk1_restore()))
+    uartPuts("\n")
+
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 22, UInt(kernel_pool_selftest()), UInt(kernel_pool_count()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 23, UInt(heap_fragmentation_selftest()), UInt(kernel_pool_pressure_selftest()))
     kernel_event_emit(KERNEL_EVENT_KIND_SELFTEST, 24, UInt(kernel_driver_registry_selftest()), UInt(kernel_driver_count()))
